@@ -1,0 +1,127 @@
+#!/bin/sh
+# Only the selected LAN ingress is captured. Router OUTPUT and all WireGuard
+# interfaces stay outside this table, including the independent management VPN.
+set -eu
+umask 077
+
+action="${1:-}"
+interface="${2:-}"
+port="${3:-}"
+dns_port="${4:-0}"
+mkdir -p /var/run/resproxy
+rules=/var/run/resproxy/firewall.nft
+[ -f "$rules" ] || : > "$rules"
+exec 9>/var/run/resproxy-firewall.lock
+flock -x 9
+
+case "$action" in
+	apply)
+		case "$interface" in
+			''|*[!A-Za-z0-9_.:-]*) echo 'invalid LAN interface' >&2; exit 1 ;;
+		esac
+		[ "${#interface}" -le 15 ] || exit 1
+		case "$port" in
+			''|*[!0-9]*) echo 'invalid transparent port' >&2; exit 1 ;;
+		esac
+		[ "$port" -ge 1024 ] && [ "$port" -le 65535 ] || exit 1
+		case "$dns_port" in
+			''|*[!0-9]*) echo 'invalid LAN DNS port' >&2; exit 1 ;;
+		esac
+		[ "$dns_port" -eq 0 ] || { [ "$dns_port" -ge 1024 ] && [ "$dns_port" -le 65535 ] && [ "$dns_port" -ne "$port" ]; } || exit 1
+		;;
+	remove) ;;
+	*) echo 'usage: resproxy-firewall {apply IFNAME PORT DNSPORT IPV6MODE [IP...]|remove}' >&2; exit 1 ;;
+esac
+
+temporary="$(mktemp /var/run/resproxy/.firewall-new.XXXXXX)"
+backup="$(mktemp /var/run/resproxy/.firewall-old.XXXXXX)"
+batch="$(mktemp /var/run/resproxy/.firewall-batch.XXXXXX)"
+trap 'rm -f "$temporary" "$backup" "$batch"' EXIT
+cp -p "$rules" "$backup"
+
+if [ "$action" = apply ]; then
+	[ -d "/sys/class/net/$interface/bridge" ] || {
+		echo 'capture interface must be an existing LAN bridge' >&2
+		exit 1
+	}
+	# Shared Go validation/rendering keeps the displayed system exclusions and
+	# the actual firewall rules identical. Pass validated arguments as argv.
+	shift
+	/usr/bin/resproxyd capture-rules "$@" > "$temporary"
+
+fi
+
+mv "$temporary" "$rules"
+if ! fw4 check; then
+	mv "$backup" "$rules"
+	exit 1
+fi
+
+route_added=0
+rule_added=0
+route6_added=0
+rule6_added=0
+rollback_policy_routes() {
+	[ "$rule6_added" = 0 ] || ip -6 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
+	[ "$route6_added" = 0 ] || ip -6 route del local ::/0 dev lo table 20253 2>/dev/null || :
+	[ "$rule_added" = 0 ] || ip -4 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
+	[ "$route_added" = 0 ] || ip -4 route del local 0.0.0.0/0 dev lo table 20253 2>/dev/null || :
+}
+if [ "$action" = apply ]; then
+	if ! ip -4 route show table 20253 2>/dev/null | grep -q '^local default dev lo'; then
+		if ! ip -4 route replace local 0.0.0.0/0 dev lo table 20253; then
+			mv "$backup" "$rules"
+			exit 1
+		fi
+		route_added=1
+	fi
+	if ! ip -4 rule show | grep -q 'fwmark 0x5253.*lookup 20253'; then
+		if ! ip -4 rule add fwmark 0x5253/0xffffffff table 20253 priority 10553; then
+			mv "$backup" "$rules"
+			rollback_policy_routes
+			exit 1
+		fi
+		rule_added=1
+	fi
+	if ! ip -6 route show table 20253 2>/dev/null | grep -q '^local default dev lo'; then
+		if ! ip -6 route replace local ::/0 dev lo table 20253; then
+			mv "$backup" "$rules"
+			rollback_policy_routes
+			exit 1
+		fi
+		route6_added=1
+	fi
+	if ! ip -6 rule show | grep -q 'fwmark 0x5253.*lookup 20253'; then
+		if ! ip -6 rule add fwmark 0x5253/0xffffffff table 20253 priority 10553; then
+			mv "$backup" "$rules"
+			rollback_policy_routes
+			exit 1
+		fi
+		rule6_added=1
+	fi
+fi
+
+# A single nft batch replaces our private tables atomically. Keep the fw4
+# ruleset-post include for later firewall reloads, but do not reload the whole
+# firewall merely because this service starts or stops.
+if nft list table ip resproxy >/dev/null 2>&1; then
+	printf 'delete table ip resproxy\n' >> "$batch"
+fi
+if nft list table ip6 resproxy6 >/dev/null 2>&1; then
+	printf 'delete table ip6 resproxy6\n' >> "$batch"
+fi
+if [ "$action" = apply ]; then
+	printf 'include "%s"\n' "$rules" >> "$batch"
+fi
+if ! nft -c -f "$batch" || ! nft -f "$batch"; then
+	mv "$backup" "$rules"
+	rollback_policy_routes
+	exit 1
+fi
+
+if [ "$action" = remove ]; then
+	ip -6 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
+	ip -6 route del local ::/0 dev lo table 20253 2>/dev/null || :
+	ip -4 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
+	ip -4 route del local 0.0.0.0/0 dev lo table 20253 2>/dev/null || :
+fi

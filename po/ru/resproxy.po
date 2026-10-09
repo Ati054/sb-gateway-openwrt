@@ -1,0 +1,1616 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
+
+msgid "Resilient Proxy"
+msgstr "Устойчивый прокси"
+
+msgid "SB Gateway for OpenWrt"
+msgstr "SB Gateway для OpenWrt"
+
+msgid "Package update"
+msgstr "Обновление пакета"
+
+msgid "Package update failed."
+msgstr "Не удалось обновить пакет."
+
+msgid "Installed version"
+msgstr "Установленная версия"
+
+msgid "Update state"
+msgstr "Состояние обновления"
+
+msgid "No update in progress"
+msgstr "Обновление не выполняется"
+
+msgid "Preparing update"
+msgstr "Подготовка обновления"
+
+msgid "Installing package"
+msgstr "Установка пакета"
+
+msgid "Starting service"
+msgstr "Запуск службы"
+
+msgid "Completed"
+msgstr "Завершено"
+
+msgid "Update failed"
+msgstr "Ошибка обновления"
+
+msgid "Package updated successfully."
+msgstr "Пакет успешно обновлён."
+
+msgid "Update failed. Check the system log for details."
+msgstr "Обновление завершилось ошибкой. Подробности в системном журнале."
+
+msgid "Installing version %s…"
+msgstr "Устанавливается версия %s…"
+
+msgid "Choose APK and update"
+msgstr "Выбрать APK и обновить"
+
+msgid "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgstr "Обновляется только SB Gateway. Служба прокси ненадолго перезапустится; обновление подписок проходит без перезапуска."
+
+msgid "New source"
+msgstr "Новый источник"
+
+msgid "New route list"
+msgstr "Новый маршрутный лист"
+
+msgid "Keep this name after the first import."
+msgstr "После первого импорта не меняйте имя источника."
+
+msgid "Subscription update"
+msgstr "Обновление подписки"
+
+msgid "Update"
+msgstr "Обновить"
+
+msgid "APK SHA-256: "
+msgstr "SHA-256 APK: "
+
+msgid "Overview"
+msgstr "Обзор"
+
+msgid "Subscription"
+msgstr "Подписка"
+
+msgid "Subscriptions"
+msgstr "Подписки"
+
+msgid "Each source has its own schedule and fetch path. A successful refresh publishes new nodes to the running Xray core without restarting it. Applying configuration changes can restart the service."
+msgstr "У каждого источника своё расписание и путь загрузки. Успешное обновление публикует новые узлы без перезапуска Xray. Применение изменений настроек может перезапустить службу."
+
+msgid "Sources"
+msgstr "Источники"
+
+msgid "Add HTTPS client subscriptions. Keep their URLs private: they may contain access tokens. Applying the removal of a source also removes its nodes from the active catalog."
+msgstr "Добавьте клиентские HTTPS-подписки. Храните адреса в тайне: они могут содержать токены. При применении удаления источника его узлы также исчезают из активного каталога."
+
+msgid "Source ID"
+msgstr "Идентификатор источника"
+
+msgid "Source name"
+msgstr "Имя источника"
+
+msgid "This name identifies the source and its nodes. Do not rename it after importing nodes."
+msgstr "Это имя связывает источник с его узлами. После импорта узлов не переименовывайте его."
+
+msgid "Use 1–32 Latin letters, digits, spaces or hyphens; start with a letter."
+msgstr "Введите 1–32 латинские буквы, цифры, пробелы или дефисы; первый символ — буква."
+
+msgid "Stable source identity. Do not change it during routine updates."
+msgstr "Постоянный идентификатор источника. Не меняйте его при обычном обновлении."
+
+msgid "Fetch path"
+msgstr "Путь загрузки"
+
+msgid "Current proxy, then direct"
+msgstr "Через текущий прокси, затем напрямую"
+
+msgid "Direct, then current proxy"
+msgstr "Напрямую, затем через текущий прокси"
+
+msgid "Current proxy only"
+msgstr "Только через текущий прокси"
+
+msgid "Direct only"
+msgstr "Только напрямую"
+
+msgid "Proxy-only cannot bootstrap without an existing working catalog. Direct fallback may expose the subscription request to the WAN."
+msgstr "Режим «только через прокси» требует существующего рабочего каталога. Резервная прямая загрузка может раскрыть запрос подписки в WAN."
+
+msgid "Request source refresh"
+msgstr "Запросить обновление источника"
+
+msgid "Save and apply changes first. The journal shows the result."
+msgstr "Сначала сохраните и примените изменения. Результат смотрите в журнале."
+
+msgid "Save a valid source ID first."
+msgstr "Сначала сохраните корректный идентификатор источника."
+
+msgid "Refresh requested. The previous route remains active until validation and publication complete."
+msgstr "Обновление запрошено. Прежний маршрут остаётся активным до завершения проверки и публикации."
+
+msgid "Existing single source"
+msgstr "Существующий одиночный источник"
+
+msgid "This older source is used only while no sources are configured above. When migrating, reuse its Provider ID to preserve node identity, then clear the older URL."
+msgstr "Старый источник используется, только если выше нет других источников. При переносе сохраните его идентификатор провайдера для сохранения узлов, затем очистите старый адрес."
+
+msgid "Europe"
+msgstr "Европа"
+
+msgid "Asia"
+msgstr "Азия"
+
+msgid "Americas"
+msgstr "Америка"
+
+msgid "Africa"
+msgstr "Африка"
+
+msgid "Oceania"
+msgstr "Океания"
+
+msgid "Other regions"
+msgstr "Другие регионы"
+
+msgid "Choose available countries or cities from the catalog, or enter a selector manually. In priority mode the order determines reserves. A city label can change when the provider renames it; country filters remain broader."
+msgstr "Выберите страны или города из каталога либо введите правило вручную. В режиме приоритета порядок определяет резерв. Название города может измениться у провайдера; правило страны охватывает больше узлов."
+
+msgid "Route lists"
+msgstr "Маршрутные листы"
+
+msgid "Journal"
+msgstr "Журнал"
+
+msgid "Stopped"
+msgstr "Остановлен"
+
+msgid "Running"
+msgstr "Работает"
+
+msgid "none"
+msgstr "нет"
+
+msgid "confirmed in Xray"
+msgstr "подтверждено в Xray"
+
+msgid "not confirmed in Xray"
+msgstr "не подтверждено в Xray"
+
+msgid "Runtime error"
+msgstr "Ошибка выполнения"
+
+msgid "No route status is available yet."
+msgstr "Состояние маршрутов пока недоступно."
+
+msgid "Client-only proxy. Subscription refreshes do not restart the running Xray core."
+msgstr "Только клиентский прокси. Обновление подписки не перезапускает работающее ядро Xray."
+
+msgid "Current state"
+msgstr "Текущее состояние"
+
+msgid "Service"
+msgstr "Служба"
+
+msgid "Active catalog"
+msgstr "Активный каталог"
+
+msgid "%d nodes"
+msgstr "Узлов: %d"
+
+msgid "Selected routes"
+msgstr "Выбранные маршруты"
+
+msgid "Service and LAN routing"
+msgstr "Служба и маршрутизация LAN"
+
+msgid "Enable service"
+msgstr "Включить службу"
+
+msgid "Route LAN through proxy"
+msgstr "Направлять LAN через прокси"
+
+msgid "LAN bridge to capture"
+msgstr "Мост LAN для перехвата"
+
+msgid "Add an HTTPS client subscription and choose automatic or manual refresh. Saving changed settings can restart the service; routine refreshes add usable nodes to the running Xray core without restarting it."
+msgstr "Добавьте клиентскую HTTPS-подписку и выберите автоматическое или ручное обновление. Применение изменённых настроек может перезапустить службу; обычные обновления добавляют пригодные узлы в работающее ядро Xray без его перезапуска."
+
+msgid "Source"
+msgstr "Источник"
+
+msgid "Subscription URL"
+msgstr "Адрес подписки"
+
+msgid "HTTPS only. Keep this address private: it may contain an access token. This version supports one subscription source."
+msgstr "Только HTTPS. Храните адрес в тайне: он может содержать токен доступа. Эта версия поддерживает один источник подписки."
+
+msgid "Provider ID"
+msgstr "Идентификатор провайдера"
+
+msgid "Stable source identity used when reconciling renamed or updated nodes. Do not change it during a routine refresh."
+msgstr "Постоянный идентификатор источника для сопоставления переименованных или обновлённых узлов. При обычном обновлении не меняйте его."
+
+msgid "Refresh schedule"
+msgstr "Расписание обновления"
+
+msgid "Update method"
+msgstr "Способ обновления"
+
+msgid "Automatic and on request"
+msgstr "Автоматически и по запросу"
+
+msgid "Only on request"
+msgstr "Только по запросу"
+
+msgid "Automatic interval (seconds)"
+msgstr "Интервал автообновления (секунды)"
+
+msgid "Maximum imported nodes"
+msgstr "Максимум импортируемых узлов"
+
+msgid "Update now"
+msgstr "Обновить сейчас"
+
+msgid "Request subscription refresh"
+msgstr "Запросить обновление подписки"
+
+msgid "First save and apply any changed settings. This button queues a refresh; check the journal for its result."
+msgstr "Сначала сохраните и примените изменённые настройки. Кнопка ставит обновление в очередь; результат смотрите в журнале."
+
+msgid "Refresh request failed."
+msgstr "Не удалось запросить обновление."
+
+msgid "Refresh requested. The previous route remains active until the new catalog is validated and published."
+msgstr "Обновление запрошено. Прежний маршрут остаётся активным, пока новый каталог не будет проверен и опубликован."
+
+msgid "Route lists for devices"
+msgstr "Маршрутные листы устройств"
+
+msgid "Each route list selects locations and a failover mode for its client IP addresses. The first list is the default for unmatched devices. Changing route lists changes Xray routing configuration and requires a service restart when applied."
+msgstr "Каждый лист задаёт локации и режим переключения для IP-адресов устройств. Первый лист используется по умолчанию. Изменение листов меняет маршрутизацию Xray и при применении требует перезапуска службы."
+
+msgid "Create up to eight lists. Put more specific device rules before broader subnets. An empty location selection fails closed."
+msgstr "Можно создать до восьми листов. Правила отдельных устройств ставьте перед правилами подсетей. Если локации не выбраны, трафик блокируется."
+
+msgid "Servers and mode"
+msgstr "Серверы и режим"
+
+msgid "Devices"
+msgstr "Устройства"
+
+msgid "Health checks"
+msgstr "Проверки доступности"
+
+msgid "Route list ID"
+msgstr "Идентификатор листа"
+
+msgid "Use 1–32 lowercase Latin letters, digits, or hyphens; start with a letter."
+msgstr "Используйте 1–32 строчные латинские буквы, цифры или дефисы; начните с буквы."
+
+msgid "Selection mode"
+msgstr "Режим выбора"
+
+msgid "Best available"
+msgstr "Лучший доступный"
+
+msgid "Priority / reserve"
+msgstr "Приоритет / резерв"
+
+msgid "Selected locations in order"
+msgstr "Выбранные локации по порядку"
+
+msgid "Examples: country:CA, region:europe, city:CA:Toronto. In priority mode, order is used for reserve selection."
+msgstr "Примеры: country:CA, region:europe, city:CA:Toronto. В режиме приоритета порядок определяет резервные серверы."
+
+msgid "Client IP addresses or subnets"
+msgstr "IP-адреса или подсети устройств"
+
+msgid "Examples: 192.168.1.20/32 for one device, 192.168.1.0/24 for a subnet. Leave empty for the default list. Give devices fixed DHCP leases so the mapping remains stable."
+msgstr "Примеры: 192.168.1.20/32 для одного устройства, 192.168.1.0/24 для подсети. Для листа по умолчанию оставьте пустым. Закрепите DHCP-адреса устройств, чтобы привязки не менялись."
+
+msgid "Active liveness (seconds)"
+msgstr "Проверка активного узла (секунды)"
+
+msgid "Failure retry (seconds)"
+msgstr "Повтор при сбое (секунды)"
+
+msgid "All-down recovery (seconds)"
+msgstr "Поиск при полном отказе (секунды)"
+
+msgid "Active check (seconds)"
+msgstr "Проверка активного (секунды)"
+
+msgid "Backup check (seconds)"
+msgstr "Проверка резерва (секунды)"
+
+msgid "Full scan (seconds)"
+msgstr "Полная проверка (секунды)"
+
+msgid "Parallel probe batch"
+msgstr "Параллельных проверок"
+
+msgid "Maximum active candidates"
+msgstr "Максимум активных кандидатов"
+
+msgid "Unable to read the journal."
+msgstr "Не удалось прочитать журнал."
+
+msgid "No Resilient Proxy events are in the system journal."
+msgstr "В системном журнале пока нет событий Resilient Proxy."
+
+msgid "Resilient Proxy journal"
+msgstr "Журнал Resilient Proxy"
+
+msgid "Refresh journal"
+msgstr "Обновить журнал"
+
+msgid "The latest 200 proxy events and errors from the OpenWrt system journal. Routine probe traffic is hidden; this page does not create a separate disk log."
+msgstr "Последние 200 событий и ошибок прокси из системного журнала OpenWrt. Обычные запросы проверки скрыты; эта страница не создаёт отдельный журнал на диске."
+
+msgid "Proxy internet traffic from LAN devices"
+msgstr "Проксировать интернет-трафик устройств LAN"
+
+msgid "LAN bridge"
+msgstr "Мост LAN"
+
+msgid "Direct WAN"
+msgstr "Напрямую через WAN"
+
+msgid "Domains without proxy"
+msgstr "Домены без прокси"
+
+msgid "Enter a lowercase domain, for example example.com. Use Punycode for Cyrillic names."
+msgstr "Введите домен строчными буквами, например example.com. Для кириллицы используйте Punycode."
+
+msgid "IP addresses and networks without proxy"
+msgstr "IP-адреса и сети без прокси"
+
+msgid "Detected BitTorrent through WAN"
+msgstr "Распознанный BitTorrent через WAN"
+
+msgid "Encrypted or obfuscated P2P traffic may not be recognized by Xray."
+msgstr "Шифрованный или маскированный P2P-трафик Xray может не распознать."
+
+msgid "Domains .ru and .рф through WAN"
+msgstr "Домены .ru и .рф через WAN"
+
+msgid "Matches domain names in these two zones, not every Russian-hosted service."
+msgstr "Правило охватывает две доменные зоны, но не все сервисы, размещённые в России."
+
+msgid "Node health"
+msgstr "Доступность узлов"
+
+msgid "Unable to read node health."
+msgstr "Не удалось получить состояние узлов."
+
+msgid "Route list"
+msgstr "Маршрутный лист"
+
+msgid "Find a node"
+msgstr "Найти узел"
+
+msgid "Node"
+msgstr "Узел"
+
+msgid "Availability"
+msgstr "Доступность"
+
+msgid "Median latency"
+msgstr "Медианная задержка"
+
+msgid "Last check"
+msgstr "Последняя проверка"
+
+msgid "Status"
+msgstr "Состояние"
+
+msgid "No health data yet."
+msgstr "Данных о доступности пока нет."
+
+msgid "%d candidates · %d healthy reserves · checked %s"
+msgstr "Кандидатов: %d · рабочих резервов: %d · проверено: %s"
+
+msgid "never"
+msgstr "никогда"
+
+msgid "Active"
+msgstr "Активный"
+
+msgid "Reserve"
+msgstr "Резерв"
+
+msgid "Refresh"
+msgstr "Обновить"
+
+msgid "Availability is based on recorded checks. Nodes without samples are not rated."
+msgstr "Доступность рассчитана по выполненным проверкам. Узлы без проверок не оценены."
+
+msgid "No matching events."
+msgstr "Подходящих событий нет."
+
+msgid "Journal category"
+msgstr "Категория журнала"
+
+msgid "Proxy events"
+msgstr "События прокси"
+
+msgid "Errors and warnings"
+msgstr "Ошибки и предупреждения"
+
+msgid "Xray messages"
+msgstr "Сообщения Xray"
+
+msgid "System journal"
+msgstr "Системный журнал"
+
+msgid "Maximum lines"
+msgstr "Максимум строк"
+
+msgid "Find in loaded lines"
+msgstr "Поиск по загруженным строкам"
+
+msgid "Journal output"
+msgstr "Содержимое журнала"
+
+msgid "This page reads the bounded OpenWrt logd buffer. Resilient Proxy does not create a separate disk log."
+msgstr "Страница читает ограниченный буфер logd OpenWrt. Пакет не создаёт отдельный журнал на диске."
+
+msgid "Rating period"
+msgstr "Период оценки"
+
+msgid "24 hours"
+msgstr "24 часа"
+
+msgid "7 days"
+msgstr "7 дней"
+
+msgid "30 days"
+msgstr "30 дней"
+
+msgid "Checks"
+msgstr "Проверок"
+
+msgid "Available"
+msgstr "Доступен"
+
+msgid "Unavailable"
+msgstr "Недоступен"
+
+msgid "Not checked"
+msgstr "Не проверен"
+
+msgid "Russian services through WAN"
+msgstr "Сервисы России через WAN"
+
+msgid "Choose service groups separately. The catalog updates without restarting Xray."
+msgstr "Выбирайте группы сервисов отдельно. База обновляется без перезапуска Xray."
+
+msgid "Domain zones through WAN"
+msgstr "Доменные зоны через WAN"
+
+msgid "Do not bypass by domain zone"
+msgstr "Не направлять зоны напрямую"
+
+msgid ".ru only"
+msgstr "Только .ru"
+
+msgid ".рф only"
+msgstr "Только .рф"
+
+msgid ".ru and .рф"
+msgstr ".ru и .рф"
+
+msgid "Domain zones are separate from the updateable Russian service catalog."
+msgstr "Доменные зоны настраиваются отдельно от обновляемой базы российских сервисов."
+
+msgid "Russian service catalog"
+msgstr "Сервисы России"
+
+msgid "Rule databases"
+msgstr "Базы правил"
+
+msgid "Updates of selected rules"
+msgstr "Обновление выбранных правил"
+
+msgid "Only groups selected in route lists are updated. Russian service groups are optional; they are not required for other countries."
+msgstr "Обновляются только группы, выбранные в маршрутных листах. Группы российских сервисов необязательны и не нужны для других стран."
+
+msgid "Catalog updates"
+msgstr "Обновление базы"
+
+msgid "Request catalog update"
+msgstr "Запросить обновление базы"
+
+msgid "Catalog update request failed."
+msgstr "Не удалось запросить обновление базы."
+
+msgid "Catalog update requested. Current routes remain active."
+msgstr "Обновление базы запрошено. Текущие маршруты остаются активными."
+
+msgid "Updated"
+msgstr "Обновлено"
+
+msgid "Unchanged"
+msgstr "Без изменений"
+
+msgid "Last good copy"
+msgstr "Последняя рабочая копия"
+
+msgid "Built in"
+msgstr "Встроено"
+
+msgid "No catalog update yet."
+msgstr "База ещё не обновлялась."
+
+msgid "Current catalog state"
+msgstr "Состояние базы"
+
+msgid "Service group"
+msgstr "Группа сервисов"
+
+msgid "State"
+msgstr "Состояние"
+
+msgid "Rules"
+msgstr "Правил"
+
+msgid "Error"
+msgstr "Ошибка"
+
+msgid "%s · %d rules"
+msgstr "%s · правил: %d"
+
+msgid "Route monitoring"
+msgstr "Мониторинг маршрутов"
+
+msgid "Shared settings for all route lists"
+msgstr "Общие настройки для всех маршрутных листов"
+
+msgid "Older per-list intervals remain active until you apply these shared settings."
+msgstr "Прежние интервалы в маршрутных листах действуют до применения общих настроек."
+
+msgid "Active availability (seconds)"
+msgstr "Доступность активного узла (секунды)"
+
+msgid "Retry after failure (seconds)"
+msgstr "Повтор после сбоя (секунды)"
+
+msgid "Other nodes when all are down (seconds)"
+msgstr "Поиск узлов при полном отказе (секунды)"
+
+msgid "Active quality (seconds)"
+msgstr "Качество активного узла (секунды)"
+
+msgid "Reserve check (seconds)"
+msgstr "Проверка резерва (секунды)"
+
+msgid "Full scan (seconds)"
+msgstr "Полная проверка (секунды)"
+
+msgid "Maximum nodes per check"
+msgstr "Максимум узлов за цикл"
+
+msgid "Automatic: best 2, priority 3"
+msgstr "Автоматически: лучший 2, приоритет 3"
+
+msgid "Switching rules"
+msgstr "Правила переключения"
+
+msgid "Nodes in active pool"
+msgstr "Узлов в активной группе"
+
+msgid "Quality sample window"
+msgstr "Окно оценок качества"
+
+msgid "Maximum packet loss (%)"
+msgstr "Максимальная доля потерь (%)"
+
+msgid "HTTPS median limit (ms)"
+msgstr "Предел медианы HTTPS (мс)"
+
+msgid "0 disables this limit."
+msgstr "0 отключает ограничение."
+
+msgid "Ordinary failure confirmations"
+msgstr "Подтверждений обычного сбоя"
+
+msgid "Recovery confirmations"
+msgstr "Подтверждений восстановления"
+
+msgid "Response improvement (ms)"
+msgstr "Улучшение отклика (мс)"
+
+msgid "Speed improvement (%)"
+msgstr "Улучшение скорости (%)"
+
+msgid "A speed-led switch may add at most 50 ms of HTTPS latency."
+msgstr "Переключение ради скорости допускает не более 50 мс дополнительной задержки HTTPS."
+
+msgid "Switch cooldown (seconds)"
+msgstr "Пауза после переключения (секунды)"
+
+msgid "Reusable rule groups"
+msgstr "Группы правил"
+
+msgid "Create a group here, then select it in a route list. Group order within a route list determines precedence."
+msgstr "Создайте группу и выберите её в маршрутном листе. Порядок групп задаёт приоритет."
+
+msgid "Rule ID"
+msgstr "Идентификатор правила"
+
+msgid "Action"
+msgstr "Действие"
+
+msgid "Proxy through this route list"
+msgstr "Через прокси этого маршрутного листа"
+
+msgid "Domains — one per line"
+msgstr "Домены — по одному в строке"
+
+msgid "IP networks — one per line"
+msgstr "IP-сети — по одной в строке"
+
+msgid "At least one domain or IP network is required. Domain and IP matches are alternatives, not a combined condition."
+msgstr "Нужен хотя бы один домен или одна IP-сеть. Совпадения домена и IP независимы."
+
+msgid "Routing rules"
+msgstr "Правила маршрутизации"
+
+msgid "Rule groups in priority order"
+msgstr "Группы правил по приоритету"
+
+msgid "The first matching group decides the route. Select groups created under Rule databases."
+msgstr "Маршрут задаёт первая подходящая группа. Группы создаются в разделе «Базы правил»."
+
+msgid "Add at least one domain or IP network."
+msgstr "Добавьте хотя бы один домен или одну IP-сеть."
+
+msgid "Only country data selected by route lists is stored and loaded. Routine updates do not restart Xray."
+msgstr "Хранятся и загружаются в память только данные стран, выбранных в маршрутных листах. Обычное обновление не перезапускает Xray."
+
+msgid "Update rules"
+msgstr "Обновить правила"
+
+msgid "Create a group here, then select it in a route list. Each group can combine custom domains, IP networks and one country. Domain and IP matches are alternatives."
+msgstr "Создайте группу и выберите её в маршрутном листе. В группе можно сочетать свои домены, IP-сети и одну страну. Совпадения домена и IP независимы."
+
+msgid "Add domains, IP networks or a country with a Geo mode."
+msgstr "Добавьте домены, IP-сети либо выберите страну и тип Geo-данных."
+
+msgid "Country"
+msgstr "Страна"
+
+msgid "No country"
+msgstr "Без страны"
+
+msgid "Russia (RU)"
+msgstr "Россия (RU)"
+
+msgid "China (CN)"
+msgstr "Китай (CN)"
+
+msgid "Iran (IR)"
+msgstr "Иран (IR)"
+
+msgid "Country data"
+msgstr "Данные страны"
+
+msgid "GeoSite — domains"
+msgstr "GeoSite — домены"
+
+msgid "GeoIP — IP networks"
+msgstr "GeoIP — IP-сети"
+
+msgid "GeoSite and GeoIP"
+msgstr "GeoSite и GeoIP"
+
+msgid "GeoSite matches domains; GeoIP matches destination IP addresses. They can be used together. The selected data is fetched after Apply; until it is ready, custom entries continue to work."
+msgstr "GeoSite сопоставляет домены, GeoIP — IP-адреса назначения. Их можно использовать вместе. Выбранные данные загрузятся после применения; до этого продолжают работать пользовательские правила."
+
+msgid "Optional. Add a country above to use GeoSite, GeoIP or both."
+msgstr "Необязательно. Выше можно выбрать страну и GeoSite, GeoIP либо оба набора."
+
+msgid "Additional domain lists"
+msgstr "Дополнительные списки доменов"
+
+msgid "Optional reviewed lists; currently the catalog contains Russian services. These update without restarting Xray."
+msgstr "Дополнительные проверенные списки; сейчас каталог содержит российские сервисы. Они обновляются без перезапуска Xray."
+
+msgid "Ready-made rules"
+msgstr "Готовые правила"
+
+msgid "Available presets"
+msgstr "Пресеты страны"
+
+msgid "Other country — custom rules"
+msgstr "Другая страна — свои правила"
+
+msgid "Custom rules"
+msgstr "Свои правила"
+
+msgid "For another country, create your own domain and IP rules in “Advanced rule groups”, then add the group to a route list."
+msgstr "Для другой страны создайте свои правила доменов и IP в разделе «Свои группы правил», затем добавьте группу в маршрутный лист."
+
+msgid "Open custom rule groups"
+msgstr "Открыть свои группы правил"
+
+msgid "Thematic lists"
+msgstr "Тематические списки"
+
+msgid "Selected presets"
+msgstr "Выбранные правила"
+
+msgid "Add selected to route list"
+msgstr "Добавить выбранное в маршрутный лист"
+
+msgid "Select at least one preset and a route list."
+msgstr "Выберите хотя бы одно правило и маршрутный лист."
+
+msgid "Selected presets are already in this route list."
+msgstr "Выбранные правила уже есть в этом маршрутном листе."
+
+msgid "Updates"
+msgstr "Обновления"
+
+msgid "Rule"
+msgstr "Правило"
+
+msgid "Add ready-made rule"
+msgstr "Добавить готовое правило"
+
+msgid "Add to route list"
+msgstr "Добавить в маршрутный лист"
+
+msgid "Then use Apply to activate the rule. Only data used by route lists is downloaded."
+msgstr "Затем нажмите «Применить». Загружаются только данные, используемые маршрутными листами."
+
+msgid "Select a rule and a route list first."
+msgstr "Сначала выберите правило и маршрутный лист."
+
+msgid "The limit of 32 rule groups has been reached."
+msgstr "Достигнут предел в 32 группы правил."
+
+msgid "This rule is already in the selected route list."
+msgstr "Это правило уже добавлено в выбранный маршрутный лист."
+
+msgid "Added to route lists"
+msgstr "Добавлены в маршрутные листы"
+
+msgid "Not assigned"
+msgstr "Не назначено"
+
+msgid "Remove"
+msgstr "Убрать"
+
+msgid "No ready-made rules have been added."
+msgstr "Готовые правила ещё не добавлены."
+
+msgid "Advanced rule groups"
+msgstr "Свои группы правил — дополнительно"
+
+msgid "Selection"
+msgstr "Выбор"
+
+msgid "New rule group"
+msgstr "Новая группа правил"
+
+msgid "Rule name"
+msgstr "Название правила"
+
+msgid "Rule ID: %s"
+msgstr "ID правила: %s"
+
+msgid "Generated automatically. Renaming a rule keeps its route-list references."
+msgstr "Создаётся автоматически. При переименовании правило остаётся в выбранных маршрутных листах."
+
+msgid "Enter a name of up to 120 characters."
+msgstr "Введите название длиной до 120 символов."
+
+msgid "This rule name already exists."
+msgstr "Правило с таким названием уже есть."
+
+msgid "Create selected rules"
+msgstr "Создать выбранные правила"
+
+msgid "Select at least one preset."
+msgstr "Выберите хотя бы одно готовое правило."
+
+msgid "Selected rules already exist."
+msgstr "Выбранные правила уже созданы."
+
+msgid "The limit of 128 rules has been reached."
+msgstr "Достигнут предел в 128 правил."
+
+msgid "Created rules"
+msgstr "Созданные правила"
+
+msgid "No preset rules created yet."
+msgstr "Готовые правила ещё не созданы."
+
+msgid "Create a named rule, then select it in a route list. Domain and IP matches are alternatives; protocol, network, ports and source restrict each match."
+msgstr "Создайте правило с понятным названием и выберите его в маршрутном листе. Домены и IP проверяются независимо; протокол, сеть, порты и источник ограничивают каждое совпадение."
+
+msgid "For another country, create a named domain and IP rule under “Custom rules”, then select it in a route list."
+msgstr "Для другой страны создайте правило с названием, доменами и IP в разделе «Свои правила», затем выберите его в маршрутном листе."
+
+msgid "Inbound connection"
+msgstr "Входящее соединение"
+
+msgid "Transparent proxy"
+msgstr "Прозрачный прокси"
+
+msgid "SOCKS proxy"
+msgstr "SOCKS-прокси"
+
+msgid "Leave unchecked to match both. SOCKS listens locally on port %s."
+msgstr "Без отметок правило действует для обоих типов подключения. Локальный SOCKS слушает порт %s."
+
+msgid "Network"
+msgstr "Сеть"
+
+msgid "TCP and UDP"
+msgstr "TCP и UDP"
+
+msgid "Source IP or subnet"
+msgstr "IP или подсеть источника"
+
+msgid "IPv4, IPv6, CIDR, or geoip:private for local/private source addresses."
+msgstr "IPv4, IPv6, CIDR или geoip:private для локальных и служебных адресов источника."
+
+msgid "Destination ports"
+msgstr "Порты назначения"
+
+msgid "Source ports"
+msgstr "Порты источника"
+
+msgid "Use ports 1–65535 separated by commas, or ranges such as 1000-2000."
+msgstr "Введите порты 1–65535 через запятую или диапазоны, например 1000-2000."
+
+msgid "Saved country and lists"
+msgstr "Сохранённая страна и списки"
+
+msgid "Optional. A rule may match only ports, source addresses or a detected protocol. Leave domains and IP empty in that case."
+msgstr "Необязательно. Правило может действовать по портам, адресам источника или определяемому протоколу. В этом случае домены и IP можно оставить пустыми."
+
+msgid "Add a domain, IP network or traffic condition."
+msgstr "Добавьте домен, IP-сеть или условие для трафика."
+
+msgid "The first matching rule decides the route. Create rules independently under Rule databases, then select them here by name."
+msgstr "Маршрут задаёт первое подходящее правило. Создайте правила в разделе «Базы правил», затем выберите их здесь по названию."
+
+msgid "For example: Work services through WAN"
+msgstr "Например: Рабочие сервисы через WAN"
+
+msgid "Select rules by name; stable IDs keep the links. The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+msgstr "Выбирайте правила по названию. Связи сохраняются при переименовании. Маршрут задаёт первое подходящее правило. Создать правила в разделе «Базы правил» можно до или после создания маршрутного листа."
+
+msgid "Finance"
+msgstr "Финансы"
+
+msgid "Education and science"
+msgstr "Образование и наука"
+
+msgid "Media and communication"
+msgstr "Медиа и общение"
+
+msgid "Games"
+msgstr "Игры"
+
+msgid "Work and IT"
+msgstr "Работа и IT"
+
+msgid "Internet and networks"
+msgstr "Интернет и сети"
+
+msgid "Everyday services"
+msgstr "Повседневные сервисы"
+
+msgid "Electronics and cars"
+msgstr "Техника и автомобили"
+
+msgid "Government services"
+msgstr "Государственные сервисы"
+
+msgid "Shopping and travel"
+msgstr "Покупки и поездки"
+
+msgid "Technology"
+msgstr "Технологии"
+
+msgid "Advertising"
+msgstr "Реклама"
+
+msgid "Select all: %s"
+msgstr "Выбрать раздел: %s"
+
+msgid "%d of %d selected"
+msgstr "Выбрано %d из %d"
+
+msgid "%d lists"
+msgstr "Списков: %d"
+
+msgid "Communication and ecosystems"
+msgstr "Связь и экосистемы"
+
+msgid "Media and entertainment"
+msgstr "Медиа и развлечения"
+
+msgid "Education, work and IT"
+msgstr "Образование, работа и IT"
+
+msgid "All Russian services"
+msgstr "Вся зона RU/РФ и российские сервисы"
+
+msgid "All Chinese services"
+msgstr "Вся зона CN/中国/中國 и китайские сервисы"
+
+msgid "All Iranian services"
+msgstr "Вся зона IR/ایران и иранские сервисы"
+
+msgid "Rule database updates"
+msgstr "Обновление баз правил"
+
+msgid "Automatic update interval"
+msgstr "Интервал автообновления"
+
+msgid "Interval units"
+msgstr "Единицы интервала"
+
+msgid "Seconds"
+msgstr "Секунды"
+
+msgid "Minutes"
+msgstr "Минуты"
+
+msgid "Hours"
+msgstr "Часы"
+
+msgid "Applies to all loaded rule databases. Minimum: 1 hour; maximum: 7 days."
+msgstr "Для всех загруженных баз правил. Минимум: 1 час; максимум: 7 дней."
+
+msgid "Choose an interval from 1 hour to 7 days, with whole seconds."
+msgstr "Укажите интервал от 1 часа до 7 дней с точностью до целой секунды."
+
+msgid "Custom rule %d"
+msgstr "Своё правило %d"
+
+msgid "Connection type — advanced"
+msgstr "Тип подключения — дополнительно"
+
+msgid "Network devices — transparent proxy"
+msgstr "Устройства сети — прозрачный прокси"
+
+msgid "Router applications — SOCKS5"
+msgstr "Программы на роутере — SOCKS5"
+
+msgid "Usually leave both unchecked. This filter separates network-device traffic from applications explicitly using SOCKS5 on the router at 127.0.0.1:%s."
+msgstr "Обычно оставляют без отметок. Фильтр разделяет трафик устройств сети и программ, явно использующих SOCKS5 на роутере по адресу 127.0.0.1:%s."
+
+msgid "Optional. Empty means all devices allowed by this route list. Enter IPv4, IPv6, CIDR or geoip:private to narrow the source; both the list and rule restrictions apply."
+msgstr "Необязательно. Пустое поле — все устройства этого маршрутного листа. IPv4, IPv6, CIDR или geoip:private ограничивают источники; действуют ограничения и листа, и правила."
+
+msgid "Select rules by name; The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+msgstr "Выбирайте правила по названию. Маршрут задаёт первое совпадение. Создать правила можно в «Базах правил» до или после создания листа."
+
+msgid "Route monitoring — shared settings"
+msgstr "Мониторинг маршрутов — общие настройки"
+
+msgid "Changed intervals apply to every route list. Unchanged legacy per-list settings are preserved."
+msgstr "Изменённые интервалы действуют для всех маршрутных листов. Неизменённые настройки прежних листов сохраняются."
+
+msgid "Opening route lists..."
+msgstr "Открываются маршрутные листы…"
+
+msgid "Saved source restriction"
+msgstr "Сохранённое ограничение источника"
+
+msgid "Existing restriction remains active. Select devices in route lists when creating new rules."
+msgstr "Прежнее ограничение остаётся действующим. Для новых правил выбирайте устройства в маршрутных листах."
+
+msgid "Optional. A rule may match only ports or a detected protocol. Leave domains and IP empty in that case."
+msgstr "Необязательно. Правило может действовать только по портам или определяемому протоколу. В этом случае оставьте домены и IP пустыми."
+
+msgid "These settings apply to all route lists."
+msgstr "Эти настройки действуют для всех маршрутных листов."
+
+msgid "Not loaded"
+msgstr "Не загружено"
+
+msgid "Traffic rules"
+msgstr "Правила трафика"
+
+
+msgid "Devices in this list"
+msgstr "Устройства этого листа"
+
+msgid "All devices"
+msgstr "Все устройства"
+
+msgid "Selected devices"
+msgstr "Выбранные устройства"
+
+msgid "Only one list can cover all devices. Select devices in the other lists."
+msgstr "Для всех устройств может быть только один лист. В остальных листах выберите устройства."
+
+msgid "Rules — top to bottom"
+msgstr "Правила — сверху вниз"
+
+msgid "Without country"
+msgstr "Без страны"
+
+msgid "Find in list"
+msgstr "Найти в списке"
+
+msgid "Country, city or node name"
+msgstr "Страна, город или название узла"
+
+msgid "Subscription: %s"
+msgstr "Подписка: %s"
+
+msgid "Unavailable selection: %s"
+msgstr "Выбор недоступен: %s"
+
+msgid "Selected — top to bottom"
+msgstr "Выбрано — сверху вниз"
+
+msgid "Nothing selected. Choose countries, cities or nodes below."
+msgstr "Ничего не выбрано. Отметьте страны, города или узлы ниже."
+
+msgid "Move up: %s"
+msgstr "Поднять: %s"
+
+msgid "Move down: %s"
+msgstr "Опустить: %s"
+
+msgid "Remove: %s"
+msgstr "Убрать: %s"
+
+msgid "Matching nodes: %d"
+msgstr "Подходящие узлы: %d"
+
+msgid "View matching nodes"
+msgstr "Посмотреть подходящие узлы"
+
+msgid "Showing the first 50 of %d nodes."
+msgstr "Показаны первые 50 из %d узлов."
+
+msgid "No matching nodes. This list will not use another location automatically."
+msgstr "Подходящих узлов нет. Лист не будет автоматически использовать другие локации."
+
+msgid "No subscription nodes loaded. Add or update a subscription first."
+msgstr "Узлы подписок ещё не загружены. Сначала добавьте или обновите подписку."
+
+msgid "Node selection"
+msgstr "Выбор узлов"
+
+msgid "Choose locations"
+msgstr "Выбрать локации"
+
+msgid "By filter"
+msgstr "По фильтру"
+
+msgid "Display order"
+msgstr "Представление"
+
+msgid "By country"
+msgstr "По странам"
+
+msgid "As in subscription"
+msgstr "Как в подписке"
+
+msgid "Filter subscription"
+msgstr "Подписка для фильтра"
+
+msgid "All subscriptions"
+msgstr "Все подписки"
+
+msgid "Countries — empty means any"
+msgstr "Страны — без отметок любые"
+
+msgid "Protocols — empty means any"
+msgstr "Протоколы — без отметок любые"
+
+msgid "Name or emoji contains"
+msgstr "Части названия или эмодзи"
+
+msgid "All comma-separated fragments must occur in the node name."
+msgstr "Через запятую. Все указанные части должны быть в названии узла."
+
+msgid "Exclude whole words"
+msgstr "Исключить слова"
+
+msgid "Comma-separated words. For example, test does not exclude fastest."
+msgstr "Целые слова через запятую. Например, test не исключает fastest."
+
+msgid "Filter membership is recalculated when subscriptions update. Matching nodes keep their subscription order."
+msgstr "Состав фильтра пересчитывается при обновлении подписок. Узлы сохраняют порядок из подписки."
+
+msgid "Select at least one country, city or node, or configure a filter."
+msgstr "Выберите хотя бы одну страну, город или узел либо настройте фильтр."
+
+msgid "Exclusions must be whole words separated by commas."
+msgstr "Исключения — целые слова через запятую."
+
+msgid "Display order does not change selection priority."
+msgstr "Представление не меняет приоритет выбора."
+
+msgid "Global exceptions and IPv6"
+msgstr "Общие исключения и IPv6"
+
+msgid "IPv6 handling"
+msgstr "Обработка IPv6"
+
+msgid "Through proxy"
+msgstr "Через прокси"
+
+msgid "Direct — without proxy"
+msgstr "Напрямую — без прокси"
+
+msgid "Block internet access"
+msgstr "Блокировать выход в интернет"
+
+msgid "Blocking preserves local IPv6 connectivity and takes precedence over user IPv6 exceptions."
+msgstr "Блокировка сохраняет локальную связь IPv6 и имеет приоритет над пользовательскими исключениями IPv6."
+
+msgid "Direct IP addresses and networks"
+msgstr "Прямые IP-адреса и подсети"
+
+msgid "Maximum: 256 IP addresses or networks."
+msgstr "Максимум: 256 IP-адресов или подсетей."
+
+msgid "Enter IPv4, IPv6 or CIDR networks, one per line."
+msgstr "Укажите IPv4, IPv6 или подсети CIDR, по одному в строке."
+
+
+msgid "One IP or CIDR per line. These destinations bypass the proxy; router DNS is managed separately."
+msgstr "IP или CIDR — по одному в строке. Адреса идут напрямую; DNS роутера обрабатывается отдельно."
+
+msgid "The country filters the list below."
+msgstr "Страна отбирает правила в списке ниже."
+
+msgid "BitTorrent"
+msgstr "BitTorrent"
+
+msgid "Matches traffic detected by Xray as BitTorrent."
+msgstr "Действует на трафик, который Xray распознал как BitTorrent."
+
+msgid "Save the rules, then select them by name in a route list."
+msgstr "Сохраните правила, затем выберите их по названию в маршрутном листе."
+
+msgid "Create a rule, then select it in a route list."
+msgstr "Создайте правило и выберите его в маршрутном листе."
+
+msgid "Applies to network-device traffic in all route lists."
+msgstr "Для трафика сетевых устройств во всех маршрутных листах."
+
+msgid "Selected-device lists take precedence. If selected lists overlap, the first list wins."
+msgstr "Листы с выбранными устройствами имеют приоритет. Если устройство указано в нескольких отдельных листах, действует первый из них."
+
+msgid "Select rules. The first match decides the route."
+msgstr "Выбирайте правила. Маршрут задаёт первое совпадение."
+
+msgid "Today (UTC)"
+msgstr "Сегодня (UTC)"
+
+msgid "Sort nodes"
+msgstr "Сортировка"
+
+msgid "By availability"
+msgstr "По доступности"
+
+msgid "By latency"
+msgstr "По задержке"
+
+msgid "By name"
+msgstr "По названию"
+
+msgid "Active · unavailable"
+msgstr "Активный · недоступен"
+
+msgid "Availability / loss"
+msgstr "Доступность / потери"
+
+msgid "p95 latency"
+msgstr "p95 задержки"
+
+msgid "Previous"
+msgstr "Назад"
+
+msgid "Next"
+msgstr "Далее"
+
+msgid "No matching nodes."
+msgstr "Узлы не найдены."
+
+msgid "%d–%d of %d"
+msgstr "%d–%d из %d"
+
+msgid "%d candidates · %d healthy reserves"
+msgstr "Узлов: %d · Доступный резерв: %d"
+
+msgid "No fresh data: %s"
+msgstr "Нет свежих данных: %s"
+
+msgid "No data"
+msgstr "Нет данных"
+
+msgid "DNS mode"
+msgstr "Режим DNS"
+
+msgid "LAN capture disabled"
+msgstr "Перехват LAN отключён"
+
+msgid "OpenWrt DNS"
+msgstr "DNS OpenWrt"
+
+msgid "Package DNS"
+msgstr "DNS пакета"
+
+msgid "Selected node"
+msgstr "Выбранный узел"
+
+msgid "Healthy reserves"
+msgstr "Доступный резерв"
+
+msgid "Blocked"
+msgstr "Заблокирован"
+
+msgid "Waiting for checks"
+msgstr "Ожидание проверки"
+
+msgid "Not confirmed"
+msgstr "Не подтверждён"
+
+msgid "No route lists."
+msgstr "Маршрутные листы не созданы."
+
+msgid "DNS requests"
+msgstr "Запросы DNS"
+
+msgid "Queries"
+msgstr "Всего"
+
+msgid "Fallback WAN"
+msgstr "Аварийный WAN"
+
+msgid "Cache"
+msgstr "Из кеша"
+
+msgid "Local"
+msgstr "Локальные"
+
+msgid "Errors"
+msgstr "Ошибки"
+
+msgid "Since service start"
+msgstr "С запуска службы"
+
+msgid "https-dns-proxy is running. Configure DNS takeover on the DNS page."
+msgstr "Работает https-dns-proxy. Передача управления — в настройках DNS."
+
+msgid "Another DNS service is running; DNS capture is disabled."
+msgstr "Работает другой DNS-сервис; перехват DNS отключён."
+
+msgid "Another DNS redirect is present; DNS capture is disabled."
+msgstr "Обнаружено другое перенаправление; перехват DNS отключён."
+
+msgid "Unable to inspect firewall; DNS capture is disabled."
+msgstr "Не удалось проверить firewall; перехват DNS отключён."
+
+msgid "DNS listener failed. See the journal."
+msgstr "Ошибка запуска DNS. Подробности в журнале."
+
+msgid "%d loaded · %d cached · %d unavailable"
+msgstr "Загружено: %d · Из кеша: %d · Недоступно: %d"
+
+msgid "Updated at %s"
+msgstr "Обновлено в %s"
+
+msgid "List"
+msgstr "Список"
+
+msgid "ms"
+msgstr "мс"
+
+msgid "Enable SB Gateway"
+msgstr "Включить SB Gateway"
+
+msgid "Device routing"
+msgstr "Маршрутизация устройств"
+
+msgid "On schedule"
+msgstr "По расписанию"
+
+msgid "Update time"
+msgstr "Время обновления"
+
+msgid "Router time"
+msgstr "По времени роутера"
+
+msgid "Specify time as HH:MM."
+msgstr "Укажите время в формате ЧЧ:ММ."
+
+msgid "Choose an interval from 5 minutes to 24 hours, with whole seconds."
+msgstr "Укажите интервал от 5 минут до 24 часов, с точностью до секунды."
+
+msgid "Save and load"
+msgstr "Сохранить и загрузить"
+
+msgid "Loading…"
+msgstr "Загрузка…"
+
+msgid "Use 1–32 Latin letters, digits, spaces, underscores or hyphens; start with a letter."
+msgstr "От 1 до 32 латинских букв, цифр, пробелов, _ или -. Начните с буквы."
+
+msgid "This source name is already used."
+msgstr "Это имя источника уже используется."
+
+msgid "Enter an HTTPS subscription address."
+msgstr "Укажите HTTPS-адрес подписки."
+
+msgid "Check the subscription fields."
+msgstr "Проверьте поля подписки."
+
+msgid "Could not save subscription settings."
+msgstr "Не удалось сохранить подписку."
+
+msgid "Subscription saved. Enable SB Gateway in Overview."
+msgstr "Подписка сохранена. Включите SB Gateway в «Обзоре»."
+
+msgid "Could not apply subscription settings."
+msgstr "Не удалось применить настройки подписки."
+
+msgid "Could not start subscription loading."
+msgstr "Не удалось запустить загрузку подписки."
+
+msgid "Subscription loading started."
+msgstr "Загрузка подписки запущена."
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Status unavailable"
+msgstr "Статус недоступен"
+
+msgid "No nodes loaded"
+msgstr "Узлы ещё не загружены"
+
+msgid "Updated: %s"
+msgstr "Обновлено: %s"
+
+msgid "Added: %d · Removed: %d"
+msgstr "Добавлено: %d · Удалено: %d"
+
+msgid "Subscription download failed"
+msgstr "Не удалось скачать подписку"
+
+msgid "Subscription server error"
+msgstr "Ошибка сервера подписки"
+
+msgid "No reachable nodes; previous nodes retained"
+msgstr "Нет доступных узлов; прежние узлы сохранены"
+
+msgid "Loading interrupted"
+msgstr "Загрузка прервана"
+
+msgid "Subscription update failed"
+msgstr "Не удалось обновить подписку"
+
+msgid "Loading is taking longer than expected."
+msgstr "Загрузка занимает больше времени, чем обычно."
+
+msgid "Selected"
+msgstr "Выбрано"
+
+msgid "Countries"
+msgstr "Страны"
+
+msgid "Protocols"
+msgstr "Протоколы"
+
+msgid "All countries"
+msgstr "Все страны"
+
+msgid "All protocols"
+msgstr "Все протоколы"
+
+msgid "Selected: %d"
+msgstr "Выбрано: %d"
+
+msgid "One IP or CIDR per line. # marks detected VPN addresses."
+msgstr "IP или CIDR — по одному в строке. # — найденные адреса VPN."
+
+msgid "Shadowsocks plugins"
+msgstr "Плагины Shadowsocks"
+
+msgid "Install"
+msgstr "Установить"
+
+msgid "Installed"
+msgstr "Установлен"
+
+msgid "Not installed"
+msgstr "Не установлен"
+
+msgid "Installing…"
+msgstr "Установка…"
+
+msgid "Plugin installation failed."
+msgstr "Не удалось установить плагин."
+
+msgid "Plugin status unavailable."
+msgstr "Статус плагинов недоступен."
+
+msgid "Unsupported router architecture."
+msgstr "Архитектура роутера не поддерживается."
+
+msgid "Matching nodes"
+msgstr "Подходящие узлы"
+
+msgid "Find a country"
+msgstr "Найти страну"
+
+msgid "Choose a rule"
+msgstr "Выберите правило"
+
+msgid "Create rules"
+msgstr "Создать правила"
+
+msgid "Unavailable rule: %s"
+msgstr "Недоступное правило: %s"
+
+msgid "Add a variant"
+msgstr "Добавить вариант"
+
+msgid "Variant name"
+msgstr "Название варианта"
+
+
+msgid "Enter a name of up to 40 characters."
+msgstr "Введите название длиной до 40 символов."
+
+msgid "Variant %d"
+msgstr "Вариант %d"
+
+msgid "%d rules"
+msgstr "Правил: %d"
+
+msgid "Not used"
+msgstr "Не используется"
+
+msgid "Rule variants"
+msgstr "Варианты правил"
+
+msgid "Individual rules"
+msgstr "Отдельные правила"
+
+msgid "Enter a name"
+msgstr "Введите название"
+
+msgid "Edit"
+msgstr "Редактировать"
+
+msgid "Edit variant"
+msgstr "Редактировать вариант"
+
+msgid "Save changes"
+msgstr "Сохранить изменения"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Other presets"
+msgstr "Другие пресеты"
+
+msgid "Keep existing actions"
+msgstr "Сохранить текущие действия"
+
+msgid "Latency"
+msgstr "Задержка"
+
+msgid "Last measured speed"
+msgstr "Последний замер скорости"
+
+msgid "Last successful measurement"
+msgstr "Последний успешный замер"
+
+msgid "Mbit/s"
+msgstr "Мбит/с"
+
+msgid "Speed drop (%)"
+msgstr "Просадка скорости (%)"
+
+msgid "Drop from this node’s recent speed. 0 disables speed-drop switching."
+msgstr "От прежней скорости этого узла. 0 отключает переключение при просадке."
+
+msgid "A reserve must confirm its gain in fresh paired measurements."
+msgstr "Выигрыш резерва подтверждается свежими парными замерами."
+
+msgid "Shared node budget per cycle"
+msgstr "Общий лимит узлов за цикл"
+
+msgid "Automatic: 5 nodes"
+msgstr "Автоматически: 5 узлов"
+
+msgid "Availability / HTTPS errors"
+msgstr "Доступность / ошибки HTTPS"
+
+msgid "Delta, %"
+msgstr "Разница, %"
+
+msgid "HTTPS latency (seconds)"
+msgstr "HTTPS-задержка (секунды)"
+
+msgid "Concurrent node checks"
+msgstr "Одновременные проверки узлов"
+
+msgid "Shared across route lists. Emergency recovery has priority."
+msgstr "Общий лимит для маршрутных листов. Аварийное восстановление имеет приоритет."
+
+msgid "Switch after two fresh confirmations of this HTTPS latency improvement."
+msgstr "Переключение после двух свежих подтверждений такого улучшения HTTPS-задержки."
+
+msgid "Compared with the active node using fresh HTTPS measurements. Positive means faster."
+msgstr "Сравнение с активным узлом по свежим HTTPS-замерам. Положительное значение означает меньшую задержку."
+
+msgid "Services without country restriction"
+msgstr "Сервисы без привязки к стране"
+
+msgid "Exchanges"
+msgstr "Биржи"
+
+msgid "Services"
+msgstr "Сервисы"
+
+msgid "Preset section"
+msgstr "Раздел правил"
+
+msgid "Choose a country or services."
+msgstr "Выберите страну или сервисы."
+
+msgid "Response improvement for URLTest (ms)"
+msgstr "Улучшение отклика для URLTest (мс)"
+
+msgid "Only for URLTest (Best available). Switch after two fresh confirmations of this HTTPS latency improvement."
+msgstr "Только для URLTest (Лучший доступный). Переключение после двух свежих подтверждений такого улучшения HTTPS-задержки."
+
+msgid "No fresh successful HTTPS measurement for the active node."
+msgstr "Нет свежего успешного замера HTTPS для активного узла."
+
+msgid "No fresh successful HTTPS measurement for this node."
+msgstr "Нет свежего успешного замера HTTPS для этого узла."
+
+msgid "Node history RAM budget (KiB)"
+msgstr "Бюджет истории узлов в RAM (КиБ)"
+
+msgid "Shared by all route lists. Older history is removed when the budget is reached. Current routing evidence is kept. History survives service restart and is cleared on router reboot."
+msgstr "Общий для всех маршрутных листов. При достижении бюджета старая история удаляется. Текущие данные для выбора маршрута сохраняются. История сохраняется при перезапуске службы и очищается при перезагрузке роутера."
+
+msgid "History budget: %d / %d KiB across all route lists"
+msgstr "Бюджет истории: %d / %d КиБ для всех листов"
+
+msgid "Older history removed to stay within the RAM budget"
+msgstr "Старая история удалена для соблюдения бюджета RAM"
+
+msgid "The draft is too large. Save the form before continuing."
+msgstr "Черновик слишком большой. Сохраните форму перед продолжением."
+
+msgid "Draft not saved. Apply was not started."
+msgstr "Черновик не сохранён. Применение настроек не запущено."
+
+msgid "A save is already in progress."
+msgstr "Сохранение уже выполняется."
+
+msgid "Compact updates keep a recovery copy in RAM. A power loss during installation may require reinstalling the package."
+msgstr "При компактном обновлении резервная копия хранится в RAM. При потере питания во время установки может потребоваться переустановка пакета."
+
+msgid "Showing %d of %d nodes"
+msgstr "Показано %d из %d узлов"

@@ -1,0 +1,988 @@
+[
+  {
+    "description": "Федеральные и региональные порталы, налоги, Госключ и связанные сервисы.",
+    "id": "ru-government",
+    "included_pack_ids": [],
+    "name": "Госуслуги и государственные сайты",
+    "upstream_name": "category-gov-ru"
+  },
+  {
+    "description": "Российские банки, СБП/НСПК и основные платежные кабинеты.",
+    "id": "ru-banks",
+    "included_pack_ids": [],
+    "name": "Банки и платежи РФ",
+    "upstream_name": "category-bank-ru"
+  },
+  {
+    "description": "Маркетплейсы, объявления, магазины, службы доставки и их CDN.",
+    "id": "ru-marketplaces",
+    "included_pack_ids": [
+      "ozon",
+      "ru-retail"
+    ],
+    "name": "Маркетплейсы, объявления, доставка и ритейл РФ",
+    "upstream_name": "category-ecommerce-ru"
+  },
+  {
+    "description": "Поиск, карты, почта, облако, Диск, Go, Такси, Еда, Маркет, Кинопоиск и общие CDN.",
+    "id": "yandex",
+    "included_pack_ids": [],
+    "name": "Экосистема Яндекса",
+    "upstream_name": "yandex"
+  },
+  {
+    "description": "Основные сайты, приложения, CDN и звонки экосистемы VK/Mail.ru/MAX.",
+    "id": "mailru-group",
+    "included_pack_ids": [],
+    "name": "VK, Mail.ru, OK, Дзен и MAX",
+    "upstream_name": "mailru-group"
+  },
+  {
+    "description": "Билеты, авиакомпании, железные дороги, карты и поездки.",
+    "id": "ru-travel",
+    "included_pack_ids": [],
+    "name": "Транспорт и путешествия РФ",
+    "upstream_name": "category-travel-ru"
+  },
+  {
+    "description": "Личные кабинеты, сайты, приложения и CDN российских операторов связи.",
+    "id": "ru-telecom",
+    "included_pack_ids": [
+      "ru-telecom-megafon",
+      "ru-telecom-mts",
+      "ru-telecom-rostelecom",
+      "ru-telecom-t2"
+    ],
+    "name": "Мобильные операторы и провайдеры связи РФ",
+    "upstream_name": null
+  },
+  {
+    "description": "Новости, телеканалы, онлайн-кинотеатры, видео, радио, музыка и CDN.",
+    "id": "ru-media",
+    "included_pack_ids": [
+      "ru-entertainment"
+    ],
+    "name": "Медиа, ТВ, видеостриминг и музыка РФ",
+    "upstream_name": "category-media-ru"
+  },
+  {
+    "description": "Образовательные платформы, вакансии, разработка, облака, хостинг и ИТ-медиа.",
+    "id": "ru-education-work-it",
+    "included_pack_ids": [
+      "ru-tech-media"
+    ],
+    "name": "Образование, работа и ИТ-сервисы РФ",
+    "upstream_name": "category-education-ru"
+  },
+  {
+    "description": "Широкое правило: разрешает практически всю российскую доменную зону.",
+    "id": "ru-all",
+    "included_pack_ids": [],
+    "name": "Вся зона RU/РФ и российские сервисы",
+    "upstream_name": "category-ru"
+  },
+  {
+    "description": "",
+    "id": "ru-retail",
+    "included_pack_ids": [],
+    "name": "Ритейл РФ",
+    "upstream_name": "category-retail-ru"
+  },
+  {
+    "description": "",
+    "id": "ru-telecom-megafon",
+    "included_pack_ids": [],
+    "name": "МегаФон",
+    "upstream_name": "megafon"
+  },
+  {
+    "description": "",
+    "id": "ru-telecom-mts",
+    "included_pack_ids": [],
+    "name": "МТС",
+    "upstream_name": "mts-ru"
+  },
+  {
+    "description": "",
+    "id": "ru-telecom-rostelecom",
+    "included_pack_ids": [],
+    "name": "Ростелеком",
+    "upstream_name": "rostelecom"
+  },
+  {
+    "description": "",
+    "id": "ru-telecom-t2",
+    "included_pack_ids": [],
+    "name": "T2",
+    "upstream_name": "t2-ru"
+  },
+  {
+    "description": "",
+    "id": "ru-entertainment",
+    "included_pack_ids": [],
+    "name": "Развлечения РФ",
+    "upstream_name": "category-entertainment-ru"
+  },
+  {
+    "description": "",
+    "id": "ru-tech-media",
+    "included_pack_ids": [],
+    "name": "ИТ-медиа РФ",
+    "upstream_name": "category-tech-media-ru"
+  },
+  {
+    "description": "",
+    "id": "ozon",
+    "included_pack_ids": [],
+    "name": "Ozon",
+    "upstream_name": "ozon"
+  },
+  {
+    "id": "cn-banks",
+    "country": "cn",
+    "name": "Банки Китая",
+    "description": "Китайские банки из открытого списка domain-list-community.",
+    "upstream_name": "category-bank-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-social",
+    "country": "cn",
+    "name": "Соцсети Китая",
+    "description": "Китайские социальные платформы из открытого списка domain-list-community.",
+    "upstream_name": "category-social-media-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-media",
+    "country": "cn",
+    "name": "СМИ и новости Китая",
+    "description": "Китайские медиаресурсы из открытого списка domain-list-community.",
+    "upstream_name": "category-media-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-banks",
+    "country": "ir",
+    "name": "Банки Ирана",
+    "description": "Иранские банки из открытого списка domain-list-community.",
+    "upstream_name": "category-bank-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-government",
+    "country": "ir",
+    "name": "Государственные сайты Ирана",
+    "description": "Государственные ресурсы Ирана из открытого списка domain-list-community.",
+    "upstream_name": "category-gov-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-shopping",
+    "country": "ir",
+    "name": "Магазины Ирана",
+    "description": "Иранские магазины и торговые площадки из открытого списка domain-list-community.",
+    "upstream_name": "category-shopping-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-ads",
+    "country": "ir",
+    "name": "Реклама и аналитика Ирана",
+    "description": "Тематический список domain-list-community: category-ads-ir.",
+    "upstream_name": "category-ads-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-ai",
+    "country": "cn",
+    "name": "ИИ-сервисы Китая",
+    "description": "Тематический список domain-list-community: category-ai-cn.",
+    "upstream_name": "category-ai-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-automobile",
+    "country": "cn",
+    "name": "Автомобили Китая",
+    "description": "Тематический список domain-list-community: category-automobile-cn.",
+    "upstream_name": "category-automobile-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-blog",
+    "country": "cn",
+    "name": "Блоги Китая",
+    "description": "Тематический список domain-list-community: category-blog-cn.",
+    "upstream_name": "category-blog-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-bourse",
+    "country": "ir",
+    "name": "Биржи и финансы Ирана",
+    "description": "Тематический список domain-list-community: category-bourse-ir.",
+    "upstream_name": "category-bourse-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-cdn",
+    "country": "cn",
+    "name": "CDN Китая",
+    "description": "Тематический список domain-list-community: category-cdn-cn.",
+    "upstream_name": "category-cdn-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-collaborate",
+    "country": "cn",
+    "name": "Совместная работа в Китае",
+    "description": "Тематический список domain-list-community: category-collaborate-cn.",
+    "upstream_name": "category-collaborate-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-dev",
+    "country": "cn",
+    "name": "Разработка и ИТ Китая",
+    "description": "Тематический список domain-list-community: category-dev-cn.",
+    "upstream_name": "category-dev-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-documents",
+    "country": "cn",
+    "name": "Документы и офисные сервисы Китая",
+    "description": "Тематический список domain-list-community: category-documents-cn.",
+    "upstream_name": "category-documents-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-education",
+    "country": "cn",
+    "name": "Образование Китая",
+    "description": "Тематический список domain-list-community: category-education-cn.",
+    "upstream_name": "category-education-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-education",
+    "country": "ir",
+    "name": "Образование Ирана",
+    "description": "Тематический список domain-list-community: category-education-ir.",
+    "upstream_name": "category-education-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-electronic",
+    "country": "cn",
+    "name": "Электроника Китая",
+    "description": "Тематический список domain-list-community: category-electronic-cn.",
+    "upstream_name": "category-electronic-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-enterprise-query-platform",
+    "country": "cn",
+    "name": "Реестры и проверка компаний Китая",
+    "description": "Тематический список domain-list-community: category-enterprise-query-platform-cn.",
+    "upstream_name": "category-enterprise-query-platform-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-entertainment",
+    "country": "cn",
+    "name": "Видео, музыка и развлечения Китая",
+    "description": "Тематический список domain-list-community: category-entertainment-cn.",
+    "upstream_name": "category-entertainment-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-food",
+    "country": "cn",
+    "name": "Еда и доставка Китая",
+    "description": "Тематический список domain-list-community: category-food-cn.",
+    "upstream_name": "category-food-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-forums",
+    "country": "ir",
+    "name": "Форумы Ирана",
+    "description": "Тематический список domain-list-community: category-forums-ir.",
+    "upstream_name": "category-forums-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-game-accelerator",
+    "country": "cn",
+    "name": "Игровые ускорители Китая",
+    "description": "Тематический список domain-list-community: category-game-accelerator-cn.",
+    "upstream_name": "category-game-accelerator-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-games",
+    "country": "cn",
+    "name": "Игры Китая",
+    "description": "Тематический список domain-list-community: category-games-cn.",
+    "upstream_name": "category-games-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-hospital",
+    "country": "cn",
+    "name": "Медицинские учреждения Китая",
+    "description": "Тематический список domain-list-community: category-hospital-cn.",
+    "upstream_name": "category-hospital-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-httpdns",
+    "country": "cn",
+    "name": "HTTP DNS Китая",
+    "description": "Тематический список domain-list-community: category-httpdns-cn.",
+    "upstream_name": "category-httpdns-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-insurance",
+    "country": "ir",
+    "name": "Страхование Ирана",
+    "description": "Тематический список domain-list-community: category-insurance-ir.",
+    "upstream_name": "category-insurance-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-logistics",
+    "country": "cn",
+    "name": "Логистика Китая",
+    "description": "Тематический список domain-list-community: category-logistics-cn.",
+    "upstream_name": "category-logistics-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-media",
+    "country": "ir",
+    "name": "Видео и медиа Ирана",
+    "description": "Тематический список domain-list-community: category-media-ir.",
+    "upstream_name": "category-media-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-mooc",
+    "country": "cn",
+    "name": "Онлайн-курсы Китая",
+    "description": "Тематический список domain-list-community: category-mooc-cn.",
+    "upstream_name": "category-mooc-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-netdisk",
+    "country": "cn",
+    "name": "Облачные диски Китая",
+    "description": "Тематический список domain-list-community: category-netdisk-cn.",
+    "upstream_name": "category-netdisk-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-network-security",
+    "country": "cn",
+    "name": "Информационная безопасность Китая",
+    "description": "Тематический список domain-list-community: category-network-security-cn.",
+    "upstream_name": "category-network-security-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-news",
+    "country": "ir",
+    "name": "СМИ и новости Ирана",
+    "description": "Тематический список domain-list-community: category-news-ir.",
+    "upstream_name": "category-news-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-ntp",
+    "country": "cn",
+    "name": "Серверы времени Китая",
+    "description": "Тематический список domain-list-community: category-ntp-cn.",
+    "upstream_name": "category-ntp-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-number-verification",
+    "country": "cn",
+    "name": "Проверка номера телефона в Китае",
+    "description": "Тематический список domain-list-community: category-number-verification-cn.",
+    "upstream_name": "category-number-verification-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-outsource",
+    "country": "cn",
+    "name": "Фриланс и услуги Китая",
+    "description": "Тематический список domain-list-community: category-outsource-cn.",
+    "upstream_name": "category-outsource-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-payment",
+    "country": "ir",
+    "name": "Платёжные сервисы Ирана",
+    "description": "Тематический список domain-list-community: category-payment-ir.",
+    "upstream_name": "category-payment-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-scholar",
+    "country": "cn",
+    "name": "Научные ресурсы Китая",
+    "description": "Тематический список domain-list-community: category-scholar-cn.",
+    "upstream_name": "category-scholar-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-scholar",
+    "country": "ir",
+    "name": "Научные ресурсы Ирана",
+    "description": "Тематический список domain-list-community: category-scholar-ir.",
+    "upstream_name": "category-scholar-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-securities",
+    "country": "cn",
+    "name": "Биржи и ценные бумаги Китая",
+    "description": "Тематический список domain-list-community: category-securities-cn.",
+    "upstream_name": "category-securities-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-social-media",
+    "country": "ir",
+    "name": "Соцсети Ирана",
+    "description": "Тематический список domain-list-community: category-social-media-ir.",
+    "upstream_name": "category-social-media-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-tech",
+    "country": "ir",
+    "name": "Технологические сервисы Ирана",
+    "description": "Тематический список domain-list-community: category-tech-ir.",
+    "upstream_name": "category-tech-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "ir-travel",
+    "country": "ir",
+    "name": "Транспорт и путешествия Ирана",
+    "description": "Тематический список domain-list-community: category-travel-ir.",
+    "upstream_name": "category-travel-ir",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-wiki",
+    "country": "cn",
+    "name": "Энциклопедии Китая",
+    "description": "Тематический список domain-list-community: category-wiki-cn.",
+    "upstream_name": "category-wiki-cn",
+    "included_pack_ids": []
+  },
+  {
+    "id": "cn-all",
+    "country": "cn",
+    "name": "Вся зона CN/中国/中國 и китайские сервисы",
+    "description": "Доменные зоны страны и все её тематические списки. IP-сети включаются отдельно через GeoIP.",
+    "included_pack_ids": [
+      "cn-banks",
+      "cn-social",
+      "cn-media",
+      "cn-ai",
+      "cn-automobile",
+      "cn-blog",
+      "cn-cdn",
+      "cn-collaborate",
+      "cn-dev",
+      "cn-documents",
+      "cn-education",
+      "cn-electronic",
+      "cn-enterprise-query-platform",
+      "cn-entertainment",
+      "cn-food",
+      "cn-game-accelerator",
+      "cn-games",
+      "cn-hospital",
+      "cn-httpdns",
+      "cn-logistics",
+      "cn-mooc",
+      "cn-netdisk",
+      "cn-network-security",
+      "cn-ntp",
+      "cn-number-verification",
+      "cn-outsource",
+      "cn-scholar",
+      "cn-securities",
+      "cn-wiki"
+    ],
+    "upstream_name": ""
+  },
+  {
+    "id": "ir-all",
+    "country": "ir",
+    "name": "Вся зона IR/ایران и иранские сервисы",
+    "description": "Доменные зоны страны и все её тематические списки. IP-сети включаются отдельно через GeoIP.",
+    "included_pack_ids": [
+      "ir-banks",
+      "ir-government",
+      "ir-shopping",
+      "ir-ads",
+      "ir-bourse",
+      "ir-education",
+      "ir-forums",
+      "ir-insurance",
+      "ir-media",
+      "ir-news",
+      "ir-payment",
+      "ir-scholar",
+      "ir-social-media",
+      "ir-tech",
+      "ir-travel"
+    ],
+    "upstream_name": ""
+  },
+  {
+    "description": "Сайт, приложение, CDN, REST/WebSocket API и AWS WAF challenge.",
+    "fallback_domains": [
+      "binance.com",
+      "binance.vision",
+      "token.awswaf.com"
+    ],
+    "id": "binance",
+    "included_pack_ids": [],
+    "name": "Binance",
+    "upstream_name": "binance",
+    "country": "ww"
+  },
+  {
+    "description": "Сайт, приложение, CDN, REST/WebSocket API, testnet, demo и регионы.",
+    "fallback_domains": [
+      "bybit.com",
+      "bybit-global.com",
+      "bybitglobal.com",
+      "bybit.cloud",
+      "bytick.com",
+      "bybit.eu",
+      "bybit.kz",
+      "bybit.tr",
+      "bybitgeorgia.ge"
+    ],
+    "id": "bybit",
+    "included_pack_ids": [
+      "bybit-api"
+    ],
+    "name": "Bybit",
+    "upstream_name": "bybit",
+    "country": "ww"
+  },
+  {
+    "description": "REST, WebSocket, testnet/demo и региональные endpoints из документации Bybit.",
+    "fallback_domains": [
+      "api.bybit.com",
+      "api.bytick.com",
+      "stream.bybit.com",
+      "api-testnet.bybit.com",
+      "stream-testnet.bybit.com",
+      "api-demo.bybit.com",
+      "stream-demo.bybit.com",
+      "api.bybit.nl",
+      "api.bybit.tr",
+      "api.bybit.kz",
+      "api.bybitgeorgia.ge",
+      "api.bybit.ae",
+      "api.bybit.eu",
+      "api.bybit.id",
+      "api.manepa.jp",
+      "api-testnet.manepa.jp",
+      "api.spark-fintech.com",
+      "api-testnet.spark-fintech.com",
+      "stream.bybit.tr",
+      "stream.bybit.kz",
+      "stream.bybit.id",
+      "stream.bybitgeorgia.ge",
+      "stream.manepa.jp",
+      "stream.spark-fintech.com"
+    ],
+    "id": "bybit-api",
+    "included_pack_ids": [],
+    "name": "Bybit · торговый API",
+    "upstream_name": null,
+    "country": "ww"
+  },
+  {
+    "description": "Сайт, приложение, CDN, REST API v4, WebSocket, futures и testnet.",
+    "fallback_domains": [
+      "gate.io",
+      "gate.com",
+      "gateio.ws"
+    ],
+    "id": "gateio",
+    "included_pack_ids": [
+      "gateio-api"
+    ],
+    "name": "Gate.io",
+    "upstream_name": "gateio",
+    "country": "ww"
+  },
+  {
+    "description": "REST API v4, WebSocket, futures и testnet endpoints Gate.io.",
+    "fallback_domains": [
+      "api.gateio.ws",
+      "fx-api.gateio.ws",
+      "fx-api-testnet.gateio.ws",
+      "api-testnet.gateapi.io",
+      "ws-testnet.gate.com"
+    ],
+    "id": "gateio-api",
+    "included_pack_ids": [],
+    "name": "Gate.io · торговый API",
+    "upstream_name": null,
+    "country": "ww"
+  },
+  {
+    "id": "youtube",
+    "name": "YouTube",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "youtube",
+    "fallback_domains": [
+      "youtube.com",
+      "youtu.be",
+      "googlevideo.com",
+      "ytimg.com",
+      "youtube-nocookie.com",
+      "ggpht.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "telegram",
+    "name": "Telegram",
+    "description": "Web, API, официальные сети и звонки Telegram.",
+    "included_pack_ids": [],
+    "upstream_name": "telegram",
+    "fallback_domains": [
+      "telegram.org",
+      "telegram.me",
+      "telegram.dog",
+      "t.me",
+      "telegra.ph"
+    ],
+    "ip_cidrs": [
+      "91.108.56.0/22",
+      "91.108.4.0/22",
+      "91.108.8.0/22",
+      "91.108.16.0/22",
+      "91.108.12.0/22",
+      "149.154.160.0/20",
+      "91.105.192.0/23",
+      "91.108.20.0/22",
+      "185.76.151.0/24",
+      "2001:b28:f23d::/48",
+      "2001:b28:f23f::/48",
+      "2001:67c:4e8::/48",
+      "2001:b28:f23c::/48",
+      "2a0a:f280::/32"
+    ],
+    "country": "ww"
+  },
+  {
+    "id": "whatsapp",
+    "name": "WhatsApp",
+    "description": "WhatsApp Web, приложение и связанные звонки.",
+    "included_pack_ids": [],
+    "upstream_name": "whatsapp",
+    "fallback_domains": [
+      "wa.me",
+      "whatsapp.cc",
+      "whatsapp.com",
+      "whatsapp.info",
+      "whatsapp.net",
+      "whatsapp.org",
+      "whatsapp.tv",
+      "whatsappbrand.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "discord",
+    "name": "Discord",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "discord",
+    "fallback_domains": [
+      "discord.com",
+      "discord.gg",
+      "discordapp.com",
+      "discordapp.net"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "instagram",
+    "name": "Instagram",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "instagram",
+    "fallback_domains": [
+      "instagram.com",
+      "cdninstagram.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "facebook",
+    "name": "Facebook",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "facebook",
+    "fallback_domains": [
+      "facebook.com",
+      "facebook.net",
+      "fbcdn.net",
+      "fb.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "tiktok",
+    "name": "TikTok",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "tiktok",
+    "fallback_domains": [
+      "tiktok.com",
+      "tiktokcdn.com",
+      "tiktokv.com",
+      "byteoversea.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "netflix",
+    "name": "Netflix",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "netflix",
+    "fallback_domains": [
+      "netflix.com",
+      "netflix.net",
+      "nflxext.com",
+      "nflximg.net",
+      "nflxvideo.net"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "spotify",
+    "name": "Spotify",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "spotify",
+    "fallback_domains": [
+      "spotify.com",
+      "spotifycdn.com",
+      "scdn.co"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI / ChatGPT",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "openai",
+    "fallback_domains": [
+      "openai.com",
+      "chatgpt.com",
+      "oaistatic.com",
+      "oaiusercontent.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "claude",
+    "name": "Claude",
+    "description": "Claude, Claude Code, Anthropic API и их собственная статика без широких правил для сторонних CDN.",
+    "included_pack_ids": [],
+    "upstream_name": null,
+    "fallback_domains": [
+      "claude.ai",
+      "anthropic.com",
+      "claudeusercontent.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "antigravity",
+    "name": "Antigravity",
+    "description": "Antigravity и необходимые Google AI API без общего правила для google.com или googleapis.com.",
+    "included_pack_ids": [],
+    "upstream_name": null,
+    "fallback_domains": [
+      "antigravity.google",
+      "aiplatform.googleapis.com",
+      "generativelanguage.googleapis.com",
+      "servicedirectory.googleapis.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "github",
+    "name": "GitHub",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "github",
+    "fallback_domains": [
+      "github.com",
+      "githubusercontent.com",
+      "githubassets.com",
+      "github.io"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "steam",
+    "name": "Steam",
+    "description": "",
+    "included_pack_ids": [],
+    "upstream_name": "steam",
+    "fallback_domains": [
+      "steampowered.com",
+      "steamcommunity.com",
+      "steamstatic.com",
+      "steamcontent.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "okx",
+    "name": "OKX",
+    "description": "Сайт, приложение, CDN, REST, WebSocket, demo и регионы.",
+    "included_pack_ids": [
+      "okx-api"
+    ],
+    "upstream_name": "okx",
+    "fallback_domains": [
+      "okx.com",
+      "okex.com",
+      "okx-dns.com",
+      "okx-dns1.com",
+      "okx-dns2.com",
+      "xlayer.tech"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "okx-api",
+    "name": "OKX · торговый API",
+    "description": "REST, public/private/business WebSocket, demo и региональные endpoints OKX.",
+    "included_pack_ids": [],
+    "upstream_name": null,
+    "fallback_domains": [
+      "openapi.okx.com",
+      "www.okx.com",
+      "ws.okx.com",
+      "wspap.okx.com",
+      "us.okx.com",
+      "eea.okx.com",
+      "tr.okx.com",
+      "wsus.okx.com",
+      "wseea.okx.com"
+    ],
+    "ip_cidrs": [],
+    "country": "ww"
+  },
+  {
+    "id": "ewelink",
+    "name": "eWeLink / Sonoff",
+    "description": "API, региональные диспетчеры и облачные соединения eWeLink.",
+    "included_pack_ids": [],
+    "fallback_domains": [
+      "coolkit.cc",
+      "coolkit.cn",
+      "ewelink.cc",
+      "ewelink.cn"
+    ],
+    "country": "ww",
+    "upstream_name": ""
+  },
+  {
+    "id": "xiaomi-home",
+    "name": "Xiaomi Home / Mi Home",
+    "description": "MIoT API, MQTT и вход в аккаунт Xiaomi.",
+    "included_pack_ids": [],
+    "fallback_domains": [
+      "io.mi.com",
+      "iot.mi.com",
+      "account.xiaomi.com"
+    ],
+    "country": "ww",
+    "upstream_name": ""
+  },
+  {
+    "id": "tuya",
+    "name": "Tuya / Smart Life",
+    "description": "Региональные API и MQTT облака Tuya.",
+    "included_pack_ids": [],
+    "fallback_domains": [
+      "tuya.com",
+      "tuyasmart.com",
+      "tuyacn.com",
+      "tuyaeu.com",
+      "tuyaus.com",
+      "tuyain.com",
+      "iotbing.com"
+    ],
+    "country": "ww",
+    "upstream_name": ""
+  },
+  {
+    "id": "aqara",
+    "name": "Aqara Home",
+    "description": "Региональные API приложения и облачные сервисы устройств Aqara.",
+    "included_pack_ids": [],
+    "fallback_domains": [
+      "aqara.com",
+      "aqara.cn",
+      "aiot-rpc.ankasa.cn"
+    ],
+    "country": "ww",
+    "upstream_name": ""
+  },
+  {
+    "id": "shelly",
+    "name": "Shelly Smart Control",
+    "description": "Облачный API и WebSocket-соединения устройств Shelly.",
+    "included_pack_ids": [],
+    "fallback_domains": [
+      "shelly.cloud"
+    ],
+    "country": "ww",
+    "upstream_name": ""
+  }
+]

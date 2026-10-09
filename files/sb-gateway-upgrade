@@ -1,0 +1,283 @@
+#!/bin/sh
+# Only this package is updated from a verified user-uploaded APK.
+# Staging, status and the compact-install recovery snapshot live in RAM.
+set -eu
+
+pkg=sb-gateway-openwrt
+candidate=/tmp/sb-gateway-upgrade.apk
+staged=/tmp/.sb-gateway-verified.apk
+runner=/tmp/.sb-gateway-upgrade-runner
+state=/var/run/sb-gateway-upgrade
+phase=$state/phase
+busy=$state/busy
+legacy=/etc/sb-gateway-upgrade
+guard=/etc/init.d/sb-gateway-upgrade-guard
+
+die() { echo "$*" >&2; exit 1; }
+note() { logger -t sb-gateway-upgrade "$*" 2>/dev/null || :; }
+write_phase() { printf '%s\n' "$1" > "$phase"; note "$1"; }
+
+installed_field() {
+	apk query --fields name,version,arch --format json --installed "$pkg" 2>/dev/null |
+		sed -n "s/^[[:space:]]*\"$1\": \"\([^\"]*\)\".*/\1/p" | head -n 1
+}
+
+archive_field() {
+	printf '%s\n' "$archive_meta" | awk -v key="$1" '
+		/^info:$/ { inside=1; next }
+		inside && /^[^ ]/ { exit }
+		inside && $1 == key ":" { print $2; exit }
+	'
+}
+
+check_archive() {
+	[ -f "$1" ] && [ ! -L "$1" ] || die "APK file is missing or is a symlink"
+	archive_size=$(wc -c < "$1")
+	[ "$archive_size" -gt 0 ] && [ "$archive_size" -le 67108864 ] || die "APK size must be 1–64 MiB"
+	apk verify --allow-untrusted "$1" >/dev/null 2>&1 || die "APK integrity check failed"
+	archive_meta=$(apk adbdump "$1" 2>/dev/null) || die "Cannot read APK metadata"
+	archive_name=$(archive_field name)
+	archive_version=$(archive_field version)
+	archive_arch=$(archive_field arch)
+	archive_installed_size=$(archive_field installed-size)
+	[ "$archive_name" = "$pkg" ] || die "This APK is not $pkg"
+	[ -n "$archive_version" ] && [ -n "$archive_arch" ] || die "Incomplete APK metadata"
+	printf '%s' "$archive_version" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._+~-]*$' || die "Invalid APK version"
+	printf '%s' "$archive_installed_size" | grep -Eq '^[0-9]+$' || die "Invalid APK installed size"
+	[ "$archive_arch" = "$(installed_field arch)" ] || die "APK architecture differs from installed package"
+}
+
+# Only an upper-layer executable or a writable ext4 root can release space.
+# Removing a SquashFS lower file creates a whiteout and releases no flash.
+reclaimable_binary_kib() {
+ [ -f /usr/bin/resproxyd ] && [ ! -L /usr/bin/resproxyd ] || { echo 0; return; }
+ if [ -f /overlay/upper/usr/bin/resproxyd ] && [ ! -L /overlay/upper/usr/bin/resproxyd ]; then
+  cmp -s /usr/bin/resproxyd /overlay/upper/usr/bin/resproxyd || { echo 0; return; }
+ elif ! awk '$2 == "/" && $3 == "ext4" && $4 ~ /(^|,)rw(,|$)/ { found=1 } END { exit !found }' /proc/mounts; then
+  echo 0; return
+ fi
+ du -k /usr/bin/resproxyd | awk '{print $1}'
+}
+
+check_compact_ram() {
+ # The full previous payload is retained, including its helper/UI/config.
+ # Use exact tar input sizes instead of apk's rounded human size.
+ apk info -L "$pkg" 2>/dev/null | sed '1d;/^$/d' > "$state/previous-files"
+ grep -qx 'usr/bin/resproxyd' "$state/previous-files" || die "Installed package does not own resproxyd"
+ awk '/^\// || /(^|\/)\.\.(\/|$)/ { bad=1 } END { exit bad }' "$state/previous-files" || die "Unsafe installed package file list"
+ : > "$state/previous-sizes"
+ while IFS= read -r file; do
+  [ -e "/$file" ] || [ -L "/$file" ] || continue
+  [ ! -d "/$file" ] || die "Unexpected directory in installed package file list"
+  if [ -L "/$file" ]; then echo 1024 >> "$state/previous-sizes"
+  else wc -c < "/$file" >> "$state/previous-sizes" || die "Cannot size previous package file"; fi
+ done < "$state/previous-files"
+ previous_kib=$(awk '{n+=$1+1024} END {printf "%.0f", (n+1023)/1024}' "$state/previous-sizes")
+ rm -f "$state/previous-sizes"
+ ram_kib=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
+ tmp_kib=$(df -Pk /tmp | awk 'NR == 2 { print $4 }')
+ printf '%s:%s:%s' "$previous_kib" "$ram_kib" "$tmp_kib" | grep -Eq '^[0-9]+:[0-9]+:[0-9]+$' || die "Cannot check compact update RAM"
+ [ "$ram_kib" -ge "$((previous_kib + 32768))" ] && [ "$tmp_kib" -ge "$((previous_kib + 8192))" ] || die "Not enough RAM for compact update recovery snapshot"
+}
+
+prepare_compact() {
+ write_phase preparing
+ compact_stopped=yes
+ old_pids="$(cat /var/run/resproxy/daemon.pid /var/run/resproxy/xray-ready 2>/dev/null || :)"
+ /etc/init.d/resproxy stop || die "Cannot stop service for compact update"
+ # Unlink releases executable blocks only after both old processes exit.
+ waits=0
+ while :; do
+  alive=no
+  for pid in $old_pids; do
+   case "$pid" in ''|*[!0-9]*) continue;; esac
+   if [ "$pid" -gt 1 ] && kill -0 "$pid" 2>/dev/null; then alive=yes; fi
+  done
+  [ "$alive" = yes ] || break
+  [ "$waits" -lt 40 ] || die "Old proxy processes did not stop; executable retained"
+  waits=$((waits + 1)); sleep 1
+ done
+ check_compact_ram
+ tar -C / -cf "$state/previous-payload.tar" -T "$state/previous-files"
+ tar -tf "$state/previous-payload.tar" >/dev/null || die "Cannot verify recovery snapshot"
+ sha256sum "$state/previous-payload.tar" > "$state/previous-payload.sha256"
+ # Snapshot completed successfully before releasing exactly this package file.
+ rm /usr/bin/resproxyd
+ compact_released=yes
+}
+
+restore_compact() {
+ [ "$(installed_field version)" = "$old_version" ] || return 1
+ (cd / && sha256sum -c "$state/previous-payload.sha256") || return 1
+ [ ! -L /usr/bin/resproxyd ] || return 1
+ rm -f /usr/bin/resproxyd
+ tar -C / -xf "$state/previous-payload.tar" || return 1
+ /etc/init.d/resproxy start || return 1
+ note "previous package payload restored after installation failure"
+}
+
+preflight() {
+	check_archive "$1"
+	old_version=$(installed_field version)
+	[ -n "$old_version" ] || die "Installed package version is unavailable"
+	[ "$(apk version -t "$archive_version" "$old_version")" = '>' ] || die "APK version is not newer"
+	free_kib=$(df -Pk /overlay | awk 'NR == 2 { print $4 }')
+	printf '%s' "$free_kib" | grep -Eq '^[0-9]+$' || die "Cannot check overlay free space"
+	compact=no
+ required_kib=$(( (archive_installed_size + 1023) / 1024 + 4096 ))
+ if [ "$free_kib" -lt "$required_kib" ]; then
+  reclaimed_kib=$(reclaimable_binary_kib)
+  [ "$reclaimed_kib" -gt 0 ] && [ "$((free_kib + reclaimed_kib))" -ge "$required_kib" ] || die "Not enough reclaimable overlay space for package update"
+  mkdir -p "$state"; chmod 700 "$state"
+  check_compact_ram
+  compact=yes
+ fi
+	plan=$(apk add --simulate --allow-untrusted "$1") || die "APK dependency preflight failed"
+	changes=$(printf '%s\n' "$plan" | grep -E '^\([0-9]+/[0-9]+\) ' || :)
+	[ "$changes" = "(1/1) Upgrading $pkg ($old_version -> $archive_version)" ] ||
+		die "APK would change packages other than $pkg"
+}
+
+ready() {
+	[ "$(uci -q get resproxy.main.enabled 2>/dev/null || echo 0)" = 1 ] || return 0
+	/usr/libexec/resproxy-status 2>/dev/null | grep -q '"running":true' || return 1
+ core_pid=$(cat /var/run/resproxy/xray-ready 2>/dev/null || :)
+ case "$core_pid" in ''|*[!0-9]*) return 1;; esac
+ [ "$core_pid" -gt 1 ] && kill -0 "$core_pid" 2>/dev/null
+}
+
+finish_install() {
+ result=$?
+ trap - EXIT
+ if [ "${compact_released:-no}" = yes ] && [ "${package_installed:-no}" != yes ]; then
+  if restore_compact; then
+   compact_released=no
+   rm -f "$state/previous-payload.tar" "$state/previous-payload.sha256" "$state/previous-files"
+  else note "recovery snapshot retained in RAM"; fi
+ elif [ "${compact_stopped:-no}" = yes ] && [ "${package_installed:-no}" != yes ]; then
+  /etc/init.d/resproxy start || :
+ fi
+ if [ "$result" -ne 0 ]; then write_phase failed; fi
+ rm -f "$busy" "$staged" "$runner" "$state/inspected-sha256"
+ exit "$result"
+}
+
+install() {
+ compact_stopped=no; compact_released=no; package_installed=no
+ trap finish_install EXIT
+ trap 'exit 1' HUP INT TERM
+	# Repeat guards immediately before installation, after the asynchronous stage.
+ preflight "$staged"
+ inspected_hash=$(cat "$state/inspected-sha256")
+ [ "$(sha256sum "$staged" | cut -d ' ' -f 1)" = "$inspected_hash" ] || die "APK changed since inspection"
+ printf '%s\n' "$archive_version" > "$state/version"
+ if [ "$compact" = yes ]; then prepare_compact; fi
+ write_phase installing
+ if ! apk add --allow-untrusted "$staged"; then
+  if [ "$compact" = yes ]; then
+   if restore_compact; then
+    compact_released=no
+    rm -f "$state/previous-payload.tar" "$state/previous-payload.sha256" "$state/previous-files"
+    write_phase failed
+    die "Package installation failed; previous package restored"
+   fi
+   write_phase failed
+   die "Package installation failed; recovery snapshot retained in RAM"
+  fi
+  write_phase failed
+  die "Package installation failed; previous APK is not retained"
+ fi
+ package_installed=yes
+	if [ "$(installed_field version)" != "$(cat "$state/version")" ]; then
+		write_phase failed
+		die "Installed package version differs from selected APK"
+	fi
+	write_phase activating
+	if ! /etc/init.d/resproxy restart; then
+		write_phase failed
+		die "Package installed, but service did not restart"
+	fi
+	i=0
+	while [ "$i" -lt 120 ]; do
+		if ready; then
+			write_phase completed
+   rm -f "$state/previous-payload.tar" "$state/previous-payload.sha256" "$state/previous-files"
+			exit 0
+		fi
+		i=$((i + 1))
+		sleep 1
+	done
+	write_phase failed
+	die "Package installed, but service did not become ready"
+}
+
+# r11's old supervisor needs to finish its restart before its pending marker
+# is cleared. This one-time migration then frees the legacy on-flash cache.
+migrate_legacy() {
+	[ -d "$legacy" ] || exit 0
+	if [ -f "$legacy/pending" ]; then
+		i=0
+		while [ "$i" -lt 150 ]; do
+			[ "$(cat "$legacy/phase" 2>/dev/null || :)" = awaiting-confirmation ] && ready && break
+			i=$((i + 1))
+			sleep 1
+		done
+		[ "$i" -lt 150 ] || exit 0
+		rm -f "$legacy/pending"
+	fi
+	[ -x "$guard" ] && "$guard" disable >/dev/null 2>&1 || :
+	[ -x "$guard" ] && "$guard" stop >/dev/null 2>&1 || :
+	rm -f "$legacy/current.apk" "$legacy/next.apk" "$legacy/current.version" \
+		"$legacy/config.before" "$legacy/firewall.before" "$legacy/recovery" "$legacy/lock" "$legacy/phase"
+	rmdir "$legacy" 2>/dev/null || :
+	rm -f "$guard" /tmp/sb-gateway-current.apk
+	note "legacy recovery cache removed"
+}
+
+case "${1:-}" in
+	status)
+		printf 'version=%s\n' "$(installed_field version)"
+		printf 'phase=%s\n' "$(cat "$phase" 2>/dev/null || echo idle)"
+		[ -f "$busy" ] && echo busy=yes || echo busy=no
+		if [ "$(cat "$phase" 2>/dev/null || :)" = failed ] && [ -s "$state/install.log" ]; then
+			printf 'error=%s\n' "$(tail -n 1 "$state/install.log" | cut -c 1-240)"
+		fi
+		;;
+	inspect)
+  [ ! -f "$busy" ] || die "Another update is in progress"
+		preflight "$candidate"
+		printf 'version=%s\narch=%s\nsize=%s\nsha256=%s\ncompact=%s\n' \
+			"$archive_version" "$archive_arch" "$archive_size" "$(sha256sum "$candidate" | cut -d ' ' -f 1)" "$compact"
+		;;
+	start)
+		mkdir -p "$state"
+		chmod 700 "$state"
+		( set -C; : > "$busy" ) 2>/dev/null || die "Another update is in progress"
+		trap 'rm -f "$busy" "$staged" "$runner" "$state/inspected-sha256"' EXIT
+		expected_hash=${2:-}
+		printf '%s' "$expected_hash" | grep -Eq '^[0-9a-f]{64}$' || die "A SHA-256 hash from APK inspection is required"
+  # Expensive archive/dependency/hash checks run in the background worker.
+  # They all complete before service stop or executable removal. Slow ARM
+  # devices must not outlive LuCI's synchronous RPC request timeout.
+  [ -f "$candidate" ] && [ ! -L "$candidate" ] || die "APK file is missing or is a symlink"
+  umask 077
+  mv "$candidate" "$staged"
+  printf '%s\n' "$expected_hash" > "$state/inspected-sha256"
+  cp /usr/libexec/sb-gateway-upgrade "$runner"
+  chmod 700 "$runner"
+  write_phase staged
+		/bin/sh "$runner" install </dev/null > "$state/install.log" 2>&1 &
+		trap - EXIT
+		printf 'started=pending\n'
+		;;
+	install)
+		[ -f "$busy" ] && [ -f "$staged" ] || die "No staged update"
+		install
+		;;
+	migrate-legacy)
+		migrate_legacy
+		;;
+	*)
+		die "Usage: sb-gateway-upgrade {status|inspect|start}"
+		;;
+esac

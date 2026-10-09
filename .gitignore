@@ -1,0 +1,17 @@
+/bin/
+/dist/
+/tmp/
+/output/
+/testlab/
+/.cache/
+/.playwright-cli/
+/.agents/
+/.codex/
+*.apk
+*.ipk
+*.test
+*.log
+*.key
+*.pem
+.env
+.env.*

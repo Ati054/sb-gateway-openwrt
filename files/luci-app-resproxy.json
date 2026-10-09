@@ -1,0 +1,70 @@
+{
+  "admin/services/resproxy": {
+    "title": "SB Gateway for OpenWrt",
+    "order": 75,
+    "action": {
+      "type": "firstchild"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-resproxy"
+      ]
+    }
+  },
+  "admin/services/resproxy/overview": {
+    "title": "Overview",
+    "order": 10,
+    "action": {
+      "type": "view",
+      "path": "resproxy/overview"
+    }
+  },
+  "admin/services/resproxy/subscription": {
+    "title": "Subscriptions",
+    "order": 20,
+    "action": {
+      "type": "view",
+      "path": "resproxy/subscription"
+    }
+  },
+  "admin/services/resproxy/routes": {
+    "title": "Route lists",
+    "order": 30,
+    "action": {
+      "type": "view",
+      "path": "resproxy/routes"
+    }
+  },
+  "admin/services/resproxy/rulesets": {
+    "title": "Rule databases",
+    "order": 35,
+    "action": {
+      "type": "view",
+      "path": "resproxy/rulesets"
+    }
+  },
+  "admin/services/resproxy/dns": {
+    "title": "DNS устройств",
+    "order": 36,
+    "action": {
+      "type": "view",
+      "path": "resproxy/dns"
+    }
+  },
+  "admin/services/resproxy/log": {
+    "title": "Journal",
+    "order": 50,
+    "action": {
+      "type": "view",
+      "path": "resproxy/log"
+    }
+  },
+  "admin/services/resproxy/upgrade": {
+    "title": "Package update",
+    "order": 60,
+    "action": {
+      "type": "view",
+      "path": "resproxy/upgrade"
+    }
+  }
+}

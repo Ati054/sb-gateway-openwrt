@@ -1,0 +1,16 @@
+#!/bin/sh
+# netifd may discard policy-routing rules on a network restart. Reapply only
+# this package's TProxy plumbing; never restart the long-lived Xray process.
+case "${ACTION:-}" in ifup|ifdown) ;; *) exit 0 ;; esac
+
+. /lib/functions.sh
+config_load resproxy
+config_get_bool enabled main enabled 0
+config_get_bool route_enabled main route_enabled 0
+[ "$enabled" = 1 ] && [ "$route_enabled" = 1 ] || exit 0
+pgrep -f '^/usr/bin/resproxyd run$' >/dev/null 2>&1 || exit 0
+
+if ! /usr/bin/resproxyd capture-restore; then
+	logger -t resproxy-hotplug 'failed to restore TProxy policy routing after interface change'
+	exit 1
+fi

@@ -1,0 +1,1261 @@
+// Adapted from SB Gateway 1.6.45 (AGPL-3.0).
+package agentport
+
+import (
+	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"example.org/resilient-proxy/internal/xray"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+)
+
+type xraySelectorRuntime struct {
+	opts              Options
+	command           xrayCommandRunner
+	pool              healthPool
+	poolCache         *healthPoolCache
+	poolSignature     string
+	poolFileSignature string
+	poolMTimeUnixNano int64
+	xrayPID           int
+	pendingReset      bool
+	loadedDynamic     map[string]bool
+	verifiedDynamic   map[string]time.Time
+	activeByPolicy    map[string]string
+	activeByNode      map[string]string
+	retiredByPolicy   map[string][]string
+	pendingDynamic    map[string]pendingOutbound
+	unknownDynamic    map[string]bool
+	inventoryLoaded   bool
+	selectorMembers   map[string]string
+	probeRuntimeTag   string
+	probeSelector     string
+	probeContext      context.Context
+	control           *xrayControlClient
+}
+
+type pendingOutbound struct {
+	selector string
+	nodeID   string
+}
+
+const (
+	maxCleanupBacklogPerPolicy = 8
+	maxCleanupBacklogGlobal    = 64
+	maxLiveDynamicPerPolicy    = 10
+	maxLiveDynamicGlobal       = 128
+)
+
+var agentDynamicTag = regexp.MustCompile(`^(?:resproxy-[A-Za-z0-9_-]+-[a-f0-9]{12}|sb-urltest-[a-f0-9]{12}-[a-f0-9]{12}|sb-urltest-probe-[a-f0-9]{12}|sb-health-[a-f0-9]{8}-[a-f0-9]{12})$`)
+
+func (runtime *xraySelectorRuntime) requestContext() context.Context {
+	ctx := context.Background()
+	if runtime.probeContext != nil {
+		ctx = runtime.probeContext
+	}
+	if runtime.probeSelector != "" {
+		return backgroundXrayCommandContext(ctx)
+	}
+	return ctx
+}
+
+func (runtime *xraySelectorRuntime) probeSelectorName() string {
+	if runtime.probeSelector != "" {
+		return runtime.probeSelector
+	}
+	return "outbound-health-probe"
+}
+
+type xrayCommandRunner func(context.Context, time.Duration, string, ...string) ([]byte, error)
+
+var (
+	underlayWANTargets          = []string{"1.1.1.1:443", "9.9.9.9:443", "www.gstatic.com:443"}
+	availabilityProbeTimeout    = 2 * time.Second
+	availabilityFallbackTimeout = 3 * time.Second
+)
+
+func newXraySelectorRuntime(opts Options) *xraySelectorRuntime {
+	command := xrayCommandRunner(runXrayCommand)
+	if opts.RunXrayCommand != nil {
+		command = func(ctx context.Context, timeout time.Duration, binary string, args ...string) ([]byte, error) {
+			return runXrayCommandWithRunner(ctx, timeout, opts.RunXrayCommand, binary, args...)
+		}
+	}
+	return &xraySelectorRuntime{
+		opts:            opts,
+		poolCache:       &healthPoolCache{},
+		command:         command,
+		loadedDynamic:   make(map[string]bool),
+		verifiedDynamic: make(map[string]time.Time),
+		activeByPolicy:  make(map[string]string),
+		activeByNode:    make(map[string]string),
+		retiredByPolicy: make(map[string][]string),
+		pendingDynamic:  make(map[string]pendingOutbound),
+		unknownDynamic:  make(map[string]bool),
+		selectorMembers: make(map[string]string),
+	}
+}
+
+func (runtime *xraySelectorRuntime) Reload() (healthPool, bool, error) {
+	if runtime.poolCache == nil {
+		runtime.poolCache = &healthPoolCache{}
+	}
+	snapshot, err := runtime.poolCache.load(runtime.opts.HealthPoolFile)
+	if err != nil {
+		return healthPool{}, false, err
+	}
+	fileSignature, signature := snapshot.fileSignature, snapshot.signature
+	pid := readyProcessPID(runtime.opts.XrayReadyFile, runtime.opts.xrayProcessName())
+	if runtime.opts.XrayReadyFile != "" && (pid != runtime.xrayPID || runtime.poolSignature == "") {
+		// Only once per core start, not per probe: the startup helper must pin
+		// the saved leaf before health may read back and replace persisted state.
+		if pid <= 0 {
+			return healthPool{}, false, errors.New("Xray startup selectors are not ready")
+		}
+	}
+	pidChanged := pid != runtime.xrayPID
+	contractChanged := signature != runtime.poolSignature
+	// Inventory can fail after the cached generation advances. Deliver its
+	// reset only with a successful pool, including on a later retry.
+	runtime.pendingReset = runtime.pendingReset || pidChanged || contractChanged
+	if contractChanged {
+		runtime.pool = snapshot.pool
+		runtime.poolSignature = signature
+	}
+	runtime.poolFileSignature = fileSignature
+	runtime.poolMTimeUnixNano = snapshot.mtime
+	if pidChanged {
+		runtime.xrayPID = pid
+		runtime.loadedDynamic = make(map[string]bool)
+		runtime.verifiedDynamic = make(map[string]time.Time)
+		runtime.activeByPolicy = make(map[string]string)
+		runtime.activeByNode = make(map[string]string)
+		runtime.retiredByPolicy = make(map[string][]string)
+		runtime.pendingDynamic = make(map[string]pendingOutbound)
+		runtime.unknownDynamic = make(map[string]bool)
+		runtime.inventoryLoaded = false
+		runtime.selectorMembers = make(map[string]string)
+		runtime.probeRuntimeTag = ""
+	} else if contractChanged {
+		// A subscription generation can retire handlers without restarting Xray.
+		// Never carry an existence readback across that boundary.
+		runtime.verifiedDynamic = make(map[string]time.Time)
+	}
+	// A restarted monitor has lost its in-memory ownership map while Xray can
+	// still hold earlier handlers. Count them before admitting new generations;
+	// unknown handlers are never removed based on their name alone.
+	if pid > 0 && !runtime.inventoryLoaded {
+		if err := runtime.loadDynamicInventory(); err != nil {
+			return healthPool{}, false, err
+		}
+	}
+	// Reconcile additions whose selector acknowledgement was lost before
+	// retrying retired handler removal. An uncertain add may have succeeded.
+	runtime.reconcilePendingOutbounds()
+	// Retry deferred handler removal during the ordinary health loop, even
+	// when the selected node remains stable after a transient Xray API error.
+	for policyID := range runtime.retiredByPolicy {
+		runtime.pruneRetiredOutbounds(policyID)
+	}
+	reset := runtime.pendingReset
+	runtime.pendingReset = false
+	return runtime.pool, reset, nil
+}
+
+func xrayStartupReady(path string, pid int) bool {
+	ready, err := os.ReadFile(path)
+	return err == nil && pid > 0 && strings.TrimSpace(string(ready)) == strconv.Itoa(pid)
+}
+
+// The startup helper writes the PID of the long-lived Xray core only after it
+// restores selectors and admits traffic. Trust that marker after validating
+// the referenced process instead of scanning by comm: short-lived `xray api`
+// clients use the same comm and can otherwise be mistaken for the core.
+func readyProcessPID(path, name string) int {
+	return readyProcessPIDAt("/proc", path, name)
+}
+
+func readyProcessPIDAt(root, path, name string) int {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(body)))
+	if err != nil || pid <= 0 {
+		return 0
+	}
+	directory := filepath.Join(root, strconv.Itoa(pid))
+	comm, err := os.ReadFile(filepath.Join(directory, "comm"))
+	if err != nil || strings.TrimSpace(string(comm)) != name {
+		return 0
+	}
+	stat, err := os.ReadFile(filepath.Join(directory, "stat"))
+	if err != nil {
+		return 0
+	}
+	end := strings.LastIndexByte(string(stat), ')')
+	if end < 0 {
+		return 0
+	}
+	fields := strings.Fields(string(stat)[end+1:])
+	if len(fields) == 0 || fields[0] == "Z" || fields[0] == "X" || fields[0] == "x" {
+		return 0
+	}
+	return pid
+}
+
+func (runtime *xraySelectorRuntime) Select(selector, member string) (selectionErr error) {
+	if selector == runtime.probeSelectorName() {
+		xray.MutationMu.RLock()
+		defer xray.MutationMu.RUnlock()
+	} else {
+		xray.MutationMu.Lock()
+		defer xray.MutationMu.Unlock()
+	}
+	trace := beginHealthStage("select", runtime.stageLane(), selector, member)
+	defer func() { trace.finishError(selectionErr, runtime.requestContext().Err() != nil) }()
+	runtimeMember := member
+	_, policySelector := runtime.pool.Policies[selector]
+	if selector == runtime.probeSelectorName() {
+		var err error
+		runtimeMember, err = runtime.probeTag(member)
+		if err != nil {
+			return err
+		}
+	} else if policySelector && member != "block" && member != "direct-wan" {
+		expected := runtime.policyRuntimeTag(selector, member)
+		if runtime.selectorMembers[selector] == "" {
+			if actual, readErr := runtime.selectedRuntimeMember(selector); readErr == nil {
+				runtime.selectorMembers[selector] = actual
+			}
+		}
+		if expected != member && runtime.selectorMembers[selector] == expected {
+			// The cold-start helper restores the selected dynamic handler before
+			// the agent is admitted. Adopt that live handler instead of asking
+			// HandlerService to add the same deterministic tag a second time.
+			present, err := runtime.outboundPresent(expected)
+			if err != nil {
+				return err
+			}
+			if present {
+				runtime.loadedDynamic[expected] = true
+				runtime.verifiedDynamic[expected] = time.Now()
+			} else {
+				runtime.markPendingOutbound(expected, selector, member)
+				if err := runtime.ensureOutbound(member, expected); err != nil {
+					// The selector kept its override but its handler disappeared.
+					return err
+				}
+			}
+			runtimeMember = expected
+		} else {
+			var err error
+			runtimeMember, err = runtime.policyTag(selector, member)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if runtime.selectorMembers[selector] == runtimeMember {
+		if policySelector {
+			return runtime.commitPolicySelection(selector, member, runtimeMember)
+		}
+		delete(runtime.pendingDynamic, runtimeMember)
+		return nil
+	}
+	var updateErr error
+	if runtime.control != nil {
+		updateErr = runtime.control.override(runtime.requestContext(), selector, runtimeMember)
+	} else {
+		_, updateErr = runtime.command(runtime.requestContext(), 5*time.Second, runtime.opts.XrayBinary, "api", "bo", "--server="+runtime.opts.XrayAPIServer, "-b", selector, runtimeMember)
+	}
+	if err := updateErr; err != nil {
+		// An override may have applied even when its acknowledgement was lost.
+		delete(runtime.selectorMembers, selector)
+		return fmt.Errorf("Xray rejected selector update: %w", err)
+	}
+	actual, err := runtime.selectedRuntimeMember(selector)
+	if err != nil {
+		delete(runtime.selectorMembers, selector)
+		return err
+	}
+	if actual != runtimeMember {
+		delete(runtime.selectorMembers, selector)
+		return fmt.Errorf("Xray selector %q remained on %q instead of %q", selector, actual, runtimeMember)
+	}
+	runtime.selectorMembers[selector] = runtimeMember
+	if policySelector {
+		if err := runtime.commitPolicySelection(selector, member, runtimeMember); err != nil {
+			return err
+		}
+	} else {
+		delete(runtime.pendingDynamic, runtimeMember)
+	}
+	return nil
+}
+
+func (runtime *xraySelectorRuntime) Current(selector string) (selected string, selectionErr error) {
+	trace := beginHealthStage("current", runtime.stageLane(), selector, "")
+	defer func() { trace.finish(selectionErr == nil) }()
+	member, err := runtime.selectedRuntimeMember(selector)
+	if err != nil {
+		return "", err
+	}
+	if member == "" {
+		delete(runtime.selectorMembers, selector)
+		return "", nil
+	}
+	runtime.selectorMembers[selector] = member
+	if member == "block" || member == "direct-wan" {
+		return member, nil
+	}
+	if contract, exists := runtime.pool.HealthPolicies[selector]; exists {
+		prefix := runtime.pool.PolicyPrefixes[selector]
+		if prefix == "" {
+			prefix = "sb-urltest-" + shortHash(selector, 12) + "-"
+		}
+		for _, candidate := range contract.Candidates {
+			if member == candidate {
+				return candidate, nil
+			}
+			if member == runtime.dynamicTag(prefix, candidate) {
+				if err := runtime.ensureOutbound(candidate, member); err != nil {
+					return "", err
+				}
+				return candidate, nil
+			}
+		}
+		// A freshly published health contract may remove the active candidate.
+		// The dynamic outbound is still alive in Xray and all node definitions
+		// remain in the pool, so decode it before asking the controller to move.
+		for candidate := range runtime.pool.Outbounds {
+			if member == runtime.dynamicTag(prefix, candidate) {
+				if err := runtime.ensureOutbound(candidate, member); err != nil {
+					return "", err
+				}
+				return candidate, nil
+			}
+		}
+	}
+	for node, runtimeTag := range runtime.activeByNode {
+		if runtimeTag == member {
+			if runtime.pool.Outbounds[node] != nil && !runtime.isBase(node) {
+				if runtime.policyRuntimeTag(selector, node) != member {
+					// Apply can publish a refreshed outbound without restarting Xray.
+					// Move new streams to the current generation, retaining the old
+					// handler for connections already using it.
+					if err := runtime.Select(selector, node); err != nil {
+						return "", fmt.Errorf("refresh selected outbound generation: %w", err)
+					}
+					return node, nil
+				}
+				if err := runtime.ensureOutbound(node, member); err != nil {
+					return "", err
+				}
+			}
+			return node, nil
+		}
+	}
+	return member, nil
+}
+
+func (runtime *xraySelectorRuntime) selectedRuntimeMember(selector string) (string, error) {
+	if runtime.control != nil {
+		member, err := runtime.control.selected(runtime.requestContext(), selector)
+		if err != nil {
+			return "", fmt.Errorf("Xray selector state is unavailable: %w", err)
+		}
+		return member, nil
+	}
+	output, err := runtime.command(runtime.requestContext(), 5*time.Second, runtime.opts.XrayBinary, "api", "bi", "--server="+runtime.opts.XrayAPIServer, selector)
+	if err != nil {
+		return "", fmt.Errorf("Xray selector state is unavailable: %w", err)
+	}
+	section := false
+	for _, line := range strings.Split(string(output), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "Selecting Override:") {
+			section = true
+			continue
+		}
+		if section && strings.HasPrefix(trimmed, "- Selects:") {
+			break
+		}
+		if !section || trimmed == "" {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) >= 2 {
+			return fields[len(fields)-1], nil
+		}
+	}
+	return "", nil
+}
+
+func (runtime *xraySelectorRuntime) policyTag(policyID, nodeID string) (string, error) {
+	tag := runtime.policyRuntimeTag(policyID, nodeID)
+	if tag == nodeID {
+		runtime.activeByNode[nodeID] = nodeID
+		return nodeID, nil
+	}
+	if !runtime.loadedDynamic[tag] && !runtime.unknownDynamic[tag] {
+		if _, pending := runtime.pendingDynamic[tag]; !pending {
+			perPolicy, global := runtime.cleanupBacklog(policyID)
+			if perPolicy >= maxCleanupBacklogPerPolicy || global >= maxCleanupBacklogGlobal {
+				return "", errors.New("Xray dynamic outbound cleanup backlog is full")
+			}
+			if err := runtime.admitDynamicTag(tag, runtime.policyPrefix(policyID)); err != nil {
+				return "", err
+			}
+		}
+	}
+	runtime.markPendingOutbound(tag, policyID, nodeID)
+	if err := runtime.ensureOutbound(nodeID, tag); err != nil {
+		return "", err
+	}
+	return tag, nil
+}
+
+// Failed removals stay owned and are retried. Refuse to create unlimited new
+// generations while Xray cannot confirm cleanup; existing tags remain usable.
+func (runtime *xraySelectorRuntime) cleanupBacklog(policyID string) (int, int) {
+	counts := make(map[string]int, len(runtime.retiredByPolicy))
+	for selector, retired := range runtime.retiredByPolicy {
+		if len(retired) > 1 {
+			counts[selector] = len(retired) - 1
+		}
+	}
+	for tag, pending := range runtime.pendingDynamic {
+		if tag != runtime.activeByPolicy[pending.selector] && !contains(runtime.retiredByPolicy[pending.selector], tag) {
+			counts[pending.selector]++
+		}
+	}
+	global := 0
+	for _, count := range counts {
+		global += count
+	}
+	return counts[policyID], global
+}
+
+func (runtime *xraySelectorRuntime) loadDynamicInventory() error {
+	tags, err := runtime.outboundTags()
+	if err != nil {
+		return err
+	}
+	runtime.unknownDynamic = make(map[string]bool)
+	for tag := range tags {
+		if agentDynamicTag.MatchString(tag) && !runtime.loadedDynamic[tag] {
+			runtime.unknownDynamic[tag] = true
+		}
+	}
+	runtime.inventoryLoaded = true
+	return nil
+}
+
+// Include handlers left by an earlier monitor process in the admission cap.
+// Only the owning process may remove them; a tag alone proves no reference state.
+func (runtime *xraySelectorRuntime) admitDynamicTag(tag, prefix string) error {
+	if runtime.xrayPID > 0 && !runtime.inventoryLoaded {
+		return errors.New("Xray dynamic outbound inventory is unavailable")
+	}
+	known := make(map[string]bool, len(runtime.unknownDynamic)+len(runtime.loadedDynamic)+len(runtime.pendingDynamic))
+	for existing := range runtime.unknownDynamic {
+		known[existing] = true
+	}
+	for existing := range runtime.loadedDynamic {
+		known[existing] = true
+	}
+	for existing := range runtime.pendingDynamic {
+		known[existing] = true
+	}
+	if known[tag] {
+		return nil
+	}
+	global, perPolicy := 0, 0
+	for existing := range known {
+		if !agentDynamicTag.MatchString(existing) {
+			continue
+		}
+		global++
+		if prefix != "" && strings.HasPrefix(existing, prefix) {
+			perPolicy++
+		}
+	}
+	if global >= maxLiveDynamicGlobal || (prefix != "" && perPolicy >= maxLiveDynamicPerPolicy) {
+		return errors.New("Xray dynamic outbound inventory limit is full")
+	}
+	return nil
+}
+
+func (runtime *xraySelectorRuntime) policyRuntimeTag(policyID, nodeID string) string {
+	if runtime.isBase(nodeID) || runtime.pool.Outbounds[nodeID] == nil {
+		return nodeID
+	}
+	return runtime.dynamicTag(runtime.policyPrefix(policyID), nodeID)
+}
+
+func (runtime *xraySelectorRuntime) policyPrefix(policyID string) string {
+	if prefix := runtime.pool.PolicyPrefixes[policyID]; prefix != "" {
+		return prefix
+	}
+	return "sb-urltest-" + shortHash(policyID, 12) + "-"
+}
+
+// commitPolicySelection retires an old handler only after Xray confirms that
+// the selector points at the replacement. Removing it earlier creates a small
+// window where new streams have no usable outbound.
+func (runtime *xraySelectorRuntime) commitPolicySelection(policyID, nodeID, runtimeTag string) error {
+	prefix := runtime.pool.PolicyPrefixes[policyID]
+	if prefix == "" {
+		prefix = "sb-urltest-" + shortHash(policyID, 12) + "-"
+	}
+	previous := runtime.activeByPolicy[policyID]
+	runtime.activeByPolicy[policyID] = runtimeTag
+	if nodeID != "" {
+		runtime.activeByNode[nodeID] = runtimeTag
+	}
+	retired := runtime.retiredByPolicy[policyID]
+	// A previously retired handler can become active again. Never remove the
+	// newly selected handler while trimming older generations.
+	if len(retired) != 0 {
+		remaining := retired[:0]
+		for _, tag := range retired {
+			if tag != runtimeTag {
+				remaining = append(remaining, tag)
+			}
+		}
+		retired = remaining
+	}
+	if previous != "" && previous != runtimeTag && strings.HasPrefix(previous, prefix) {
+		if !contains(retired, previous) {
+			retired = append(retired, previous)
+		}
+	}
+	runtime.retiredByPolicy[policyID] = retired
+	delete(runtime.pendingDynamic, runtimeTag)
+	runtime.pruneRetiredOutbounds(policyID)
+	return nil
+}
+
+func (runtime *xraySelectorRuntime) pruneRetiredOutbounds(policyID string) {
+	retired := runtime.retiredByPolicy[policyID]
+	// Keep the newest retired handler for existing connections. An older
+	// removal failure must not prevent cleanup of unrelated older handlers.
+	// Rotate a bounded number of failures so repeated API errors do not make
+	// every health tick scan the entire backlog.
+	if len(retired) <= 1 {
+		return
+	}
+	older := retired[:len(retired)-1]
+	budget := min(len(older), 4)
+	failed := make([]string, 0, budget)
+	for _, tag := range older[:budget] {
+		if tag == runtime.activeByPolicy[policyID] {
+			continue
+		}
+		if err := runtime.removeOutbound(tag); err != nil {
+			failed = append(failed, tag)
+		}
+	}
+	remaining := make([]string, 0, len(retired))
+	remaining = append(remaining, older[budget:]...)
+	remaining = append(remaining, failed...)
+	remaining = append(remaining, retired[len(retired)-1])
+	runtime.retiredByPolicy[policyID] = remaining
+}
+
+func (runtime *xraySelectorRuntime) markPendingOutbound(tag, selector, nodeID string) {
+	if runtime.pendingDynamic == nil {
+		runtime.pendingDynamic = make(map[string]pendingOutbound)
+	}
+	runtime.pendingDynamic[tag] = pendingOutbound{selector: selector, nodeID: nodeID}
+}
+
+// AddOutbound can succeed even when its CLI acknowledgement is lost. A later
+// selector failure can likewise leave the new handler installed but untracked.
+// Resolve that uncertainty before dropping ownership or adding another tag.
+func (runtime *xraySelectorRuntime) reconcilePendingOutbounds() {
+	for tag, pending := range runtime.pendingDynamic {
+		selected, err := runtime.selectedRuntimeMember(pending.selector)
+		if err != nil {
+			continue
+		}
+		present, err := runtime.outboundPresent(tag)
+		if err != nil {
+			continue
+		}
+		if !present {
+			delete(runtime.pendingDynamic, tag)
+			delete(runtime.loadedDynamic, tag)
+			delete(runtime.verifiedDynamic, tag)
+			continue
+		}
+		runtime.loadedDynamic[tag] = true
+		runtime.verifiedDynamic[tag] = time.Now()
+		if selected == tag {
+			if _, policy := runtime.pool.Policies[pending.selector]; policy {
+				runtime.selectorMembers[pending.selector] = tag
+				_ = runtime.commitPolicySelection(pending.selector, pending.nodeID, tag)
+				continue
+			}
+			if pending.selector == runtime.probeSelectorName() {
+				runtime.selectorMembers[pending.selector] = tag
+				runtime.probeRuntimeTag = tag
+				delete(runtime.pendingDynamic, tag)
+				continue
+			}
+		}
+		if err := runtime.removeOutbound(tag); err == nil {
+			delete(runtime.pendingDynamic, tag)
+		}
+	}
+}
+
+func (runtime *xraySelectorRuntime) probeTag(nodeID string) (string, error) {
+	if nodeID == "block" || nodeID == "direct-wan" || runtime.isBase(nodeID) {
+		return nodeID, nil
+	}
+	if tag := runtime.activeByNode[nodeID]; tag != "" {
+		if tag == nodeID {
+			return tag, nil
+		}
+		if runtime.loadedDynamic[tag] && time.Since(runtime.verifiedDynamic[tag]) < time.Second {
+			return tag, nil
+		}
+		present, err := runtime.outboundPresent(tag)
+		if err != nil {
+			return "", err
+		}
+		if present {
+			runtime.loadedDynamic[tag] = true
+			runtime.verifiedDynamic[tag] = time.Now()
+			return tag, nil
+		}
+		// A selector can outlive its HandlerService outbound. Probe the
+		// current subscription definition instead of reusing that stale tag.
+		delete(runtime.activeByNode, nodeID)
+		delete(runtime.loadedDynamic, tag)
+		delete(runtime.verifiedDynamic, tag)
+	}
+	if runtime.pool.Outbounds[nodeID] == nil {
+		return nodeID, nil
+	}
+	tag := "sb-urltest-probe-" + runtime.dynamicDigest(nodeID)
+	if runtime.probeSelector != "" {
+		// Every parallel lane owns and retires only its own dynamic handler.
+		// Reusing one tag across lanes lets a later batch remove an outbound
+		// which another lane is still probing.
+		tag = "sb-health-" + shortHash(runtime.probeSelector, 8) + "-" + runtime.dynamicDigest(nodeID)
+	}
+	if runtime.probeRuntimeTag != "" && runtime.probeRuntimeTag != tag {
+		if err := runtime.removeOutbound(runtime.probeRuntimeTag); err != nil {
+			return "", err
+		}
+	}
+	if !runtime.loadedDynamic[tag] && !runtime.unknownDynamic[tag] {
+		if err := runtime.admitDynamicTag(tag, ""); err != nil {
+			return "", err
+		}
+	}
+	runtime.markPendingOutbound(tag, runtime.probeSelectorName(), nodeID)
+	if err := runtime.ensureOutbound(nodeID, tag); err != nil {
+		return "", err
+	}
+	runtime.probeRuntimeTag = tag
+	return tag, nil
+}
+
+func (runtime *xraySelectorRuntime) dynamicTag(prefix, nodeID string) string {
+	return prefix + shortHash(nodeID+"\x00"+string(runtime.pool.Outbounds[nodeID]), 12)
+}
+
+func (runtime *xraySelectorRuntime) dynamicDigest(nodeID string) string {
+	return shortHash(nodeID+"\x00"+string(runtime.pool.Outbounds[nodeID]), 12)
+}
+
+func (runtime *xraySelectorRuntime) ensureOutbound(nodeID, tag string) error {
+	repair := runtime.loadedDynamic[tag]
+	if repair {
+		if time.Since(runtime.verifiedDynamic[tag]) < time.Second {
+			return nil
+		}
+		present, err := runtime.outboundPresent(tag)
+		if err != nil {
+			return err
+		}
+		if present {
+			runtime.verifiedDynamic[tag] = time.Now()
+			return nil
+		}
+		delete(runtime.loadedDynamic, tag)
+		delete(runtime.verifiedDynamic, tag)
+	}
+	// A fresh tag needs only AddOutbound's success acknowledgement. Avoid two
+	// full handler listings per candidate during a parallel emergency batch.
+	var outbound map[string]any
+	if err := json.Unmarshal(runtime.pool.Outbounds[nodeID], &outbound); err != nil {
+		return err
+	}
+	outbound["tag"] = tag
+	if runtime.opts.PrepareOutbound != nil {
+		if err := runtime.opts.PrepareOutbound(runtime.requestContext(), outbound); err != nil {
+			return err
+		}
+	} else if _, ok := outbound["_resproxy_plugin"]; ok {
+		return errors.New("plugin supervisor is unavailable")
+	}
+	body, err := json.Marshal(map[string]any{"outbounds": []any{outbound}})
+	if err != nil {
+		return err
+	}
+	temporary, err := os.CreateTemp("", "sb-urltest-*.json")
+	if err != nil {
+		return err
+	}
+	path := temporary.Name()
+	defer os.Remove(path)
+	if err := temporary.Chmod(0o600); err != nil {
+		temporary.Close()
+		return err
+	}
+	if _, err := temporary.Write(append(body, '\n')); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		_, commandErr := runtime.command(runtime.requestContext(), 5*time.Second, runtime.opts.XrayBinary, "api", "ado", "--server="+runtime.opts.XrayAPIServer, path)
+		if !repair && attempt == 0 && commandErr == nil {
+			break
+		}
+		present, err := runtime.outboundPresent(tag)
+		if err != nil {
+			return errors.New("Xray dynamic outbound presence is unconfirmed after add")
+		}
+		if present {
+			break
+		}
+		// A timed-out CLI may never have reached HandlerService. Read back
+		// absence before one bounded retry; never duplicate an uncertain add.
+		if attempt == 0 && errors.Is(commandErr, context.DeadlineExceeded) && runtime.requestContext().Err() == nil {
+			continue
+		}
+		return errors.New("Xray dynamic outbound was not confirmed after add")
+	}
+	runtime.loadedDynamic[tag] = true
+	delete(runtime.unknownDynamic, tag)
+	runtime.verifiedDynamic[tag] = time.Now()
+	return nil
+}
+
+func (runtime *xraySelectorRuntime) outboundPresent(tag string) (bool, error) {
+	tags, err := runtime.outboundTags()
+	if err != nil {
+		return false, err
+	}
+	return tags[tag], nil
+}
+
+func (runtime *xraySelectorRuntime) outboundTags() (map[string]bool, error) {
+	if runtime.control != nil {
+		return runtime.control.outbounds(runtime.requestContext())
+	}
+	output, err := runtime.command(runtime.requestContext(), 5*time.Second, runtime.opts.XrayBinary,
+		"api", "lso", "--server="+runtime.opts.XrayAPIServer)
+	if err != nil {
+		return nil, errors.New("Xray outbound list is unavailable")
+	}
+	var response struct {
+		Outbounds []struct {
+			Tag string `json:"tag"`
+		} `json:"outbounds"`
+	}
+	if json.Unmarshal(output, &response) != nil || response.Outbounds == nil {
+		return nil, errors.New("Xray outbound list is invalid")
+	}
+	tags := make(map[string]bool, len(response.Outbounds))
+	for _, outbound := range response.Outbounds {
+		tags[outbound.Tag] = true
+	}
+	return tags, nil
+}
+
+func (runtime *xraySelectorRuntime) removeOutbound(tag string) error {
+	if tag == "" {
+		return nil
+	}
+	if !runtime.loadedDynamic[tag] {
+		return nil
+	}
+	var removeErr error
+	if runtime.control != nil {
+		removeErr = runtime.control.remove(runtime.requestContext(), tag)
+	} else {
+		_, removeErr = runtime.command(runtime.requestContext(), 5*time.Second, runtime.opts.XrayBinary, "api", "rmo", "--server="+runtime.opts.XrayAPIServer, tag)
+	}
+	if err := removeErr; err != nil {
+		// RemoveOutbound can succeed after its acknowledgement is lost. A list
+		// readback distinguishes that case from a still-live handler; if the
+		// readback also fails, retain ownership for the next cleanup tick.
+		present, readErr := runtime.outboundPresent(tag)
+		if readErr != nil || present {
+			return errors.New("Xray outbound cleanup was not confirmed")
+		}
+	}
+	delete(runtime.loadedDynamic, tag)
+	delete(runtime.unknownDynamic, tag)
+	delete(runtime.verifiedDynamic, tag)
+	for node, value := range runtime.activeByNode {
+		if value == tag {
+			delete(runtime.activeByNode, node)
+		}
+	}
+	for selector, member := range runtime.selectorMembers {
+		if member == tag {
+			delete(runtime.selectorMembers, selector)
+		}
+	}
+	if runtime.probeRuntimeTag == tag {
+		runtime.probeRuntimeTag = ""
+	}
+	delete(runtime.pendingDynamic, tag)
+	if runtime.opts.ReleaseOutbound != nil {
+		runtime.opts.ReleaseOutbound(tag)
+	}
+	return nil
+}
+
+func (runtime *xraySelectorRuntime) isBase(tag string) bool {
+	for _, value := range runtime.pool.BaseOutboundTags {
+		if value == tag {
+			return true
+		}
+	}
+	return false
+}
+
+type xrayProbeMode uint8
+
+const (
+	xrayQualityProbe xrayProbeMode = iota
+	xrayAvailabilityProbe
+	xrayEmergencyProbe
+)
+
+func (runtime *xraySelectorRuntime) Probe(candidate string) (evidence probeEvidence) {
+	trace := beginHealthStage("quality_probe", runtime.stageLane(), "", candidate)
+	defer func() { trace.finish(evidence.OK) }()
+	return runtime.probe(candidate, xrayQualityProbe)
+}
+
+func (runtime *xraySelectorRuntime) ProbeAvailability(candidate string) (evidence probeEvidence) {
+	trace := beginHealthStage("availability_probe", runtime.stageLane(), "", candidate)
+	defer func() { trace.finish(evidence.OK) }()
+	return runtime.probe(candidate, xrayAvailabilityProbe)
+}
+
+func (runtime *xraySelectorRuntime) ProbeEmergencyAvailability(candidate string) (evidence probeEvidence) {
+	trace := beginHealthStage("emergency_availability_probe", runtime.stageLane(), "", candidate)
+	defer func() { trace.finish(evidence.OK) }()
+	return runtime.probe(candidate, xrayEmergencyProbe)
+}
+
+func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) probeEvidence {
+	evidence := probeEvidence{Targets: make(map[string]*int), TargetFailures: make(map[string]probeFailureClass)}
+	// Reverse bridge outbounds exist only while the matching client has an
+	// online session. Selecting an offline bridge is accepted by the balancer
+	// API but every probe then reaches a non-existent outbound and Xray logs a
+	// misleading warning. Treat the online counter as the liveness gate before
+	// touching either probe selector.
+	if runtime.isReverse(candidate) && !runtime.reverseOnline(candidate) {
+		evidence.Failure = probeFailureFatal
+		return evidence
+	}
+	if err := runtime.Select(runtime.probeSelectorName(), candidate); err != nil {
+		evidence.Failure = classifyProbeError(err)
+		evidence.LocalFailure = true
+		return evidence
+	}
+	if mode != xrayQualityProbe {
+		evidence.QualityUnmeasured = true
+		return runtime.probeAvailabilityTargets(evidence, mode == xrayEmergencyProbe)
+	}
+	// Compare one origin only; alternate origins prove availability, not speed.
+	target := healthTargets[0]
+	trace := beginHealthStage("https", runtime.stageLane(), "", "")
+	trace.target(target.label)
+	started := time.Now()
+	_, err := requestThroughProxyContext(runtime.requestContext(), runtime.opts.ProbeURL, target.url, http.MethodHead, 5*time.Second, 0, target.status)
+	trace.finish(err == nil)
+	if err == nil {
+		delay := maxInt(1, int(time.Since(started).Milliseconds()))
+		evidence.OK, evidence.DelayMS = true, &delay
+		evidence.Targets[target.label] = &delay
+		return evidence
+	}
+	if errors.Is(err, errProbeSchedulingDelayed) {
+		evidence.LocalFailure = true
+		evidence.LocalError = errProbeSchedulingDelayed
+		return evidence
+	}
+	evidence = runtime.probeAvailabilityTargets(evidence, false)
+	evidence.QualityUnmeasured = true
+	evidence.PrimaryQualityFailed = true
+	if evidence.OK {
+		evidence.DelayMS = nil
+	}
+	return evidence
+}
+
+// Keep the healthy fast path to one request. If it fails, give both remaining
+// independent origins a bounded chance in parallel. A slow public endpoint
+// must not make a working outbound look dead. Confirmed emergency discovery
+// starts all three together without shortening any origin deadline. Join
+// canceled requests before the selector can be reused for another candidate.
+func (runtime *xraySelectorRuntime) probeAvailabilityTargets(evidence probeEvidence, parallelPrimary bool) probeEvidence {
+	type targetResult struct {
+		label   string
+		delayMS int
+		err     error
+	}
+	probe := func(ctx context.Context, index int, timeout time.Duration) targetResult {
+		target := healthTargets[index]
+		trace := beginHealthStage("https", runtime.stageLane(), "", "")
+		trace.target(target.label)
+		started := time.Now()
+		_, err := downloadThroughProxyContext(ctx, runtime.opts.ProbeURL, target.url, timeout, 1024, target.status)
+		trace.finish(err == nil)
+		return targetResult{label: target.label, delayMS: maxInt(1, int(time.Since(started).Milliseconds())), err: err}
+	}
+	failures := make([]probeFailureClass, 0, len(healthTargets))
+	record := func(result targetResult) bool {
+		if result.err == nil {
+			delay := result.delayMS
+			evidence.Targets[result.label] = &delay
+			evidence.OK = true
+			evidence.DelayMS = &delay
+			return true
+		}
+		evidence.Targets[result.label] = nil
+		if errors.Is(result.err, errProbeSchedulingDelayed) {
+			evidence.LocalFailure = true
+			evidence.LocalError = errProbeSchedulingDelayed
+			return false
+		}
+		failure := classifyProbeError(result.err)
+		evidence.TargetFailures[result.label] = failure
+		failures = append(failures, failure)
+		return false
+	}
+	if len(healthTargets) == 0 {
+		evidence.Failure = probeFailureTransient
+		return evidence
+	}
+	first := 0
+	if !parallelPrimary {
+		if record(probe(runtime.requestContext(), 0, availabilityProbeTimeout)) {
+			return evidence
+		}
+		if evidence.LocalFailure {
+			return evidence
+		}
+		first = 1
+	}
+
+	// Production has three origins; never grow emergency fanout implicitly.
+	count := minInt(len(healthTargets), 3) - first
+	ctx, cancel := context.WithCancel(runtime.requestContext())
+	defer cancel()
+	results := make(chan targetResult, count)
+	for index := first; index < first+count; index++ {
+		go func(index int) {
+			timeout := availabilityFallbackTimeout
+			if index == 0 {
+				timeout = availabilityProbeTimeout
+			}
+			results <- probe(ctx, index, timeout)
+		}(index)
+	}
+	for received := 0; received < count; received++ {
+		result := <-results
+		if evidence.OK {
+			continue // Canceled sibling is not a failed target.
+		}
+		if record(result) || evidence.LocalFailure {
+			cancel()
+		}
+	}
+	if !evidence.OK {
+		evidence.Failure = classifyTargetFailures(failures)
+	}
+	return evidence
+}
+
+func classifyTargetFailures(failures []probeFailureClass) probeFailureClass {
+	if len(failures) == 0 {
+		return probeFailureTransient
+	}
+	first := failures[0]
+	allSame := true
+	for _, failure := range failures[1:] {
+		if failure != first {
+			allSame = false
+		}
+	}
+	if allSame {
+		return first
+	}
+	// Mixed errors do not prove a fatal node-level failure. In particular a
+	// certificate error from one public target must not bypass underlay checks.
+	for _, failure := range failures {
+		if failure == probeFailureTimeout {
+			return probeFailureTimeout
+		}
+	}
+	for _, failure := range failures {
+		if failure == probeFailureDNS {
+			return probeFailureDNS
+		}
+	}
+	return probeFailureTransient
+}
+
+func classifyProbeError(err error) probeFailureClass {
+	if err == nil {
+		return probeFailureNone
+	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return probeFailureDNS
+	}
+	var certificateErr *tls.CertificateVerificationError
+	var unknownAuthority x509.UnknownAuthorityError
+	var hostnameErr x509.HostnameError
+	var recordErr tls.RecordHeaderError
+	if errors.As(err, &certificateErr) || errors.As(err, &unknownAuthority) || errors.As(err, &hostnameErr) || errors.As(err, &recordErr) {
+		return probeFailureTLS
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ENETUNREACH) || errors.Is(err, syscall.EHOSTUNREACH) {
+		return probeFailureFatal
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return probeFailureTimeout
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return probeFailureTimeout
+	}
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "connection refused"), strings.Contains(message, "no route to host"), strings.Contains(message, "network is unreachable"), strings.Contains(message, "host is unreachable"):
+		return probeFailureFatal
+	case strings.Contains(message, "certificate"), strings.Contains(message, "tls handshake"), strings.Contains(message, "x509:"):
+		return probeFailureTLS
+	case strings.Contains(message, "no such host"), strings.Contains(message, "server misbehaving"):
+		return probeFailureDNS
+	case strings.Contains(message, "timeout"), strings.Contains(message, "timed out"):
+		return probeFailureTimeout
+	default:
+		return probeFailureTransient
+	}
+}
+
+func (runtime *xraySelectorRuntime) UnderlayStatus() (status underlayEvidence) {
+	trace := beginHealthStage("underlay", runtime.stageLane(), "", "")
+	defer func() { trace.finish(status.Known && status.WANOK && status.DNSOK) }()
+	ctx, cancel := context.WithTimeout(runtime.requestContext(), 2*time.Second)
+	defer cancel()
+	return collectUnderlayStatus(ctx, underlayWANTargets, func(ctx context.Context, address string) bool {
+		connection, err := (&net.Dialer{Timeout: 1500 * time.Millisecond}).DialContext(ctx, "tcp", address)
+		if err == nil {
+			_ = connection.Close()
+		}
+		return err == nil
+	}, func(ctx context.Context) bool {
+		addresses, err := net.DefaultResolver.LookupHost(ctx, "www.gstatic.com")
+		return err == nil && len(addresses) > 0
+	})
+}
+
+func collectUnderlayStatus(parent context.Context, targets []string, probeWAN func(context.Context, string) bool, probeDNS func(context.Context) bool) underlayEvidence {
+	ctx, cancel := context.WithCancel(parent)
+	var workers sync.WaitGroup
+	defer func() {
+		cancel()
+		workers.Wait()
+	}()
+	type result struct {
+		kind string
+		ok   bool
+	}
+	results := make(chan result, len(targets)+1)
+	workers.Add(len(targets) + 1)
+	for _, address := range targets {
+		address := address
+		go func() {
+			defer workers.Done()
+			results <- result{kind: "wan", ok: probeWAN(ctx, address)}
+		}()
+	}
+	go func() {
+		defer workers.Done()
+		results <- result{kind: "dns", ok: probeDNS(ctx)}
+	}()
+	status := underlayEvidence{Known: true}
+	for received := 0; received < len(targets)+1; received++ {
+		select {
+		case value := <-results:
+			if value.kind == "wan" {
+				status.WANOK = status.WANOK || value.ok
+			} else {
+				status.DNSOK = value.ok
+			}
+			if status.WANOK && status.DNSOK {
+				// Other WAN outcomes cannot change these two positive facts.
+				return status
+			}
+		case <-ctx.Done():
+			return status
+		}
+	}
+	return status
+}
+
+func (runtime *xraySelectorRuntime) isReverse(candidate string) bool {
+	for _, contract := range runtime.pool.HealthPolicies {
+		if contract.Nodes[candidate].Protocol == "xray-reverse" {
+			return true
+		}
+	}
+	return false
+}
+
+func (runtime *xraySelectorRuntime) reverseOnline(candidate string) bool {
+	body, err := runtime.command(runtime.requestContext(), 3*time.Second, runtime.opts.XrayBinary,
+		"api", "statsonline", "--server="+runtime.opts.XrayAPIServer, "-email", candidate)
+	if err != nil {
+		return false
+	}
+	var response struct {
+		Stat struct {
+			Name  string `json:"name"`
+			Value int64  `json:"value"`
+		} `json:"stat"`
+	}
+	if json.Unmarshal(body, &response) != nil {
+		return false
+	}
+	return response.Stat.Name == "user>>>"+candidate+">>>online" && response.Stat.Value > 0
+}
+
+func probeHTTP(proxyURL, target string, timeout time.Duration, limit int) (int, error) {
+	started := time.Now()
+	_, err := downloadThroughProxy(proxyURL, target, timeout, limit)
+	if err != nil {
+		return 0, err
+	}
+	return maxInt(1, int(time.Since(started).Milliseconds())), nil
+}
+
+func downloadThroughProxy(proxyURL, target string, timeout time.Duration, limit int) (int, error) {
+	return downloadThroughProxyContext(context.Background(), proxyURL, target, timeout, limit, 0)
+}
+
+func downloadThroughProxyContext(ctx context.Context, proxyURL, target string, timeout time.Duration, limit, expectedStatus int) (int, error) {
+	return requestThroughProxyContext(ctx, proxyURL, target, http.MethodGet, timeout, limit, expectedStatus)
+}
+
+func requestThroughProxyContext(ctx context.Context, proxyURL, target, method string, timeout time.Duration, limit, expectedStatus int) (int, error) {
+	parsed, err := url.Parse(proxyURL)
+	if err != nil {
+		return 0, err
+	}
+	transport := &http.Transport{Proxy: http.ProxyURL(parsed), DisableKeepAlives: true, ForceAttemptHTTP2: false}
+	client := &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	defer transport.CloseIdleConnections()
+	request, err := http.NewRequestWithContext(ctx, method, target, nil)
+	if err != nil {
+		return 0, err
+	}
+	request.Header.Set("User-Agent", "SB-Gateway-Go-Health/1")
+	request.Header.Set("Accept-Encoding", "identity")
+	started := time.Now()
+	response, err := client.Do(request)
+	err = probeDeadlineResult(ctx, started, time.Now(), timeout, err)
+	if err != nil {
+		if response != nil {
+			response.Body.Close()
+		}
+		return 0, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 || (expectedStatus != 0 && response.StatusCode != expectedStatus) {
+		return 0, fmt.Errorf("probe returned unexpected HTTP status %d", response.StatusCode)
+	}
+	received := 0
+	buffer := make([]byte, minInt(64*1024, limit))
+	for received < limit {
+		wanted := minInt(len(buffer), limit-received)
+		count, readErr := response.Body.Read(buffer[:wanted])
+		received += count
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			return received, probeDeadlineResult(ctx, started, time.Now(), timeout, readErr)
+		}
+	}
+	return received, nil
+}
+
+func processPID(name string) int {
+	return processPIDAt("/proc", name)
+}
+
+func processPIDAt(root, name string) int {
+	paths, _ := filepath.Glob(filepath.Join(root, "[0-9]*", "comm"))
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err == nil && strings.TrimSpace(string(body)) == name {
+			// A stopped core can remain as a zombie until PID 1 reaps it.
+			// Its comm still says xray, but it cannot own the API/ready marker.
+			stat, err := os.ReadFile(filepath.Join(filepath.Dir(path), "stat"))
+			if err != nil {
+				continue
+			}
+			end := strings.LastIndexByte(string(stat), ')')
+			if end < 0 {
+				continue
+			}
+			fields := strings.Fields(string(stat)[end+1:])
+			if len(fields) == 0 || fields[0] == "Z" || fields[0] == "X" || fields[0] == "x" {
+				continue
+			}
+			pid, _ := strconv.Atoi(filepath.Base(filepath.Dir(path)))
+			return pid
+		}
+	}
+	return 0
+}
+func shortHash(value string, length int) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])[:length]
+}

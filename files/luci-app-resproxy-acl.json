@@ -1,0 +1,80 @@
+{
+  "luci-app-resproxy": {
+    "description": "SB Gateway for OpenWrt configuration and status",
+    "read": {
+      "cgi-io": [
+        "exec"
+      ],
+      "uci": [
+        "resproxy"
+      ],
+      "file": {
+        "/usr/libexec/sb-gateway-upgrade status": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-status": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-health": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-locations": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-log": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-rulesets": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-plugins status": [
+          "exec"
+        ]
+      },
+      "ubus": {
+        "file": [
+          "exec"
+        ]
+      }
+    },
+    "write": {
+      "uci": [
+        "resproxy"
+      ],
+      "file": {
+        "/usr/libexec/sb-gateway-upgrade inspect": [
+          "exec"
+        ],
+        "/usr/libexec/sb-gateway-upgrade start *": [
+          "exec"
+        ],
+        "/tmp/sb-gateway-upgrade.apk": [
+          "write"
+        ],
+        "/usr/libexec/resproxy-refresh": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-rulesets-refresh": [
+          "exec"
+        ],
+        "/etc/init.d/resproxy": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-plugins install v2ray-plugin": [
+          "exec"
+        ],
+        "/usr/libexec/resproxy-plugins install obfs-local": [
+          "exec"
+        ]
+      },
+      "ubus": {
+        "file": [
+          "exec"
+        ]
+      },
+      "cgi-io": [
+        "upload"
+      ]
+    }
+  }
+}

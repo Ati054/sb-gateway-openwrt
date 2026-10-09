@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+case "${1:-}" in
+ status) [ "$#" = 1 ] && exec /usr/bin/resproxyd plugins-status ;;
+ install) [ "$#" = 2 ] || exit 1; case "$2" in v2ray-plugin|obfs-local) exec /usr/bin/resproxyd plugins-install "$2" ;; esac ;;
+esac
+exit 1

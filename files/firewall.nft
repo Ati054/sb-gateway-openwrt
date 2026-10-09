@@ -1,0 +1,2 @@
+# Resproxy traffic capture is disabled by default. The guarded activation
+# command will replace this file only after VM and canary checks.
