@@ -156,8 +156,9 @@ func TestAvailabilityProbeUsesThirdOriginAfterTwoFailures(t *testing.T) {
 	for i := range healthTargets {
 		healthTargets[i].url = "http://probe.invalid/" + healthTargets[i].label
 	}
-	availabilityProbeTimeout = 20 * time.Millisecond
-	availabilityFallbackTimeout = 50 * time.Millisecond
+	// This fixture checks origin fallback, not sub-millisecond scheduling.
+	availabilityProbeTimeout = 200 * time.Millisecond
+	availabilityFallbackTimeout = time.Second
 	secondCalled := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

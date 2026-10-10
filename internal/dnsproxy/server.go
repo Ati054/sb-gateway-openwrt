@@ -23,6 +23,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 const maxDNSMessage = 4096
@@ -69,10 +71,12 @@ type server struct {
 	matchers          map[string]domainMatcher
 	stateMu           sync.RWMutex
 	allDown           map[string]bool
+	proxySelections   map[string]string
 	stateValid        bool
 	sem               chan struct{}
 	cacheMu           sync.Mutex
 	cache             map[string]cacheEntry
+	lookups           singleflight.Group
 	queries           atomic.Uint64
 	proxyUse          atomic.Uint64
 	directUse         atomic.Uint64
@@ -219,7 +223,9 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 func proxyHTTPTransport(port int) *http.Transport {
 	proxyURL, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", port))
 	return &http.Transport{Proxy: http.ProxyURL(proxyURL), ForceAttemptHTTP2: true,
-		MaxIdleConns: 16, MaxIdleConnsPerHost: 8, IdleConnTimeout: 30 * time.Second}
+		MaxIdleConns: 16, MaxIdleConnsPerHost: 8, // Keep the idle tunnel through a 30-second cache refresh. A selected-node
+		// change retires it, so reuse never pins DNS to a previous route.
+		IdleConnTimeout: 90 * time.Second}
 }
 
 func (s *server) writeStatus(ctx context.Context) {
@@ -395,12 +401,38 @@ func (s *server) readState() {
 		return
 	}
 	allDown := make(map[string]bool, len(states))
+	selections := make(map[string]string, len(states))
 	for tag, state := range states {
 		allDown[tag] = state.Selected == "block" && state.RuntimeSelected == "block" && state.RuntimeConfirmed
+		if state.RuntimeConfirmed && state.RuntimeSelected == state.Selected {
+			selections[tag] = state.RuntimeSelected
+		}
 	}
+	var changed []string
 	s.stateMu.Lock()
-	s.allDown = allDown
-	s.stateValid = true
+	for tag, previous := range s.proxySelections {
+		if selections[tag] != previous {
+			changed = append(changed, tag)
+		}
+	}
+	s.allDown, s.proxySelections, s.stateValid = allDown, selections, true
+	// Retire before publishing the new selection to DNS jobs. Existing requests
+	// drain on their original route and have a separate route-scoped cache key.
+	for _, tag := range changed {
+		policy := strings.TrimPrefix(tag, "resproxy-")
+		client := s.policyProxies[policy]
+		if client == nil && policy == s.config.DefaultPolicy {
+			client = s.proxy
+		}
+		if client != nil {
+			if owner, ok := client.Transport.(*recoveringTransport); ok {
+				owner.mu.Lock()
+				previous := owner.current
+				owner.mu.Unlock()
+				owner.retire(previous)
+			}
+		}
+	}
 	s.stateMu.Unlock()
 }
 
@@ -533,10 +565,14 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 	if routerQuery {
 		key = "router:" + key
 	}
+	selected := ""
 	if viaWAN {
 		key = "wan:" + key
 	} else {
-		key = "proxy:" + key
+		s.stateMu.RLock()
+		selected = s.proxySelections["resproxy-"+policy]
+		s.stateMu.RUnlock()
+		key = "proxy:" + policy + ":" + selected + ":" + string(query[2:])
 	}
 	if cached := s.cached(key, query[:2]); cached != nil {
 		s.cacheHits.Add(1)
@@ -565,20 +601,48 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 		s.failures.Add(1)
 		return servfail(query)
 	}
-	var body []byte
-	if parsed.Protocol == "doh" {
-		body, err = exchangeDoH(ctx, client, endpoint, query)
-	} else {
-		if viaWAN && s.directAddress != "" {
-			parsed.Address = s.directAddress
+	// Listener jobs share the service context and upstream's five-second
+	// deadline. Collapse a cold burst before opening duplicate TLS connections.
+	// The key includes policy, WAN/proxy path and the complete query except ID.
+	value, err, _ := s.lookups.Do(key, func() (any, error) {
+		if cached := s.cached(key, query[:2]); cached != nil {
+			return cached, nil
 		}
-		body, err = exchangeWire(ctx, parsed, query, viaWAN, proxyPort)
-	}
-	if err != nil || !matchingQuestion(query, body) {
+		var body []byte
+		var err error
+		if parsed.Protocol == "doh" {
+			body, err = exchangeDoH(ctx, client, endpoint, query)
+		} else {
+			if viaWAN && s.directAddress != "" {
+				parsed.Address = s.directAddress
+			}
+			body, err = exchangeWire(ctx, parsed, query, viaWAN, proxyPort)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !matchingQuestion(query, body) {
+			return nil, errors.New("DNS response does not match question")
+		}
+		current := true
+		if !viaWAN {
+			s.stateMu.RLock()
+			current = s.proxySelections["resproxy-"+policy] == selected
+			s.stateMu.RUnlock()
+		}
+		if current {
+			s.remember(key, body)
+		}
+		return body, nil
+	})
+	if err != nil {
 		s.failures.Add(1)
 		return servfail(query)
 	}
-	s.remember(key, body)
+	// Each caller owns its response; rewriting one transaction ID must never
+	// mutate a response concurrently used by another client or the cache.
+	body := append([]byte(nil), value.([]byte)...)
+	copy(body[:2], query[:2])
 	return body
 }
 

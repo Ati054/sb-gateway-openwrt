@@ -67,12 +67,25 @@ func (runtime *responsiveSelectorRuntime) Reload() (healthPool, bool, error) {
 
 // An active probe is evidence only for the generation in which it started.
 func (runtime *responsiveSelectorRuntime) ProbeAvailability(candidate string) probeEvidence {
+	return runtime.probeActiveAvailability(candidate, false)
+}
+
+func (runtime *responsiveSelectorRuntime) ProbeAvailabilityConfirmation(candidate string) probeEvidence {
+	return runtime.probeActiveAvailability(candidate, true)
+}
+
+func (runtime *responsiveSelectorRuntime) probeActiveAvailability(candidate string, confirm bool) probeEvidence {
 	stamp := generationStamp(runtime.generationPaths)
 	if stamp != runtime.generation || (runtime.ctx != nil && runtime.ctx.Err() != nil) {
 		runtime.interrupted = errHealthYield
 		return probeEvidence{LocalFailure: true}
 	}
-	evidence := runtime.selectorRuntime.ProbeAvailability(candidate)
+	var evidence probeEvidence
+	if confirmation, ok := runtime.selectorRuntime.(activeConfirmationRuntime); confirm && ok {
+		evidence = confirmation.ProbeAvailabilityConfirmation(candidate)
+	} else {
+		evidence = runtime.selectorRuntime.ProbeAvailability(candidate)
+	}
 	if generationStamp(runtime.generationPaths) != stamp || (runtime.ctx != nil && runtime.ctx.Err() != nil) {
 		runtime.interrupted = errHealthYield
 		return probeEvidence{LocalFailure: true}

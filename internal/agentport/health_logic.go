@@ -270,6 +270,8 @@ func selectDesired(now time.Time, mode, selected string, candidates []string, gr
 		}
 		if len(alternatives) > 0 {
 			desired, reason = alternatives[0], "active-unavailable"
+		} else if contains(candidates, selected) && item.activeTimeoutCPUOverloaded && item.FailureClass[selected] == string(probeFailureTimeout) {
+			desired, reason = selected, "local-cpu-busy"
 		} else {
 			// The active path is already confirmed unavailable. Do not keep
 			// sending new connections to it merely because another candidate is
@@ -518,7 +520,7 @@ func updateHistories(item *policyHealthState, candidates []string, measured map[
 			keep := min(len(history), historyRecentSamples)
 			history = append(make([]healthSample, 0, keep), history[len(history)-keep:]...)
 		}
-		if evidence, ok := measured[candidate]; ok {
+		if evidence, ok := measured[candidate]; ok && !unconfirmedCPUTimeout(evidence) {
 			sample := healthSample{At: float64(now.Unix()), OK: evidence.OK, DelayMS: evidence.DelayMS}
 			appendHistoryDay(days, sample)
 			if len(history) == historyRecentSamples {

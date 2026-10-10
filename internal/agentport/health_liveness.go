@@ -57,7 +57,12 @@ func (controller *healthController) checkActiveAvailability(now time.Time, polic
 	item.RuntimeConfirmed = true
 	item.RuntimeSelected = actual
 	item.RuntimeError = ""
-	evidence := controller.runtime.ProbeAvailability(selected)
+	var evidence probeEvidence
+	if confirmation, ok := controller.runtime.(activeConfirmationRuntime); ok && item.AvailabilityFailures[selected] > 0 && item.FailureClass[selected] == string(probeFailureTimeout) {
+		evidence = confirmation.ProbeAvailabilityConfirmation(selected)
+	} else {
+		evidence = controller.runtime.ProbeAvailability(selected)
+	}
 	if err := takeProbeInterruption(controller.runtime); err != nil {
 		return savedChanged || statusChanged, err
 	}
@@ -66,6 +71,7 @@ func (controller *healthController) checkActiveAvailability(now time.Time, polic
 		item.LatencyComparisons = nil
 		return true, localProbeError(evidence)
 	}
+	item.activeTimeoutCPUOverloaded = !evidence.OK && evidence.CPUOverloaded && evidence.Failure == probeFailureTimeout
 	wasFailed := item.AvailabilityFailures[selected] > 0
 	if evidence.OK {
 		if wasFailed {

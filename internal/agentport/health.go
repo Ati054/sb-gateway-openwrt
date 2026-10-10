@@ -72,61 +72,62 @@ type healthPolicy = healthcontract.Policy
 type healthState map[string]*policyHealthState
 
 type policyHealthState struct {
-	LatencyMeasurement     string                            `json:"latency_measurement,omitempty"`
-	Selected               string                            `json:"selected"`
-	Failures               map[string]int                    `json:"failures"`
-	AvailabilityFailures   map[string]int                    `json:"availability_failures"`
-	Recoveries             map[string]int                    `json:"recoveries"`
-	Samples                map[string][]healthSample         `json:"samples"`
-	DailySamples           map[string][]healthSample         `json:"daily_samples"`
-	HistoryDays            map[string]map[string]dayBucket   `json:"history_days"`
-	HistoryTruncated       bool                              `json:"history_truncated,omitempty"`
-	HistoryBudgetKiB       int                               `json:"history_budget_kib,omitempty"`
-	HistoryUsageKiB        int                               `json:"history_usage_kib,omitempty"`
-	LastProbeAt            map[string]float64                `json:"last_probe_at"`
-	LastGoodAt             map[string]float64                `json:"last_good_at,omitempty"`
-	CandidateSignature     string                            `json:"candidate_signature"`
-	ScanQueue              []string                          `json:"scan_queue"`
-	LastSwitchAt           string                            `json:"last_switch_at,omitempty"`
-	LastSwitchReason       string                            `json:"last_switch_reason,omitempty"`
-	OptimizationBaseline   string                            `json:"optimization_baseline,omitempty"`
-	OptimizationCandidate  string                            `json:"optimization_candidate,omitempty"`
-	OptimizationChecks     int                               `json:"optimization_checks,omitempty"`
-	OptimizationLastResult *optimizationComparison           `json:"optimization_last_result,omitempty"`
-	LatencyComparisons     map[string]latencyComparison      `json:"latency_comparisons,omitempty"`
-	DailyStats             map[string]healthStats            `json:"daily_stats"`
-	PeriodStats            map[string]map[string]healthStats `json:"period_stats"`
-	DelayMS                map[string]*int                   `json:"delay_ms"`
-	MedianDelayMS          map[string]*int                   `json:"median_delay_ms"`
-	PacketLossPercent      map[string]float64                `json:"packet_loss_percent"`
-	QualityOK              map[string]bool                   `json:"quality_ok"`
-	AvailabilityOK         map[string]bool                   `json:"availability_ok"`
-	FailureClass           map[string]string                 `json:"failure_class,omitempty"`
-	CandidateLabels        map[string]string                 `json:"candidate_labels"`
-	CandidateNodes         map[string]healthNode             `json:"candidate_nodes"`
-	CandidateGroups        map[string]int                    `json:"candidate_groups"`
-	GroupLabels            map[string]string                 `json:"group_labels"`
-	CandidateServiceStatus map[string]serviceHealthStatus    `json:"candidate_service_status"`
-	Shortlist              []string                          `json:"shortlist"`
-	ProbedCandidates       []string                          `json:"probed_candidates"`
-	HTTPSProbeTargets      map[string]map[string]*int        `json:"https_probe_targets"`
-	Mode                   string                            `json:"mode"`
-	CandidateCount         int                               `json:"candidate_count"`
-	HealthyReserves        int                               `json:"healthy_reserves"`
-	ProbeLimits            probeLimits                       `json:"probe_limits"`
-	QualityThresholds      qualityThresholds                 `json:"quality_thresholds"`
-	CheckedAt              string                            `json:"checked_at"`
-	RuntimeSelected        string                            `json:"runtime_selected,omitempty"`
-	RuntimeObservedAt      string                            `json:"runtime_observed_at,omitempty"`
-	RuntimeConfirmed       bool                              `json:"runtime_confirmed"`
-	RuntimeError           string                            `json:"runtime_error,omitempty"`
-	LastWorkingSelection   *workingSelection                 `json:"last_working_selection,omitempty"`
-	UnderlayFailure        string                            `json:"underlay_failure,omitempty"`
-	UnderlayCheckedAt      string                            `json:"underlay_checked_at,omitempty"`
-	OutageProbePending     bool                              `json:"-"`
-	OutageBatchStartedAt   time.Time                         `json:"-"`
-	LastPreflightAt        float64                           `json:"-"`
-	PreflightClosed        map[string]bool                   `json:"-"`
+	activeTimeoutCPUOverloaded bool                              // Current-process evidence only; never restored.
+	LatencyMeasurement         string                            `json:"latency_measurement,omitempty"`
+	Selected                   string                            `json:"selected"`
+	Failures                   map[string]int                    `json:"failures"`
+	AvailabilityFailures       map[string]int                    `json:"availability_failures"`
+	Recoveries                 map[string]int                    `json:"recoveries"`
+	Samples                    map[string][]healthSample         `json:"samples"`
+	DailySamples               map[string][]healthSample         `json:"daily_samples"`
+	HistoryDays                map[string]map[string]dayBucket   `json:"history_days"`
+	HistoryTruncated           bool                              `json:"history_truncated,omitempty"`
+	HistoryBudgetKiB           int                               `json:"history_budget_kib,omitempty"`
+	HistoryUsageKiB            int                               `json:"history_usage_kib,omitempty"`
+	LastProbeAt                map[string]float64                `json:"last_probe_at"`
+	LastGoodAt                 map[string]float64                `json:"last_good_at,omitempty"`
+	CandidateSignature         string                            `json:"candidate_signature"`
+	ScanQueue                  []string                          `json:"scan_queue"`
+	LastSwitchAt               string                            `json:"last_switch_at,omitempty"`
+	LastSwitchReason           string                            `json:"last_switch_reason,omitempty"`
+	OptimizationBaseline       string                            `json:"optimization_baseline,omitempty"`
+	OptimizationCandidate      string                            `json:"optimization_candidate,omitempty"`
+	OptimizationChecks         int                               `json:"optimization_checks,omitempty"`
+	OptimizationLastResult     *optimizationComparison           `json:"optimization_last_result,omitempty"`
+	LatencyComparisons         map[string]latencyComparison      `json:"latency_comparisons,omitempty"`
+	DailyStats                 map[string]healthStats            `json:"daily_stats"`
+	PeriodStats                map[string]map[string]healthStats `json:"period_stats"`
+	DelayMS                    map[string]*int                   `json:"delay_ms"`
+	MedianDelayMS              map[string]*int                   `json:"median_delay_ms"`
+	PacketLossPercent          map[string]float64                `json:"packet_loss_percent"`
+	QualityOK                  map[string]bool                   `json:"quality_ok"`
+	AvailabilityOK             map[string]bool                   `json:"availability_ok"`
+	FailureClass               map[string]string                 `json:"failure_class,omitempty"`
+	CandidateLabels            map[string]string                 `json:"candidate_labels"`
+	CandidateNodes             map[string]healthNode             `json:"candidate_nodes"`
+	CandidateGroups            map[string]int                    `json:"candidate_groups"`
+	GroupLabels                map[string]string                 `json:"group_labels"`
+	CandidateServiceStatus     map[string]serviceHealthStatus    `json:"candidate_service_status"`
+	Shortlist                  []string                          `json:"shortlist"`
+	ProbedCandidates           []string                          `json:"probed_candidates"`
+	HTTPSProbeTargets          map[string]map[string]*int        `json:"https_probe_targets"`
+	Mode                       string                            `json:"mode"`
+	CandidateCount             int                               `json:"candidate_count"`
+	HealthyReserves            int                               `json:"healthy_reserves"`
+	ProbeLimits                probeLimits                       `json:"probe_limits"`
+	QualityThresholds          qualityThresholds                 `json:"quality_thresholds"`
+	CheckedAt                  string                            `json:"checked_at"`
+	RuntimeSelected            string                            `json:"runtime_selected,omitempty"`
+	RuntimeObservedAt          string                            `json:"runtime_observed_at,omitempty"`
+	RuntimeConfirmed           bool                              `json:"runtime_confirmed"`
+	RuntimeError               string                            `json:"runtime_error,omitempty"`
+	LastWorkingSelection       *workingSelection                 `json:"last_working_selection,omitempty"`
+	UnderlayFailure            string                            `json:"underlay_failure,omitempty"`
+	UnderlayCheckedAt          string                            `json:"underlay_checked_at,omitempty"`
+	OutageProbePending         bool                              `json:"-"`
+	OutageBatchStartedAt       time.Time                         `json:"-"`
+	LastPreflightAt            float64                           `json:"-"`
+	PreflightClosed            map[string]bool                   `json:"-"`
 }
 
 type healthSample struct {
@@ -205,6 +206,7 @@ type qualityThresholds struct {
 var errProbeSelectorUnavailable = errors.New("Xray probe selector is unavailable")
 
 type probeEvidence struct {
+	CPUOverloaded        bool
 	QualityUnmeasured    bool
 	PrimaryQualityFailed bool
 	ObservedAt           time.Time
@@ -725,6 +727,9 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		item.RuntimeObservedAt = time.Now().UTC().Format(time.RFC3339Nano)
 		return actualErr
 	}
+	if actual != item.Selected {
+		item.activeTimeoutCPUOverloaded = false
+	}
 	changedOutbounds := invalidateChangedOutboundHealth(item, candidates, contract.Nodes)
 	if len(changedOutbounds) > 0 {
 		controller.emitHealthEvent(healthEvent{Event: "health-evidence-reset", Policy: policyID,
@@ -738,6 +743,16 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		evidence := controller.runtime.ProbeAvailability(saved)
 		if err := takeProbeInterruption(controller.runtime); err != nil {
 			return err
+		}
+		// A restarted core may need a full handshake on the remembered path.
+		// Require a fresh bounded proof before abandoning it on a short timeout.
+		if !evidence.OK && !evidence.LocalFailure && evidence.Failure == probeFailureTimeout {
+			if confirmation, ok := controller.runtime.(activeConfirmationRuntime); ok {
+				evidence = confirmation.ProbeAvailabilityConfirmation(saved)
+				if err := takeProbeInterruption(controller.runtime); err != nil {
+					return err
+				}
+			}
 		}
 		if evidence.LocalFailure {
 			return errProbeSelectorUnavailable
@@ -963,6 +978,9 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		if measured[candidate].LocalFailure {
 			return localProbeError(measured[candidate])
 		}
+		if candidate == selected {
+			item.activeTimeoutCPUOverloaded = !measured[candidate].OK && measured[candidate].CPUOverloaded && measured[candidate].Failure == probeFailureTimeout
+		}
 		if candidate == selected && !measured[candidate].OK {
 			item.FailureClass[selected] = string(measured[candidate].Failure)
 			recoveringFromUnderlay := item.UnderlayFailure != ""
@@ -1081,7 +1099,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	medians := make(map[string]*int)
 	for _, candidate := range candidates {
 		samples := append([]healthSample(nil), item.Samples[candidate]...)
-		if evidence, ok := measured[candidate]; ok && (!evidence.OK || evidence.DelayMS != nil || evidence.QualityUnmeasured) {
+		if evidence, ok := measured[candidate]; ok && !unconfirmedCPUTimeout(evidence) && (!evidence.OK || evidence.DelayMS != nil || evidence.QualityUnmeasured) {
 			samples = append(samples, healthSample{At: float64(now.Unix()), OK: evidence.OK, DelayMS: evidence.DelayMS})
 		}
 		if len(samples) > 1 {
@@ -1109,7 +1127,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		}
 		medians[candidate] = typical
 		qualityOK[candidate] = typical != nil && failed == 0
-		if evidence, ok := measured[candidate]; ok {
+		if evidence, ok := measured[candidate]; ok && !unconfirmedCPUTimeout(evidence) {
 			if evidence.OK {
 				delete(item.FailureClass, candidate)
 				if candidate == selected {
@@ -1162,6 +1180,16 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	}
 
 	desired, reason := selectDesired(now, contract.Mode, selected, candidates, groupIndex, dailyStats, medians, measured, qualityOK, availabilityOK, item, p)
+	if reason == "local-cpu-busy" {
+		// Reserves were still probed and any fresh success takes precedence. All
+		// timeout results during local saturation cannot prove a remote outage.
+		// Retain the proxy route, never substitute direct WAN, and retry normally.
+		item.AvailabilityFailures[selected] = 0
+		availabilityOK[selected] = item.AvailabilityOK[selected]
+		item.activeTimeoutCPUOverloaded = false
+		controller.emitHealthEvent(healthEvent{At: now.UTC().Format(time.RFC3339Nano), Event: "probe-suppressed", Policy: policyID, Node: selected, Failure: probeFailureTimeout, Reason: reason})
+		reason = ""
+	}
 	if coldSelection && contract.Mode == "best" && !emergencySwitched {
 		// Choose the lowest successful first-batch latency, not a tolerated
 		// inventory default. Restarts with working history keep their selection.

@@ -85,9 +85,15 @@ func (runtime *xraySelectorRuntime) probeSelectorName() string {
 type xrayCommandRunner func(context.Context, time.Duration, string, ...string) ([]byte, error)
 
 var (
-	underlayWANTargets          = []string{"1.1.1.1:443", "9.9.9.9:443", "www.gstatic.com:443"}
-	availabilityProbeTimeout    = 2 * time.Second
-	availabilityFallbackTimeout = 3 * time.Second
+	underlayWANTargets              = []string{"1.1.1.1:443", "9.9.9.9:443", "www.gstatic.com:443"}
+	availabilityProbeTimeout        = 2 * time.Second
+	availabilityFallbackTimeout     = 3 * time.Second
+	availabilityConfirmationTimeout = 5 * time.Second
+	// Fixed public HTTPS origins share at most eight TLS sessions. Resumption
+	// reduces fast-lane handshake work while every probe still dials a fresh
+	// connection through the currently selected outbound. Quality HEAD probes
+	// deliberately do not use this cache.
+	availabilityProbeSessions = tls.NewLRUClientSessionCache(8)
 )
 
 func newXraySelectorRuntime(opts Options) *xraySelectorRuntime {
@@ -858,6 +864,7 @@ const (
 	xrayQualityProbe xrayProbeMode = iota
 	xrayAvailabilityProbe
 	xrayEmergencyProbe
+	xrayConfirmationProbe
 )
 
 func (runtime *xraySelectorRuntime) Probe(candidate string) (evidence probeEvidence) {
@@ -878,8 +885,28 @@ func (runtime *xraySelectorRuntime) ProbeEmergencyAvailability(candidate string)
 	return runtime.probe(candidate, xrayEmergencyProbe)
 }
 
-func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) probeEvidence {
-	evidence := probeEvidence{Targets: make(map[string]*int), TargetFailures: make(map[string]probeFailureClass)}
+// Only a pending active timeout uses this bounded proof. It races independent
+// origins with a full deadline before withdrawing a working route. This is
+// availability evidence, never a URLTest quality measurement.
+func (runtime *xraySelectorRuntime) ProbeAvailabilityConfirmation(candidate string) probeEvidence {
+	return runtime.probe(candidate, xrayConfirmationProbe)
+}
+
+func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) (evidence probeEvidence) {
+	before, known := readProbeCPU("/proc/stat")
+	defer func() {
+		if !known || evidence.OK || evidence.LocalFailure || evidence.Failure != probeFailureTimeout {
+			return
+		}
+		for _, failure := range evidence.TargetFailures {
+			if failure != probeFailureTimeout {
+				return
+			}
+		}
+		after, ok := readProbeCPU("/proc/stat")
+		evidence.CPUOverloaded = ok && probeCPUSaturated(before, after)
+	}()
+	evidence = probeEvidence{Targets: make(map[string]*int), TargetFailures: make(map[string]probeFailureClass)}
 	// Reverse bridge outbounds exist only while the matching client has an
 	// online session. Selecting an offline bridge is accepted by the balancer
 	// API but every probe then reaches a non-existent outbound and Xray logs a
@@ -896,6 +923,9 @@ func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) 
 	}
 	if mode != xrayQualityProbe {
 		evidence.QualityUnmeasured = true
+		if mode == xrayConfirmationProbe {
+			return runtime.probeAvailabilityTargetsWithTimeout(evidence, true, availabilityConfirmationTimeout)
+		}
 		return runtime.probeAvailabilityTargets(evidence, mode == xrayEmergencyProbe)
 	}
 	// Compare one origin only; alternate origins prove availability, not speed.
@@ -931,6 +961,10 @@ func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) 
 // starts all three together without shortening any origin deadline. Join
 // canceled requests before the selector can be reused for another candidate.
 func (runtime *xraySelectorRuntime) probeAvailabilityTargets(evidence probeEvidence, parallelPrimary bool) probeEvidence {
+	return runtime.probeAvailabilityTargetsWithTimeout(evidence, parallelPrimary, 0)
+}
+
+func (runtime *xraySelectorRuntime) probeAvailabilityTargetsWithTimeout(evidence probeEvidence, parallelPrimary bool, confirmationTimeout time.Duration) probeEvidence {
 	type targetResult struct {
 		label   string
 		delayMS int
@@ -941,7 +975,8 @@ func (runtime *xraySelectorRuntime) probeAvailabilityTargets(evidence probeEvide
 		trace := beginHealthStage("https", runtime.stageLane(), "", "")
 		trace.target(target.label)
 		started := time.Now()
-		_, err := downloadThroughProxyContext(ctx, runtime.opts.ProbeURL, target.url, timeout, 1024, target.status)
+		_, err := requestThroughProxyWithTLS(ctx, runtime.opts.ProbeURL, target.url, http.MethodGet, timeout, 1024, target.status,
+			&tls.Config{ClientSessionCache: availabilityProbeSessions})
 		trace.finish(err == nil)
 		return targetResult{label: target.label, delayMS: maxInt(1, int(time.Since(started).Milliseconds())), err: err}
 	}
@@ -990,6 +1025,9 @@ func (runtime *xraySelectorRuntime) probeAvailabilityTargets(evidence probeEvide
 			timeout := availabilityFallbackTimeout
 			if index == 0 {
 				timeout = availabilityProbeTimeout
+			}
+			if confirmationTimeout > 0 {
+				timeout = confirmationTimeout
 			}
 			results <- probe(ctx, index, timeout)
 		}(index)
@@ -1184,11 +1222,15 @@ func downloadThroughProxyContext(ctx context.Context, proxyURL, target string, t
 }
 
 func requestThroughProxyContext(ctx context.Context, proxyURL, target, method string, timeout time.Duration, limit, expectedStatus int) (int, error) {
+	return requestThroughProxyWithTLS(ctx, proxyURL, target, method, timeout, limit, expectedStatus, nil)
+}
+
+func requestThroughProxyWithTLS(ctx context.Context, proxyURL, target, method string, timeout time.Duration, limit, expectedStatus int, tlsConfig *tls.Config) (int, error) {
 	parsed, err := url.Parse(proxyURL)
 	if err != nil {
 		return 0, err
 	}
-	transport := &http.Transport{Proxy: http.ProxyURL(parsed), DisableKeepAlives: true, ForceAttemptHTTP2: false}
+	transport := &http.Transport{Proxy: http.ProxyURL(parsed), DisableKeepAlives: true, ForceAttemptHTTP2: false, TLSClientConfig: tlsConfig}
 	client := &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	defer transport.CloseIdleConnections()
 	request, err := http.NewRequestWithContext(ctx, method, target, nil)

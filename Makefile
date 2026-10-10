@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sb-gateway-openwrt
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=82
+PKG_RELEASE:=84
 PKG_LICENSE:=AGPL-3.0-only AND MPL-2.0 AND MIT AND Apache-2.0 AND BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE XRAY-LICENSE DOMAIN-LIST-LICENSE
 PKG_BUILD_PARALLEL:=1
@@ -39,7 +39,7 @@ define Build/Prepare
 	$(CP) $(CURDIR)/files/xray.LICENSE $(PKG_BUILD_DIR)/XRAY-LICENSE
 endef
 
-# This package supports the documented ARM64 OpenWrt targets. The
+# This package is built for the user's mediatek/filogic ARM64 target. The
 # vendored dependencies allow offline builds without CGO or module downloads.
 # A Linux Go 1.27.2 host toolchain is required by the SDK build host.
 define Build/Compile

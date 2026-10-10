@@ -35,6 +35,10 @@ type emergencyAvailabilityRuntime interface {
 	ProbeEmergencyAvailabilityParallel([]string, func(string, probeEvidence) bool) map[string]probeEvidence
 }
 
+type activeConfirmationRuntime interface {
+	ProbeAvailabilityConfirmation(string) probeEvidence
+}
+
 type emergencyCandidateRuntime interface {
 	ProbeEmergencyAvailability(string) probeEvidence
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +30,19 @@ type recoveringTransport struct {
 	closed  bool
 }
 
+// Public resolver sessions are bounded globally across policy transports.
+// Connections still validate their configured hostname and certificate chain.
+var dnsTLSClientSessions = tls.NewLRUClientSessionCache(8)
+
 func newDoHClient(transport *http.Transport) *http.Client {
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	} else {
+		transport.TLSClientConfig = transport.TLSClientConfig.Clone()
+	}
+	if transport.TLSClientConfig.ClientSessionCache == nil {
+		transport.TLSClientConfig.ClientSessionCache = dnsTLSClientSessions
+	}
 	return &http.Client{Transport: &recoveringTransport{current: transport}, Timeout: 5 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("DoH redirect is not allowed") }}
 }

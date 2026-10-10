@@ -1614,3 +1614,18 @@ msgstr "При компактном обновлении резервная ко
 
 msgid "Showing %d of %d nodes"
 msgstr "Показано %d из %d узлов"
+
+msgid "Availability, s"
+msgstr "Доступность, с"
+
+msgid "HTTPS check, s"
+msgstr "Проверка HTTPS, с"
+
+msgid "Parallel checks"
+msgstr "Параллельные проверки"
+
+msgid "URLTest improvement, ms"
+msgstr "Улучшение URLTest, мс"
+
+msgid "RAM history, KiB"
+msgstr "История в RAM, КиБ"
