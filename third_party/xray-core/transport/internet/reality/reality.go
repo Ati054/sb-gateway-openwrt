@@ -28,6 +28,7 @@ import (
 	"github.com/xtls/xray-core/common/crypto"
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/common/net"
+	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/common/utils"
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/transport/internet/tls"
@@ -140,6 +141,15 @@ func (c *UConn) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x50
 }
 
 func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destination) (net.Conn, error) {
+	// Failed handshakes never transfer connection ownership to the caller.
+	// The normal REALITY camouflage path explicitly keeps ownership below.
+	keepConn := false
+	defer func() {
+		if !keepConn {
+			c.Close()
+		}
+	}()
+
 	localAddr := c.LocalAddr().String()
 	uConn := &UConn{
 		Config: config,
@@ -207,6 +217,11 @@ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destinati
 	}
 	if !uConn.Verified {
 		errors.LogError(ctx, "REALITY: received real certificate (potential MITM or redirection)")
+		if inbound := session.InboundFromContext(ctx); inbound != nil &&
+			(strings.HasPrefix(inbound.Tag, "outbound-health-") || inbound.Tag == "resproxy-refresh-probe") {
+			return nil, errors.New("REALITY: invalid health probe authentication")
+		}
+		keepConn = true // Ordinary client camouflage owns the connection.
 		go func() {
 			client := &http.Client{
 				Transport: &http2.Transport{
@@ -298,6 +313,7 @@ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destinati
 		time.Sleep(time.Duration(crypto.RandBetween(config.SpiderY[8], config.SpiderY[9])) * time.Millisecond) // return
 		return nil, errors.New("REALITY: processed invalid connection")
 	}
+	keepConn = true
 	return uConn, nil
 }
 

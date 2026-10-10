@@ -26,9 +26,11 @@ return view.extend({
   var status = E('dl', { 'class':'cbi-section' });
   var detail = E('p', { 'aria-live':'polite', 'role':'status', 'style':'overflow-wrap:anywhere' });
   var releaseLine = E('p');
-  var pending = false, offered = null, actionError = '', showResult = false;
+  var pending = false, pendingLabel = '', offered = null, actionError = '', showResult = false, installBaseline = '';
   var checkButton, installButton, uploadButton;
   function display(info) {
+   if (!info.version) info.version = initial.version;
+   if (showResult && info.phase === 'completed' && info.version !== installBaseline) actionError = '';
    initial = info;
    try { offered = info.release ? JSON.parse(info.release) : null; } catch(e) { offered = null; }
    var busy = pending || info.busy === 'yes';
@@ -46,23 +48,24 @@ return view.extend({
    } else if (info.remote_phase === 'checked') releaseLine.textContent = _('No updates available.');
    var progress = { checking:_('Checking GitHub…'), downloading:_('Downloading APK…') }[info.remote_phase];
    if (!progress && info.busy === 'yes') progress = ({ staged:_('Preparing update'), preparing:_('Preparing update'), installing:_('Installing package'), activating:_('Starting service') })[info.phase] || _('Preparing update');
+   if (!progress && pending) progress = pendingLabel;
    if (info.remote_phase === 'failed') detail.textContent = info.remote_error || _('Package update failed.');
    else if (progress) detail.textContent = progress;
    else if (info.phase === 'failed') detail.textContent = info.error || _('Update failed. Check the system log for details.');
    else if (actionError) detail.textContent = actionError;
-   else if (showResult && info.phase === 'completed') detail.textContent = _('Package updated successfully.');
+   else if (showResult && info.phase === 'completed' && info.version !== installBaseline) detail.textContent = _('Package updated successfully.');
    else detail.textContent = '';
   }
-  function refresh() { return command('status').then(display).catch(function(error) { detail.textContent = String(error); }); }
-  function act(fn) {
-   pending = true; actionError = ''; showResult = false; display(initial);
+  function refresh() { return command('status').then(display).catch(function(error) { if (!pending && initial.busy !== 'yes') detail.textContent = String(error); }); }
+  function act(fn, label) {
+   pending = true; pendingLabel = label || _('Preparing update'); actionError = ''; showResult = false; display(initial);
    return fn().then(refresh).catch(function(error) { actionError = String(error); })
     .finally(function() { pending = false; display(initial); });
   }
-  checkButton = E('button', { type:'button', 'class':'btn cbi-button cbi-button-action', click:function() { return act(function() { return command('check'); }); } }, _('Check for updates'));
-  installButton = E('button', { type:'button', 'class':'btn cbi-button cbi-button-positive', click:function() { return act(function() { return command('github-start').then(function(info) { showResult = true; return info; }); }); } }, _('Update from GitHub'));
+  checkButton = E('button', { type:'button', 'class':'btn cbi-button cbi-button-action', click:function() { return act(function() { return command('check'); }, _('Checking GitHub…')); } }, _('Check for updates'));
+  installButton = E('button', { type:'button', 'class':'btn cbi-button cbi-button-positive', click:function() { return act(function() { installBaseline = initial.version; showResult = true; return command('github-start'); }); } }, _('Update from GitHub'));
   uploadButton = E('button', { type:'button', 'class':'btn cbi-button cbi-button-action', click:function() {
-   return act(function() { return ui.uploadFile('/tmp/sb-gateway-upgrade.apk').then(function() { return command('inspect'); }).then(function(info) { return command('start', [info.sha256]).then(function(result) { showResult = true; return result; }); }); });
+   return act(function() { return ui.uploadFile('/tmp/sb-gateway-upgrade.apk').then(function() { return command('fingerprint'); }).then(function(info) { installBaseline = initial.version; showResult = true; return command('start', [info.sha256]); }); });
   } }, _('Choose APK and update'));
   display(initial); poll.add(refresh, 3);
   return sbgTheme.decorate(E('div', {}, [

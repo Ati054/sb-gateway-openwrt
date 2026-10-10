@@ -99,6 +99,22 @@ func (s *Server) ProcessWithFirstbyte(ctx context.Context, network net.Network, 
 	if !proxy.IsRAWTransportWithoutSecurity(conn) {
 		inbound.CanSpliceCopy = 3
 	}
+	// Health probes close after a bounded response. Vision's raw splice path
+	// extends its idle timer to 24h and can override the short EOF timeout,
+	// retaining a closed probe and upstream socket. Keep probes on the normal
+	// copy path; ordinary client HTTP/CONNECT still uses splice.
+	if strings.HasPrefix(inbound.Tag, "outbound-health-") || inbound.Tag == "resproxy-refresh-probe" {
+		inbound.CanSpliceCopy = 3
+		// CONNECT acknowledges before the upstream dial. A client timeout does
+		// not cancel that dial while REALITY/TLS is still waiting for its peer.
+		// Health requests finish within five seconds; allow an eight-second
+		// core lifetime, including cleanup, without limiting client streams.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 8*time.Second)
+		defer cancel()
+		stopClose := context.AfterFunc(ctx, func() { conn.Close() })
+		defer stopClose()
+	}
 	var reader *bufio.Reader
 	if len(firstbyte) > 0 {
 		readerWithoutFirstbyte := bufio.NewReaderSize(readerOnly{conn}, buf.Size)

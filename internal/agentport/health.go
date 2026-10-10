@@ -46,11 +46,12 @@ type healthPool struct {
 }
 
 type healthPolicyContract struct {
-	Policy     healthPolicy          `json:"policy"`
-	Mode       string                `json:"mode"`
-	Groups     []healthGroup         `json:"groups"`
-	Candidates []string              `json:"candidates"`
-	Nodes      map[string]healthNode `json:"nodes"`
+	WANFallbackSelector string                `json:"wan_fallback_selector,omitempty"`
+	Policy              healthPolicy          `json:"policy"`
+	Mode                string                `json:"mode"`
+	Groups              []healthGroup         `json:"groups"`
+	Candidates          []string              `json:"candidates"`
+	Nodes               map[string]healthNode `json:"nodes"`
 }
 
 type healthGroup struct {
@@ -119,6 +120,7 @@ type policyHealthState struct {
 	CheckedAt                  string                            `json:"checked_at"`
 	RuntimeSelected            string                            `json:"runtime_selected,omitempty"`
 	RuntimeObservedAt          string                            `json:"runtime_observed_at,omitempty"`
+	WANFallbackActive          bool                              `json:"wan_fallback_active,omitempty"`
 	RuntimeConfirmed           bool                              `json:"runtime_confirmed"`
 	RuntimeError               string                            `json:"runtime_error,omitempty"`
 	LastWorkingSelection       *workingSelection                 `json:"last_working_selection,omitempty"`
@@ -149,6 +151,7 @@ func (item *policyHealthState) UnmarshalJSON(body []byte) error {
 	*item = policyHealthState(decoded)
 	// Comparisons belong to a confirmed live selection, never a saved snapshot.
 	item.LatencyComparisons = nil
+	item.WANFallbackActive = false // Restore only after reading the live core.
 	// A legacy speed comparison cannot become a latency confirmation on upgrade.
 	// Keep availability, history and selected membership.
 	for _, key := range []string{"speed_samples_bps", "speed_median_bps", "speed_degradation", "outage_penalty", "optimization_next_at", "optimization_backoff", "optimization_active_ms"} {
@@ -311,9 +314,7 @@ func runHealth(ctx context.Context, opts Options) error {
 			return controller.acceptXrayFailureSignal(time.Now(), signal, primary)
 		},
 	}
-	if !wait(ctx, 5*time.Second) {
-		return nil
-	}
+	// The daemon starts health only after the core API and pool are ready.
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -492,6 +493,9 @@ func (controller *healthController) Tick(now time.Time) error {
 		controller.regularNext = nil
 		controller.livenessAt = nil
 	}
+	if controller.warmStarted == nil {
+		controller.warmStarted = make(map[string]bool)
+	}
 	if controller.regularNext == nil {
 		controller.regularNext = make(map[string]time.Time)
 		controller.livenessAt = make(map[string]time.Time)
@@ -536,6 +540,9 @@ func (controller *healthController) Tick(now time.Time) error {
 	}
 	sort.Strings(policyIDs)
 	controller.beginProbeBudget(pool, policyIDs)
+	if err := controller.restoreWarmSelections(now, pool, policyIDs); err != nil {
+		return err
+	}
 	sort.SliceStable(policyIDs, func(i, j int) bool {
 		if policyIDs[i] == controller.priorityPolicy || policyIDs[j] == controller.priorityPolicy {
 			return policyIDs[i] == controller.priorityPolicy
@@ -596,6 +603,22 @@ func (controller *healthController) Tick(now time.Time) error {
 			changed, err = controller.tickActiveAvailability(now, policyID, contract, item)
 			dirty = dirty || changed
 		}
+		completed := err == nil
+		if contract.WANFallbackSelector != "" && completed && item.RuntimeConfirmed {
+			if fallback, ok := controller.runtime.(ruleFallbackRuntime); ok {
+				active, fallbackErr := fallback.ReconcileRuleFallback(policyID, item.Selected == "block")
+				dirty = dirty || active != item.WANFallbackActive
+				item.WANFallbackActive = active
+				if fallbackErr != nil {
+					err = fallbackErr
+				}
+			} else {
+				err = errors.New("rule fallback runtime is unavailable")
+			}
+		}
+		if contract.WANFallbackSelector == "" || item.Selected != "block" {
+			item.WANFallbackActive = false
+		}
 		if errors.Is(err, errHealthYield) {
 			controller.regularNext[policyID] = time.Time{}
 			controller.yielded = true
@@ -608,6 +631,7 @@ func (controller *healthController) Tick(now time.Time) error {
 			err = nil
 		}
 		if err != nil {
+			item.WANFallbackActive = false
 			item.RuntimeError = err.Error()
 			item.RuntimeConfirmed = false
 			item.RuntimeObservedAt = time.Now().UTC().Format(time.RFC3339Nano)
@@ -709,6 +733,29 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	}
 	previousSelected, previousConfirmed := item.RuntimeSelected, item.RuntimeConfirmed
 	if len(candidates) == 0 {
+		actual, err := controller.runtime.Current(policyID)
+		if err != nil {
+			return err
+		}
+		// Keep an already confirmed empty selector stable, including its rule WAN fallback.
+		if actual != "block" || warm {
+			if err := controller.runtime.Select(policyID, "block"); err != nil {
+				return err
+			}
+			actual, err = controller.runtime.Current(policyID)
+			if err != nil {
+				return err
+			}
+		}
+		if actual != "block" {
+			return errors.New("empty route list is not blocked")
+		}
+		item.Selected, item.RuntimeSelected, item.RuntimeConfirmed = "block", "block", true
+		item.RuntimeError = ""
+		item.RuntimeObservedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		item.Mode, item.CandidateCount, item.HealthyReserves = contract.Mode, 0, 0
+		item.CandidateSignature, item.CandidateLabels, item.CandidateNodes = "", nil, nil
+		controller.warmStarted[policyID] = true
 		return nil
 	}
 	p := policySettings(contract.Policy, contract.Mode)
@@ -738,32 +785,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		item.PreflightClosed = nil
 		item.ScanQueue = uniqueCandidates(append(changedOutbounds, item.ScanQueue...))
 	}
-	if warm && actual == "block" && restorableWorkingSelection(contract, item) {
-		saved := savedWorkingSelection(item).Selected
-		evidence := controller.runtime.ProbeAvailability(saved)
-		if err := takeProbeInterruption(controller.runtime); err != nil {
-			return err
-		}
-		// A restarted core may need a full handshake on the remembered path.
-		// Require a fresh bounded proof before abandoning it on a short timeout.
-		if !evidence.OK && !evidence.LocalFailure && evidence.Failure == probeFailureTimeout {
-			if confirmation, ok := controller.runtime.(activeConfirmationRuntime); ok {
-				evidence = confirmation.ProbeAvailabilityConfirmation(saved)
-				if err := takeProbeInterruption(controller.runtime); err != nil {
-					return err
-				}
-			}
-		}
-		if evidence.LocalFailure {
-			return errProbeSelectorUnavailable
-		}
-		if evidence.OK {
-			if err := controller.runtime.Select(policyID, saved); err != nil {
-				return err
-			}
-			actual = saved
-		}
-	}
+
 	if actual != "" {
 		if !contains(candidates, actual) && actual != "block" {
 			// A changed eligibility list does not invalidate the running handler.
@@ -929,7 +951,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		if len(probeTargets) > 0 {
 			emergencyBatchStartedAt = time.Now()
 		}
-		measured, emergencySelected, probeErr = controller.probeEmergencyCandidates(policyID, probeTargets, p)
+		measured, emergencySelected, probeErr = controller.probeEmergencyCandidates(now, policyID, probeTargets, p)
 		if probeErr != nil {
 			item.ScanQueue = uniqueCandidates(append(probeTargets, item.ScanQueue...))
 			return probeErr
@@ -1042,7 +1064,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		if len(reserveTargets) > 0 {
 			emergencyBatchStartedAt = time.Now()
 		}
-		measuredReserves, selectedReserve, err := controller.probeEmergencyCandidates(policyID, reserveTargets, p)
+		measuredReserves, selectedReserve, err := controller.probeEmergencyCandidates(now, policyID, reserveTargets, p)
 		for candidate, evidence := range measuredReserves {
 			measured[candidate] = evidence
 		}

@@ -72,7 +72,7 @@ return view.extend({
 		id.validate = function(section, value) {
 			var name = sourceName(value);
 			if (!/^[A-Za-z][A-Za-z0-9 _-]{0,31}$/.test(name))
-				return _('Use 1вЂ“32 Latin letters, digits, spaces, underscores or hyphens; start with a letter.');
+				return _('Use 1–32 Latin letters, digits, spaces, underscores or hyphens; start with a letter.');
 			return !sources.cfgsections().some(function(other) {
 				return other !== section && sourceName(id.formvalue(other)).toLowerCase() === name.toLowerCase();
 			}) || _('This source name is already used.');
@@ -137,7 +137,7 @@ return view.extend({
 		var refresh = sources.option(form.Button, '_refresh', _('Subscription update'));
 		refresh.inputtitle = function(section) {
 			var name = sourceName(id.formvalue(section) || uci.get('resproxy', section, 'id'));
-			return loading && name === activeID ? _('LoadingвЂ¦') : _('Refresh');
+			return loading && name === activeID ? _('Loading…') : _('Refresh');
 		};
 		refresh.inputstyle = 'action';
 		var renderButton = refresh.renderWidget;
@@ -150,7 +150,7 @@ return view.extend({
 		var save = sources.option(form.Button, '_save_load', '');
 		save.inputtitle = function(section) {
 			var name = sourceName(id.formvalue(section) || uci.get('resproxy', section, 'id'));
-			return loading && name === activeID ? _('LoadingвЂ¦') : _('Save and load');
+			return loading && name === activeID ? _('Loading…') : _('Save and load');
 		};
 		save.inputstyle = 'action';
 		save.renderWidget = refresh.renderWidget;
@@ -176,7 +176,7 @@ return view.extend({
 		function paintSource(row) {
 			var state = sourceState(row), parts = [];
 			parts.push(statusFailed ? _('Status unavailable') : state.nodes ? _('%d nodes').format(state.nodes) : _('No nodes loaded'));
-			if (state.state === 'loading') parts.push(_('LoadingвЂ¦'));
+			if (state.state === 'loading') parts.push(_('Loading…'));
 			if (state.updated_at) {
 				var date = new Date(state.updated_at);
 				if (!isNaN(date.getTime())) parts.push(_('Updated: %s').format(date.toLocaleString()));

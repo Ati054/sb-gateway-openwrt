@@ -4,7 +4,7 @@
 
 Route devices and services through proxies with automatic node selection. Configure and monitor everything in LuCI; Xray is included. The interface supports English and Russian.
 
-**Subscription updates, node switching, and monitoring settings take effect without restarting the service.**
+**Subscription updates, node switching, and monitoring interval changes take effect without restarting the service.**
 
 ## Features
 
@@ -15,11 +15,12 @@ Route devices and services through proxies with automatic node selection. Config
 - **Priority / reserve:** uses nodes in the specified order, falls back when a node fails, and returns to an available node with higher priority.
 - **Presets:** country rules for Russia, China, and Iran; service cards for YouTube, Discord, Telegram, WhatsApp, social networks, AI services, games, exchanges, and smart homes. Each exchange card includes its website and API.
 - **Custom rules:** domains, IP networks, ports, TCP/UDP, and detected protocols. Send traffic through the route list's proxy or directly through WAN; the first matching rule determines the route.
-- **DNS:** proxy and WAN resolvers, DoH/DoT, and device queries handled according to their route list and rules. WAN DNS fallback is available in the selected mode.
+- **All proxies unavailable:** an independent rule-database setting blocks proxy traffic or temporarily sends it through WAN. Available for preset variants and custom rules; selected cards keep their separate routing action. Traffic returns to the proxy when a node recovers.
+- **DNS:** proxy and WAN resolvers, DoH/DoT, and device queries handled according to their route list and rules. DNS WAN fallback follows the rule’s proxy failure setting.
 - **Monitoring:** active nodes and backups, availability, HTTPS errors, latency, and differences between fresh measurements. Data refreshes without reloading the page; the active node appears first, with up to 10 nodes in the table.
 - **Updates:** check GitHub and install with a button while preserving settings; manual APK upload is also available. Compact updates keep the APK and backup in RAM.
 
-The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Applying settings preserves history and the selected node if it remains eligible for the route list. If no working proxy node is available, proxy routes are blocked; direct WAN rules remain active. WAN DNS fallback is configured separately.
+The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Applying settings preserves history and the selected node if it remains eligible for the route list. If no working proxy node is available, the behavior selected in the rule database applies: blocking or WAN fallback. Direct WAN rules remain active. DNS follows the same rule when the proxy fails.
 
 ## Installation
 

@@ -59,6 +59,7 @@ type Policy struct {
 	SelectionOrder []string
 	NodeFilter     selection.Filter
 	RuleRefs       []string
+	WANFallback    bool // Derived from referenced rules; no route-list setting.
 	SourceCIDRs    []string
 	Health         health.Policy
 }
@@ -150,6 +151,10 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 	}
 	if config.DNSMode != "proxy-fallback-wan" && config.DNSMode != "proxy-only" && config.DNSMode != "system" {
 		return Config{}, errors.New("invalid LAN DNS mode")
+	}
+	// Legacy global fallback must not override the per-rule outage policy.
+	if config.DNSMode == "proxy-fallback-wan" {
+		config.DNSMode = "proxy-only"
 	}
 	handoff := read("dns_handoff_confirmed")
 	if handoff != "" && handoff != "0" && handoff != "1" {
@@ -270,7 +275,7 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 			value, _ := get(ctx, section+key)
 			return strings.TrimSpace(value)
 		}
-		rule := xray.RouteRule{ID: strings.TrimSpace(id), Action: readRule("action"),
+		rule := xray.RouteRule{ID: strings.TrimSpace(id), Action: readRule("action"), OutageAction: readRule("outage_action"), ProxyOutageAction: readRule("proxy_outage_action"),
 			Domains: strings.Fields(readRule("domains")), CIDRs: strings.Fields(readRule("cidrs")),
 			Name: readRule("name"), Network: readRule("network"),
 			Protocols: strings.Fields(readRule("protocols")), Inbounds: strings.Fields(readRule("inbounds")),
@@ -337,6 +342,11 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 			seenRules[ref] = true
 			orderedRules = append(orderedRules, rule)
 		}
+		basePolicy := xray.BasePolicy{ID: policy.ID, Rules: orderedRules}
+		if _, err := basePolicy.ProxyOutageBehavior(); err != nil {
+			return Config{}, err
+		}
+		policy.WANFallback = basePolicy.HasWANFallback()
 		if policy.Mode == "" {
 			policy.Mode = "best"
 		}

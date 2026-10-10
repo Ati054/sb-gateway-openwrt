@@ -70,9 +70,10 @@ return view.extend({
     var policy=policies.find(function(p) { return p.id === id; });
     var selected=state && (state.runtime_selected || state.selected);
     var node=policy && policy.nodes.find(function(n) { return n.id === selected; });
-    var label=node ? node.label : selected === 'block' ? _('Blocked') : '—';
+    var ruleWAN=state && state.runtime_confirmed && state.wan_fallback_active && selected === 'block';
+    var label=node ? node.label : ruleWAN ? _('WAN by rules') : selected === 'block' ? _('Blocked') : '—';
     var routeState=!status ? _('No data') : !status.running ? _('Stopped') : !state ? _('Waiting for checks') :
-     state.runtime_error ? _('Error') : selected === 'block' ? _('Blocked') :
+     state.runtime_error ? _('Error') : ruleWAN ? _('Fallback WAN') : selected === 'block' ? _('Blocked') :
      state.runtime_confirmed ? _('Active') : _('Not confirmed');
     var row=E('tr', { 'class':'tr' }, [cell(id),cell(label),cell(routeState),
      cell(healthUI.latency(node)),cell(policy ? String(policy.healthy_reserves) : '—')]);

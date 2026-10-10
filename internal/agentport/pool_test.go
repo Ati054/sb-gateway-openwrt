@@ -1,6 +1,7 @@
 package agentport
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -133,6 +134,69 @@ func TestWritePoolSharedLatencyBudget(t *testing.T) {
 		}
 		if pool.ProbeBudget != want || pool.ProbeLanes != want {
 			t.Fatal("shared budget or explicit disabled drop lost")
+		}
+	}
+}
+
+// A shared CDN listener is not a shared proxy configuration: credentials,
+// TLS SNI and transport paths must retain separate HTTPS evidence.
+func TestSharedAddressKeepsDistinctProxyHTTPSResults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pool.json")
+	nodes := []catalog.Node{}
+	for i, variant := range []string{"working", "other-uuid", "other-sni", "other-path"} {
+		uuid, sni, wsPath := "fixture-uuid", "a.example", "/a"
+		if i == 1 {
+			uuid = "another-fixture-uuid"
+		}
+		if i == 2 {
+			sni = "b.example"
+		}
+		if i == 3 {
+			wsPath = "/b"
+		}
+		nodes = append(nodes, catalog.Node{ID: variant, Protocol: "vless", Server: "192.0.2.1", Port: 443,
+			Credentials: map[string]string{"uuid": uuid},
+			Settings: map[string]any{
+				"tls":       map[string]any{"enabled": true, "server_name": sni},
+				"transport": map[string]any{"type": "ws", "path": wsPath, "host": "a.example"},
+			}})
+	}
+	if err := WritePool(path, nodes, []settings.Policy{{ID: "main", Mode: "best", SelectionOrder: []string{"all:*"}}}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pool healthPool
+	if err := json.Unmarshal(body, &pool); err != nil {
+		t.Fatal(err)
+	}
+	contract := pool.HealthPolicies["resproxy-main"]
+	fingerprints := map[string]bool{}
+	for _, node := range nodes {
+		fingerprint := contract.Nodes[node.ID].Fingerprint
+		if fingerprint == "" || fingerprints[fingerprint] {
+			t.Fatal("distinct proxy configuration shares HTTPS evidence")
+		}
+		fingerprints[fingerprint] = true
+	}
+	tcpCalls := 0
+	opened, closed := emergencyTCPPreflight(context.Background(), contract.Candidates, pool.DialTargets, 10,
+		func(context.Context, string) error { tcpCalls++; return nil })
+	if tcpCalls != 1 || len(opened) != len(nodes) || len(closed) != 0 {
+		t.Fatal("shared transport listener was not checked exactly once")
+	}
+	runtime := &fakeSelectorRuntime{probes: map[string]probeEvidence{"working": successfulEvidence(100)}}
+	controller := &healthController{runtime: runtime}
+	controller.beginProbeBudget(pool, []string{"resproxy-main"})
+	results := controller.sharedQualityBatch("resproxy-main", contract, opened)
+	if len(runtime.probeCalls) != len(nodes) || !results["working"].OK {
+		t.Fatal("per-node HTTPS checks missing")
+	}
+	for _, id := range []string{"other-uuid", "other-sni", "other-path"} {
+		if results[id].OK {
+			t.Fatal("open TCP listener or another node's success made a failed proxy healthy")
 		}
 	}
 }

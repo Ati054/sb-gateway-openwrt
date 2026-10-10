@@ -95,7 +95,7 @@ func TestLocalSelectorFailureDoesNotPenalizeActiveOrReserve(t *testing.T) {
 	if err != errProbeSelectorUnavailable || item.AvailabilityFailures["de"] != 0 || item.Recoveries["de"] != 3 {
 		t.Fatal("local API error became an active-node outage")
 	}
-	_, _, err = controller.probeEmergencyCandidates("europe", []string{"nl"}, policySettings(contract.Policy, contract.Mode))
+	_, _, err = controller.probeEmergencyCandidates(time.Unix(1000, 0), "europe", []string{"nl"}, policySettings(contract.Policy, contract.Mode))
 	if err != errProbeSelectorUnavailable || len(runtime.selections) != 0 {
 		t.Fatal("local API error was accepted as a reserve probe")
 	}

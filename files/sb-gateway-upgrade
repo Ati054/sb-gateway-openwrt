@@ -60,6 +60,23 @@ reclaimable_binary_kib() {
  du -k /usr/bin/resproxyd | awk '{print $1}'
 }
 
+# Only anonymous resident pages of the two package-owned processes can be
+# credited before their planned stop. Shared executable pages are not counted.
+reclaimable_service_ram_kib() {
+ pids=$(cat /var/run/resproxy/daemon.pid /var/run/resproxy/xray-ready 2>/dev/null | sort -u || :)
+ total=0
+ for pid in $pids; do
+  case "$pid" in ''|*[!0-9]*) continue;; esac
+  [ "$pid" -gt 1 ] || continue
+  exe=$(readlink "/proc/$pid/exe" 2>/dev/null || :)
+  [ "$exe" = /usr/bin/resproxyd ] || continue
+  anon=$(awk '/^RssAnon:/ {print $2}' "/proc/$pid/status" 2>/dev/null || :)
+  case "$anon" in ''|*[!0-9]*) continue;; esac
+  total=$((total + anon))
+ done
+ printf '%s\n' "$total"
+}
+
 check_compact_ram() {
  # The full previous payload is retained, including its helper/UI/config.
  # Use exact tar input sizes instead of apk's rounded human size.
@@ -78,6 +95,11 @@ check_compact_ram() {
  ram_kib=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
  tmp_kib=$(df -Pk /tmp | awk 'NR == 2 { print $4 }')
  printf '%s:%s:%s' "$previous_kib" "$ram_kib" "$tmp_kib" | grep -Eq '^[0-9]+:[0-9]+:[0-9]+$' || die "Cannot check compact update RAM"
+ # Inspection never stops the service. The install worker checks actual RAM
+ # again after both old processes exit, before snapshotting or unlinking.
+ if [ "${1:-}" = planned-stop ]; then
+  ram_kib=$((ram_kib + $(reclaimable_service_ram_kib)))
+ fi
  [ "$ram_kib" -ge "$((previous_kib + 32768))" ] && [ "$tmp_kib" -ge "$((previous_kib + 8192))" ] || die "Not enough RAM for compact update recovery snapshot"
 }
 
@@ -130,7 +152,7 @@ preflight() {
   reclaimed_kib=$(reclaimable_binary_kib)
   [ "$reclaimed_kib" -gt 0 ] && [ "$((free_kib + reclaimed_kib))" -ge "$required_kib" ] || die "Not enough reclaimable overlay space for package update"
   mkdir -p "$state"; chmod 700 "$state"
-  check_compact_ram
+  check_compact_ram planned-stop
   compact=yes
  fi
 	plan=$(apk add --simulate --allow-untrusted "$1") || die "APK dependency preflight failed"
@@ -144,7 +166,11 @@ ready() {
 	/usr/libexec/resproxy-status 2>/dev/null | grep -q '"running":true' || return 1
  core_pid=$(cat /var/run/resproxy/xray-ready 2>/dev/null || :)
  case "$core_pid" in ''|*[!0-9]*) return 1;; esac
- [ "$core_pid" -gt 1 ] && kill -0 "$core_pid" 2>/dev/null
+ [ "$core_pid" -gt 1 ] && kill -0 "$core_pid" 2>/dev/null || return 1
+ # A live process does not yet prove that its routing contract was applied.
+ local_pool_hash=$(sha256sum /var/run/resproxy/health-pool.json 2>/dev/null | cut -d ' ' -f 1)
+ [ -n "$local_pool_hash" ] || return 1
+ ucode -e 'import { readfile } from "fs"; let ready = json(readfile("/var/run/resproxy/hot-ready.json") || "null"); exit(ready && ready.xray_pid == +ARGV[0] && ready.pool_sha256 == ARGV[1] ? 0 : 1);' "$core_pid" "$local_pool_hash" 2>/dev/null
 }
 
 finish_install() {
@@ -193,6 +219,7 @@ install() {
 		write_phase failed
 		die "Installed package version differs from selected APK"
 	fi
+ printf '%s\n' "$archive_version" > "$state/status-version"
 	write_phase activating
 	if ! /etc/init.d/resproxy restart; then
 		write_phase failed
@@ -259,15 +286,27 @@ github_install() {
 case "${1:-}" in
  status)
   if [ -f "$busy" ] && [ -s "$state/worker.pid" ]; then
-   worker_pid=$(cat "$state/worker.pid")
+   worker_identity=$(cat "$state/worker.pid" 2>/dev/null || :)
+   worker_pid=$worker_identity
    case "$worker_pid" in ''|*[!0-9]*) worker_pid=0;;esac
-   if [ "$worker_pid" -le 1 ] || ! kill -0 "$worker_pid" 2>/dev/null; then
+   # The worker removes its lock before exiting. A poll can observe the
+   # old PID after that successful cleanup, so recheck the same lock/PID.
+   if { [ "$worker_pid" -le 1 ] || ! kill -0 "$worker_pid" 2>/dev/null; } &&
+      [ -f "$busy" ] && [ "$(cat "$state/worker.pid" 2>/dev/null || :)" = "$worker_identity" ]; then
     echo 'Update worker stopped; retry the update' > "$state/remote.log"
     echo failed > "$remote_phase"; write_phase failed
     rm -f "$busy" "$state/worker.pid"
    fi
   fi
-		printf 'version=%s\n' "$(installed_field version)"
+  # APK queries may wait for the installer's database lock. Poll only RAM
+  # while a worker is active so LuCI's progress RPC remains responsive.
+  if [ -f "$busy" ]; then
+   status_version=$(cat "$state/status-version" 2>/dev/null || :)
+  else
+   status_version=$(installed_field version)
+   if [ -d "$state" ]; then printf '%s\n' "$status_version" > "$state/status-version";fi
+  fi
+  printf 'version=%s\n' "$status_version"
 		printf 'phase=%s\n' "$(cat "$phase" 2>/dev/null || echo idle)"
 		[ -f "$busy" ] && echo busy=yes || echo busy=no
   printf 'remote_phase=%s\n' "$(cat "$remote_phase" 2>/dev/null || echo idle)"
@@ -286,6 +325,7 @@ case "${1:-}" in
   mkdir -p "$state"; chmod 700 "$state"
   ( set -C; : > "$busy" ) 2>/dev/null || die "Another update is in progress"
   trap 'rm -f "$busy" "$runner"' EXIT
+  printf '%s\n' "$(installed_field version)" > "$state/status-version"
   cp /usr/libexec/sb-gateway-upgrade "$runner"; chmod 700 "$runner"
   if [ "$1" = check ]; then
    echo checking > "$remote_phase"
@@ -313,11 +353,22 @@ case "${1:-}" in
 		printf 'version=%s\narch=%s\nsize=%s\nsha256=%s\ncompact=%s\n' \
 			"$archive_version" "$archive_arch" "$archive_size" "$(sha256sum "$candidate" | cut -d ' ' -f 1)" "$compact"
 		;;
+ fingerprint)
+  [ ! -f "$busy" ] || die "Another update is in progress"
+  [ -f "$candidate" ] && [ ! -L "$candidate" ] || die "APK file is missing or is a symlink"
+  candidate_size=$(wc -c < "$candidate")
+  [ "$candidate_size" -gt 0 ] && [ "$candidate_size" -le 67108864 ] || die "APK size must be 1-64 MiB"
+  # LuCI only pins the uploaded bytes here. The install worker repeats the
+  # complete archive, version, architecture, dependency and resource checks
+  # before stopping the service or changing any installed file.
+  printf 'sha256=%s\n' "$(sha256sum "$candidate" | cut -d ' ' -f 1)"
+  ;;
 	start)
 		mkdir -p "$state"
 		chmod 700 "$state"
 		( set -C; : > "$busy" ) 2>/dev/null || die "Another update is in progress"
 		trap 'rm -f "$busy" "$staged" "$runner" "$state/inspected-sha256" "$state/worker.pid"' EXIT
+  printf '%s\n' "$(installed_field version)" > "$state/status-version"
 		expected_hash=${2:-}
 		printf '%s' "$expected_hash" | grep -Eq '^[0-9a-f]{64}$' || die "A SHA-256 hash from APK inspection is required"
   # Expensive archive/dependency/hash checks run in the background worker.
@@ -329,6 +380,7 @@ case "${1:-}" in
   printf '%s\n' "$expected_hash" > "$state/inspected-sha256"
   cp /usr/libexec/sb-gateway-upgrade "$runner"
   chmod 700 "$runner"
+  echo idle > "$remote_phase"
   write_phase staged
 		/bin/sh "$runner" install </dev/null > "$state/install.log" 2>&1 &
 		printf '%s\n' "$!" > "$state/worker.pid"
@@ -343,6 +395,6 @@ case "${1:-}" in
 		migrate_legacy
 		;;
 	*)
-		die "Usage: sb-gateway-upgrade {status|check|github-start|inspect|start}"
+		die "Usage: sb-gateway-upgrade {status|check|github-start|inspect|fingerprint|start}"
 		;;
 esac

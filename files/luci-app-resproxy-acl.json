@@ -45,6 +45,9 @@
         "/usr/libexec/sb-gateway-upgrade inspect": [
           "exec"
         ],
+        "/usr/libexec/sb-gateway-upgrade fingerprint": [
+          "exec"
+        ],
         "/usr/libexec/sb-gateway-upgrade start *": [
           "exec"
         ],

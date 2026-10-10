@@ -19,6 +19,9 @@ func balancerTags(config BaseConfig) []string {
 	tags := make([]string, 0, len(config.Policies)+config.ProbeLaneCount()+1)
 	for _, policy := range config.Policies {
 		tags = append(tags, "resproxy-"+policy.ID)
+		if policy.HasWANFallback() {
+			tags = append(tags, WANFallbackTag(policy.ID))
+		}
 	}
 	tags = append(tags, HealthProbeTags(config)...)
 	tags = append(tags, RefreshProbeTag)

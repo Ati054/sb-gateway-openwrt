@@ -209,14 +209,16 @@ return view.extend({
 		settings.addremove = false;
         var creatorOpen = !uci.sections('resproxy', 'rule').some(function(rule) { return !!rule.preset_key; });
         var creating = false, editingVariant = null, settingsNode = null, drafts = (Drafts.read('preset-editor') || {}).drafts || Object.create(null);
-        var draftName = '', draftCountry = 'ru', draftAction = 'direct', retainedPresets = [];
+        var draftName = '', draftCountry = 'ru', draftAction = 'direct', draftOutage = 'block', retainedPresets = [];
         function persistDrafts() {
             Drafts.write('preset-editor', { drafts:drafts, active:editingVariant && editingVariant.key || '_new', open:creatorOpen });
         }
         function resetDraft() {
-            editingVariant = null; draftName = ''; draftCountry = 'ru'; draftAction = 'direct'; retainedPresets = [];
+            editingVariant = null; draftName = ''; draftCountry = 'ru'; draftAction = 'direct'; draftOutage = 'block'; retainedPresets = [];
             Object.keys(presetSelections).forEach(function(code) { presetSelections[code].geoip = false; presetSelections[code].packs = {}; });
             torrentSelected = false; creatorOpen = false;
+            presetOutage.keylist = ['block', 'wan'];
+            presetOutage.vallist = [_('Block'), _('Through WAN')];
             presetAction.keylist = ['direct', 'proxy'];
             presetAction.vallist = [_('Direct WAN'), _('Proxy through this route list')];
             addPreset.inputtitle = _('Create selected rules');
@@ -227,6 +229,7 @@ return view.extend({
             drafts[editingVariant ? editingVariant.key : '_new'] = {
                 name:variantName.formvalue('main') || '', country:presetCountry.formvalue('main') || draftCountry,
                 action:presetAction.formvalue('main') || draftAction,
+                outage:presetOutage.formvalue('main') || draftOutage,
                 selections:JSON.parse(JSON.stringify(presetSelections)), torrent:torrentSelected,
                 retained:retainedPresets.map(function(item) { return {rule:item.rule, selected:item.selected}; })
             };
@@ -235,12 +238,13 @@ return view.extend({
         function restoreDraft(key) {
             var draft = drafts[key];
             if (!draft) return false;
-            draftName = draft.name; draftCountry = draft.country; draftAction = draft.action;
+            draftName = draft.name; draftCountry = draft.country; draftAction = draft.action; draftOutage = draft.outage || 'block';
             Object.keys(presetSelections).forEach(function(code) {
                 presetSelections[code] = JSON.parse(JSON.stringify(draft.selections[code]));
             });
             torrentSelected = draft.torrent; retainedPresets = draft.retained.map(function(item) { return {rule:item.rule, selected:item.selected}; });
             if (draftAction === 'keep') presetAction.value('keep', _('Keep existing actions'));
+            if (draftOutage === 'keep') presetOutage.value('keep', _('Keep existing behavior'));
             return true;
         }
         function refreshEditor(focus, summaryKey) {
@@ -269,6 +273,9 @@ return view.extend({
             draftName = variant.name;
             var actions = Array.from(new Set(variant.rules.map(function(rule) { return rule.action; })));
             draftAction = actions.length === 1 ? actions[0] : 'keep';
+            var outages = Array.from(new Set(variant.rules.map(function(rule) { return rule.proxy_outage_action || 'block'; })));
+            draftOutage = outages.length > 1 ? 'keep' : outages[0] || 'block';
+            if (draftOutage === 'keep') presetOutage.value('keep', _('Keep existing behavior'));
             if (draftAction === 'keep') presetAction.value('keep', _('Keep existing actions'));
             var choices = allPresetChoices(), firstCountry = null;
             variant.rules.forEach(function(rule) {
@@ -445,6 +452,11 @@ return view.extend({
 		presetAction.value('proxy', _('Proxy through this route list'));
 		presetAction.cfgvalue = function() { return draftAction; };
 		presetAction.write = presetAction.remove = function() {};
+        var presetOutage = settings.option(form.ListValue, '_preset_outage_action', _('When all proxies fail'));
+        presetOutage.value('block', _('Block'));
+        presetOutage.value('wan', _('Through WAN'));
+        presetOutage.cfgvalue = function() { return draftOutage; };
+        presetOutage.write = presetOutage.remove = function() {};
         var retained = settings.option(form.DummyValue, '_preset_retained', _('Other presets'));
         var renderRetained = retained.render;
         retained.render = function() { return Promise.resolve(renderRetained.apply(this, arguments)).then(function(node) { if (!retainedPresets.length) node.style.display = 'none'; return node; }); };
@@ -479,6 +491,7 @@ return view.extend({
                 });
             });
             if (torrentSelected) keys.push('traffic:bittorrent');
+            var outage = presetOutage.formvalue('main') || draftOutage;
             var action = presetAction.formvalue('main'), choices = allPresetChoices();
             var additions = keys.map(function(key) { return choices.find(function(item) { return item.key === key; }); }).filter(Boolean);
             var kept = retainedPresets.filter(function(item) { return item.selected; }).map(function(item) { return item.rule; });
@@ -514,6 +527,8 @@ return view.extend({
                         newIDs.push(id);
                         uci.set('resproxy', sid, 'id', id);
                         uci.set('resproxy', sid, 'action', nextAction);
+                        uci.set('resproxy', sid, 'proxy_outage_action', outage === 'keep' ? existing && existing.proxy_outage_action || 'block' : outage);
+                        uci.unset('resproxy', sid, 'outage_action');
                         uci.set('resproxy', sid, 'preset_key', selected.key);
                         setName(sid, presetName(selected.key, catalog));
                         if (existing) return;
@@ -529,6 +544,8 @@ return view.extend({
                     if (rule.preset_variant_name && label.indexOf(prefix) === 0) label = label.slice(prefix.length);
                     setName(rule['.name'], label);
                     if (action !== 'keep') uci.set('resproxy', rule['.name'], 'action', action);
+                    if (outage !== 'keep') uci.set('resproxy', rule['.name'], 'proxy_outage_action', outage);
+                    uci.unset('resproxy', rule['.name'], 'outage_action');
                 });
                 updateRouteReferences(oldRules, newIDs, addedIDs);
                 oldRules.forEach(function(rule) { if (newIDs.indexOf(rule.id) < 0) uci.remove('resproxy', rule['.name']); });
@@ -657,6 +674,14 @@ return view.extend({
 		action.value('proxy', _('Proxy through this route list'));
 		action.default = 'direct';
 		action.rmempty = false;
+        var outage = groups.option(form.ListValue, 'proxy_outage_action', _('When all proxies fail'));
+        outage.depends('action', 'proxy');
+        outage.value('block', _('Block'));
+        outage.value('wan', _('Through WAN'));
+        outage.default = 'block';
+        outage.rmempty = false;
+        outage.retain = true;
+        outage.write = function(section, value) { uci.set('resproxy', section, 'proxy_outage_action', value); uci.unset('resproxy', section, 'outage_action'); };
 		var protocol = groups.option(CheckboxList, 'protocols', _('Protocol'));
 		['http', 'tls', 'quic', 'bittorrent'].forEach(function(value) { protocol.value(value, value.toUpperCase()); });
 		protocol.rmempty = true;

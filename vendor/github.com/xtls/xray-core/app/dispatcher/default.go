@@ -389,6 +389,13 @@ func sniffer(ctx context.Context, cReader *cachedReader, metadataOnly bool, netw
 
 	contentResult, contentErr := func() (SniffResult, error) {
 		cacheDeadline := 200 * time.Millisecond
+		// Route-only TCP classification must wait for a delayed ClientHello.
+		// A busy client can complete TCP well before it schedules TLS. Falling
+		// through after 200 ms silently routes domain exceptions as unmatched.
+		// Keep UDP and ordinary destination sniffing at their original budget.
+		if content := session.ContentFromContext(ctx); network == net.Network_TCP && content != nil && content.SniffingRequest.RouteOnly {
+			cacheDeadline = 5 * time.Second
+		}
 		totalAttempt := 0
 		for {
 			select {

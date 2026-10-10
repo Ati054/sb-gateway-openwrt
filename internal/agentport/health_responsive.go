@@ -527,7 +527,7 @@ func (controller *healthController) checkDuringProbe(now time.Time, pool healthP
 	var result error
 	for _, id := range ids {
 		item := controller.state[id]
-		if item == nil || item.Selected == "" || item.Selected == "block" {
+		if item == nil || !item.RuntimeConfirmed || item.RuntimeSelected != item.Selected || item.Selected == "" || item.Selected == "block" {
 			continue
 		}
 		contract := pool.HealthPolicies[id]

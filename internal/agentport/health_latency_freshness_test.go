@@ -47,7 +47,7 @@ func TestSingleEmergencyCandidateRejectsReplacedGeneration(t *testing.T) {
 				replace()
 			}
 			controller := &healthController{runtime: runtime}
-			measured, selected, err := controller.probeEmergencyCandidates("route", []string{"reserve"}, effectivePolicySettings{batch: 1})
+			measured, selected, err := controller.probeEmergencyCandidates(time.Unix(1000, 0), "route", []string{"reserve"}, effectivePolicySettings{batch: 1})
 			if change == "none" {
 				if err != nil || selected != "reserve" || !measured["reserve"].OK || len(primary.selections) != 1 {
 					t.Fatalf("single-lane emergency did not recover immediately: selected=%q err=%v", selected, err)

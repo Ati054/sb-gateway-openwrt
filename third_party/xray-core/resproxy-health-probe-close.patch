@@ -1,0 +1,81 @@
+--- a/proxy/http/server.go
++++ b/proxy/http/server.go
+@@ -98,6 +98,22 @@
+ 	}
+ 	if !proxy.IsRAWTransportWithoutSecurity(conn) {
+ 		inbound.CanSpliceCopy = 3
++	}
++	// Health probes close after a bounded response. Vision's raw splice path
++	// extends its idle timer to 24h and can override the short EOF timeout,
++	// retaining a closed probe and upstream socket. Keep probes on the normal
++	// copy path; ordinary client HTTP/CONNECT still uses splice.
++	if strings.HasPrefix(inbound.Tag, "outbound-health-") || inbound.Tag == "resproxy-refresh-probe" {
++		inbound.CanSpliceCopy = 3
++		// CONNECT acknowledges before the upstream dial. A client timeout does
++		// not cancel that dial while REALITY/TLS is still waiting for its peer.
++		// Health requests finish within five seconds; allow an eight-second
++		// core lifetime, including cleanup, without limiting client streams.
++		var cancel context.CancelFunc
++		ctx, cancel = context.WithTimeout(ctx, 8*time.Second)
++		defer cancel()
++		stopClose := context.AfterFunc(ctx, func() { conn.Close() })
++		defer stopClose()
+ 	}
+ 	var reader *bufio.Reader
+ 	if len(firstbyte) > 0 {
+--- a/transport/internet/reality/reality.go
++++ b/transport/internet/reality/reality.go
+@@ -28,6 +28,7 @@
+ 	"github.com/xtls/xray-core/common/crypto"
+ 	"github.com/xtls/xray-core/common/errors"
+ 	"github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/common/session"
+ 	"github.com/xtls/xray-core/common/utils"
+ 	"github.com/xtls/xray-core/core"
+ 	"github.com/xtls/xray-core/transport/internet/tls"
+@@ -140,6 +141,15 @@
+ }
+ 
+ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destination) (net.Conn, error) {
++	// Failed handshakes never transfer connection ownership to the caller.
++	// The normal REALITY camouflage path explicitly keeps ownership below.
++	keepConn := false
++	defer func() {
++		if !keepConn {
++			c.Close()
++		}
++	}()
++
+ 	localAddr := c.LocalAddr().String()
+ 	uConn := &UConn{
+ 		Config: config,
+@@ -207,6 +217,11 @@
+ 	}
+ 	if !uConn.Verified {
+ 		errors.LogError(ctx, "REALITY: received real certificate (potential MITM or redirection)")
++		if inbound := session.InboundFromContext(ctx); inbound != nil &&
++			(strings.HasPrefix(inbound.Tag, "outbound-health-") || inbound.Tag == "resproxy-refresh-probe") {
++			return nil, errors.New("REALITY: invalid health probe authentication")
++		}
++		keepConn = true // Ordinary client camouflage owns the connection.
+ 		go func() {
+ 			client := &http.Client{
+ 				Transport: &http2.Transport{
+@@ -298,6 +313,7 @@
+ 		time.Sleep(time.Duration(crypto.RandBetween(config.SpiderY[8], config.SpiderY[9])) * time.Millisecond) // return
+ 		return nil, errors.New("REALITY: processed invalid connection")
+ 	}
++	keepConn = true
+ 	return uConn, nil
+ }
+ 
+--- a/transport/internet/tcp/dialer.go
++++ b/transport/internet/tcp/dialer.go
+@@ -82,6 +82,7 @@
+ 			err = conn.(*tls.Conn).HandshakeContext(ctx)
+ 		}
+ 		if err != nil {
++			conn.Close()
+ 			if isFromMitmVerify {
+ 				return nil, errors.New("MITM freedom RAW TLS: failed to verify Domain Fronting certificate from " + mitmServerName).Base(err)
+ 			}

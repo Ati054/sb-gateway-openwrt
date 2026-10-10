@@ -417,7 +417,7 @@
 .sbg-page :is(.sbg-route-card-settings,.sbg-custom-rule-settings) > summary { cursor:pointer; overflow-wrap:anywhere; padding:.35rem 0; }
 .sbg-page :is(.sbg-route-card-settings,.sbg-custom-rule-settings) > summary small { display:flex; flex-wrap:wrap; gap:.25rem .5rem; margin:.3rem 0 0 1rem; color:var(--sbg-muted); }
 .sbg-page :is(.sbg-route-card-settings,.sbg-custom-rule-settings) > summary small > span { white-space:nowrap; }
-.sbg-page :is(.sbg-route-card-settings,.sbg-custom-rule-settings) > summary small > span + span::before { content:'В·'; margin-right:.5rem; }
+.sbg-page :is(.sbg-route-card-settings,.sbg-custom-rule-settings) > summary small > span + span::before { content:'·'; margin-right:.5rem; }
 .sbg-page :is(.sbg-route-card-settings,.sbg-custom-rule-settings) > .cbi-section-node { border:0; padding:1rem 0 0; margin:0; border-radius:0; }
 .sbg-page :is(.sbg-route-card,.sbg-custom-rule-card) > .cbi-section-remove { flex:none; }
 .sbg-page :is(.sbg-route-save,.sbg-custom-rule-save) { margin-top:1rem; }

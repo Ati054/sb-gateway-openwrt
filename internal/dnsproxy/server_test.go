@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"net"
 	"net/netip"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
@@ -64,44 +62,6 @@ func TestQuestionNameAndLocal(t *testing.T) {
 	}
 	if isLocalName("notlan.example") || isLocalName("example.com") {
 		t.Fatal("public domain classified as local")
-	}
-}
-
-func TestWANFallbackRequiresFreshConfirmedBlock(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	s := &server{config: Config{Mode: "proxy-fallback-wan", DefaultPolicy: "main", HealthStatePath: path},
-		prefixes: []policyPrefix{{"other", netip.MustParsePrefix("192.0.2.0/24")}}}
-	mainSource := netip.MustParseAddr("198.51.100.8")
-	otherSource := netip.MustParseAddr("192.0.2.8")
-	if s.useWAN(mainSource) {
-		t.Fatal("missing health state allowed WAN fallback")
-	}
-	write := func(data string) {
-		t.Helper()
-		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		s.readState()
-	}
-	write(`{"resproxy-main":{"selected":"block","runtime_selected":"block","runtime_confirmed":true},"resproxy-other":{"selected":"node-1","runtime_selected":"node-1","runtime_confirmed":true}}`)
-	if !s.useWAN(mainSource) || s.useWAN(otherSource) {
-		t.Fatal("per-policy all-down state applied incorrectly")
-	}
-	write(`{"resproxy-main":{"selected":"block","runtime_selected":"node-1","runtime_confirmed":false}}`)
-	if s.useWAN(mainSource) {
-		t.Fatal("unconfirmed block allowed WAN fallback")
-	}
-	write(`{"resproxy-main":{"selected":"block","runtime_selected":"block","runtime_confirmed":true}}`)
-	if err := os.Chtimes(path, time.Now().Add(-time.Minute), time.Now().Add(-time.Minute)); err != nil {
-		t.Fatal(err)
-	}
-	s.readState()
-	if s.useWAN(mainSource) {
-		t.Fatal("stale state allowed WAN fallback")
-	}
-	write(`{not-json`)
-	if s.useWAN(mainSource) {
-		t.Fatal("corrupt state allowed WAN fallback")
 	}
 }
 

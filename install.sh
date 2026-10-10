@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install the published SB Gateway Release Candidate on OpenWrt.
+# Install the latest published SB Gateway package on OpenWrt.
 set -eu
 umask 077
 repo=https://github.com/Ati054/sb-gateway-openwrt

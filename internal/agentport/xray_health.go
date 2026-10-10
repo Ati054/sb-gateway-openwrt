@@ -278,6 +278,13 @@ func (runtime *xraySelectorRuntime) Select(selector, member string) (selectionEr
 			}
 		}
 	}
+	if policySelector {
+		if fallback := runtime.pool.HealthPolicies[selector].WANFallbackSelector; fallback != "" {
+			if err := runtime.setRuleFallbackMember(fallback, runtimeMember); err != nil {
+				return err
+			}
+		}
+	}
 	if runtime.selectorMembers[selector] == runtimeMember {
 		if policySelector {
 			return runtime.commitPolicySelection(selector, member, runtimeMember)

@@ -1662,3 +1662,18 @@ msgstr "Установить файл APK"
 
 msgid "No updates available."
 msgstr "Обновлений нет."
+
+msgid "When all proxies fail"
+msgstr "При отказе всех прокси"
+
+msgid "Through WAN"
+msgstr "Через WAN"
+
+msgid "Keep existing behavior"
+msgstr "Сохранить поведение"
+
+msgid "WAN by rules"
+msgstr "WAN по правилам"
+
+msgid "Block"
+msgstr "Блокировать"

@@ -144,7 +144,7 @@ func TestEmergencyParallelIgnoresSignalStorm(t *testing.T) {
 	}()
 	defer func() { stop(); <-stopped }()
 	controller := &healthController{runtime: runtime}
-	measured, selected, err := controller.probeEmergencyCandidates("route", []string{"a", "b"}, effectivePolicySettings{})
+	measured, selected, err := controller.probeEmergencyCandidates(time.Unix(1000, 0), "route", []string{"a", "b"}, effectivePolicySettings{})
 	if err != nil || selected == "" || !measured[selected].OK || checks != 0 || accepts != 0 {
 		t.Fatalf("hint storm preempted emergency recovery: selected=%q checks=%d accepts=%d err=%v", selected, checks, accepts, err)
 	}

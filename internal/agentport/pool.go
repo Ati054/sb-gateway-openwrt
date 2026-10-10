@@ -52,7 +52,11 @@ func (prepared *PreparedPool) Publish(path string, policies []settings.Policy) e
 	for _, policy := range policies {
 		tag := "resproxy-" + policy.ID
 		contract, ok := prepared.pool.HealthPolicies[tag]
-		if !ok || contract.Mode != policy.Mode {
+		expectedFallback := ""
+		if policy.WANFallback {
+			expectedFallback = xray.WANFallbackTag(policy.ID)
+		}
+		if !ok || contract.Mode != policy.Mode || contract.WANFallbackSelector != expectedFallback {
 			return errors.New("prepared policy definition changed")
 		}
 		contract.Policy = policy.Health
@@ -123,6 +127,11 @@ func PreparePool(nodes []catalog.Node, policies []settings.Policy) (*PreparedPoo
 		pool.HealthPolicies[tag] = healthPolicyContract{
 			Policy: policy, Mode: configured.Mode, Groups: contractGroups,
 			Candidates: candidates, Nodes: contractNodes,
+		}
+		if configured.WANFallback {
+			contract := pool.HealthPolicies[tag]
+			contract.WANFallbackSelector = xray.WANFallbackTag(configured.ID)
+			pool.HealthPolicies[tag] = contract
 		}
 		pool.PolicyPrefixes[tag] = "resproxy-" + configured.ID + "-"
 	}

@@ -30,7 +30,7 @@ func TestOpenWrtPriorityWaitsForEarlierParallelResults(t *testing.T) {
 		}
 		runtime := &reversedOpenWrtRuntime{&fakeSelectorRuntime{probes: map[string]probeEvidence{"fr1": evidence, "fr2": successfulEvidence(600), "pl": successfulEvidence(20)}}}
 		c := &healthController{runtime: runtime}
-		measured, selected, err := c.probeEmergencyCandidates("pc", []string{"fr1", "fr2", "pl"}, effectivePolicySettings{mode: "priority"})
+		measured, selected, err := c.probeEmergencyCandidates(time.Unix(1000, 0), "pc", []string{"fr1", "fr2", "pl"}, effectivePolicySettings{mode: "priority"})
 		if err != nil || selected != want || len(measured) != 3 || len(runtime.selections) != 1 {
 			t.Fatalf("parallel priority violated: selected=%s measured=%v err=%v", selected, measured, err)
 		}

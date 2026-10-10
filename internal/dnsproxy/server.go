@@ -30,6 +30,7 @@ import (
 const maxDNSMessage = 4096
 
 type Policy struct {
+	ProxyOutageAction        string
 	ID                       string
 	SourceCIDRs              []string
 	Rules                    []Rule
@@ -39,8 +40,9 @@ type Policy struct {
 }
 
 type Rule struct {
-	Action  string
-	Domains []string
+	Action       string
+	OutageAction string
+	Domains      []string
 }
 
 type Config struct {
@@ -70,7 +72,7 @@ type server struct {
 	matcherMu         sync.RWMutex
 	matchers          map[string]domainMatcher
 	stateMu           sync.RWMutex
-	allDown           map[string]bool
+	ruleWANActive     map[string]bool
 	proxySelections   map[string]string
 	stateValid        bool
 	sem               chan struct{}
@@ -104,6 +106,7 @@ type policyPrefix struct {
 }
 
 type domainMatcher struct {
+	proxyWAN bool
 	ordered  []domainActionRule
 	exact    map[string]bool
 	suffixes map[string]bool
@@ -112,8 +115,9 @@ type domainMatcher struct {
 }
 
 type domainActionRule struct {
-	action  string
-	matcher domainMatcher
+	action       string
+	outageAction string
+	matcher      domainMatcher
 }
 
 // Start binds UDP and TCP before returning, so LAN capture cannot be enabled
@@ -280,10 +284,16 @@ func (s *server) matchesDirect(policy, name string) bool {
 }
 
 func compileMatcher(policy Policy) (domainMatcher, error) {
-	result := domainMatcher{exact: make(map[string]bool), suffixes: make(map[string]bool)}
+	if policy.ProxyOutageAction != "" && policy.ProxyOutageAction != "block" && policy.ProxyOutageAction != "wan" {
+		return domainMatcher{}, errors.New("invalid proxy traffic outage action")
+	}
+	result := domainMatcher{proxyWAN: policy.ProxyOutageAction == "wan", exact: make(map[string]bool), suffixes: make(map[string]bool)}
 	for _, rule := range policy.Rules {
 		if rule.Action != "direct" && rule.Action != "proxy" {
 			return domainMatcher{}, errors.New("invalid domain rule action")
+		}
+		if rule.OutageAction != "" && rule.OutageAction != "block" && rule.OutageAction != "wan" {
+			return domainMatcher{}, errors.New("invalid domain rule outage action")
 		}
 		if len(rule.Domains) == 0 {
 			continue
@@ -299,7 +309,7 @@ func compileMatcher(policy Policy) (domainMatcher, error) {
 		if err != nil {
 			return domainMatcher{}, err
 		}
-		result.ordered = append(result.ordered, domainActionRule{action: rule.Action, matcher: matcher})
+		result.ordered = append(result.ordered, domainActionRule{action: rule.Action, outageAction: rule.OutageAction, matcher: matcher})
 	}
 	for _, domain := range policy.DirectDomains {
 		result.suffixes[strings.ToLower(domain)] = true
@@ -392,18 +402,20 @@ func (s *server) readState() {
 		return
 	}
 	var states map[string]struct {
-		Selected         string `json:"selected"`
-		RuntimeSelected  string `json:"runtime_selected"`
-		RuntimeConfirmed bool   `json:"runtime_confirmed"`
+		Selected          string `json:"selected"`
+		RuntimeSelected   string `json:"runtime_selected"`
+		RuntimeConfirmed  bool   `json:"runtime_confirmed"`
+		WANFallbackActive bool   `json:"wan_fallback_active"`
 	}
 	if json.Unmarshal(body, &states) != nil {
 		s.invalidateState()
 		return
 	}
-	allDown := make(map[string]bool, len(states))
+	ruleWAN := make(map[string]bool, len(states))
 	selections := make(map[string]string, len(states))
 	for tag, state := range states {
-		allDown[tag] = state.Selected == "block" && state.RuntimeSelected == "block" && state.RuntimeConfirmed
+		confirmedOutage := state.Selected == "block" && state.RuntimeSelected == "block" && state.RuntimeConfirmed
+		ruleWAN[tag] = confirmedOutage && state.WANFallbackActive
 		if state.RuntimeConfirmed && state.RuntimeSelected == state.Selected {
 			selections[tag] = state.RuntimeSelected
 		}
@@ -415,7 +427,7 @@ func (s *server) readState() {
 			changed = append(changed, tag)
 		}
 	}
-	s.allDown, s.proxySelections, s.stateValid = allDown, selections, true
+	s.ruleWANActive, s.proxySelections, s.stateValid = ruleWAN, selections, true
 	// Retire before publishing the new selection to DNS jobs. Existing requests
 	// drain on their original route and have a separate route-scoped cache key.
 	for _, tag := range changed {
@@ -442,10 +454,6 @@ func (s *server) invalidateState() {
 	s.stateMu.Unlock()
 }
 
-func (s *server) useWAN(source netip.Addr) bool {
-	return s.useWANPolicy(s.policyFor(source))
-}
-
 func (s *server) policyFor(source netip.Addr) string {
 	policy := s.config.DefaultPolicy
 	for _, item := range s.prefixes {
@@ -457,13 +465,26 @@ func (s *server) policyFor(source netip.Addr) string {
 	return policy
 }
 
-func (s *server) useWANPolicy(policy string) bool {
-	if s.config.Mode != "proxy-fallback-wan" {
+// DNS honors the first applicable domain rule, including strict proxy rules
+// preceding a broader WAN-fallback rule. Stale health cannot authorize WAN.
+func (s *server) useRuleWAN(policy, name string) bool {
+	s.stateMu.RLock()
+	active := s.stateValid && s.ruleWANActive["resproxy-"+policy]
+	s.stateMu.RUnlock()
+	if !active {
 		return false
 	}
-	s.stateMu.RLock()
-	defer s.stateMu.RUnlock()
-	return s.stateValid && s.allDown["resproxy-"+policy]
+	s.matcherMu.RLock()
+	defer s.matcherMu.RUnlock()
+	if s.matchers[policy].proxyWAN {
+		return true
+	}
+	for _, rule := range s.matchers[policy].ordered {
+		if rule.matcher.matches(name) {
+			return rule.action == "proxy" && rule.outageAction == "wan"
+		}
+	}
+	return false
 }
 
 func (s *server) serveUDP(ctx context.Context, conn net.PacketConn) {
@@ -559,7 +580,7 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 	policy := s.policyFor(source)
 	routerQuery := source.IsLoopback()
 	directRule := routerQuery || s.matchesDirect(policy, name)
-	fallback := !directRule && s.useWANPolicy(policy)
+	fallback := !directRule && (s.useRuleWAN(policy, name))
 	viaWAN := directRule || fallback
 	key := policy + ":" + string(query[2:])
 	if routerQuery {

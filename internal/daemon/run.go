@@ -82,6 +82,13 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			return err
 		}
 	}
+	// Retained history is not proof that a newly started core serves its routes.
+	if err := agentport.InvalidateRuntimeHealth(filepath.Join(paths.RunRoot, "health-state")); err != nil {
+		return fmt.Errorf("invalidate previous runtime health: %w", err)
+	}
+	if err := os.Remove(filepath.Join(paths.RunRoot, "hot-ready.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	engine, err := startCore(CoreExecutionMode, base, basePath, paths.Binary, fmt.Sprintf("127.0.0.1:%d", config.Base.APIPort))
 	if err != nil {
 		return fmt.Errorf("start Xray (%s): %w", CoreExecutionMode, err)
@@ -289,10 +296,6 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		defer background.Done()
 		runRulesetUpdates(ctx, config, paths, manager, rulesetSnapshot, routingBase, updateDNS)
 	}()
-	if err := os.WriteFile(filepath.Join(paths.RunRoot, "daemon.pid"), []byte(strconv.Itoa(os.Getpid())+"\n"), 0o600); err != nil {
-		return err
-	}
-	defer os.Remove(filepath.Join(paths.RunRoot, "daemon.pid"))
 	watchdogSelector := "resproxy-" + config.Base.DefaultPolicy
 	background.Add(2)
 	go func() {
@@ -370,6 +373,15 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			return err
 		}, func(ctx context.Context) error { return renewProcdWatchdog(ctx, instance) })
 	}()
+	// Recovery must run while initial routes are being confirmed. The supervisor
+	// alone consumes child exits; startup waits on its fatal cancellation.
+	if err := waitStartupRoutes(ctx, config, paths, nil, healthDone); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(paths.RunRoot, "daemon.pid"), []byte(strconv.Itoa(os.Getpid())+"\n"), 0o600); err != nil {
+		return err
+	}
+	defer os.Remove(filepath.Join(paths.RunRoot, "daemon.pid"))
 	service := &refresh.Service{Store: store, Runtime: manager,
 		AfterSwitch: func(previous, next []catalog.Node) (func() error, error) {
 			if err := control.publishPool(poolPath, next); err != nil {
@@ -601,10 +613,11 @@ func dnsPoliciesFromBase(base xray.BaseConfig) []dnsproxy.Policy {
 			if rule.Network != "" && rule.Network != "tcp,udp" || len(rule.Protocols)+len(rule.Inbounds) > 0 || rule.Ports != "" {
 				continue
 			}
-			rules = append(rules, dnsproxy.Rule{Action: rule.Action, Domains: append(append(append([]string(nil), rule.Domains...), rule.CountryDomains...), rule.ServiceDomains...)})
+			rules = append(rules, dnsproxy.Rule{Action: rule.Action, OutageAction: rule.OutageAction, Domains: append(append(append([]string(nil), rule.Domains...), rule.CountryDomains...), rule.ServiceDomains...)})
 		}
+		behavior, _ := policy.ProxyOutageBehavior()
 		policies = append(policies, dnsproxy.Policy{
-			ID: policy.ID, SourceCIDRs: policy.SourceCIDRs,
+			ProxyOutageAction: behavior, ID: policy.ID, SourceCIDRs: policy.SourceCIDRs,
 			Rules: rules,
 		})
 	}

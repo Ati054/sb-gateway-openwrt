@@ -8,13 +8,24 @@ The source includes the existing gateway patches for passive failure signals,
 Vision/xhttp/TLS behavior and atomic routing publication with current balancer
 overrides. The integrated release additionally passes RPC cancellation into
 routing compilation and checks it before publishing the replacement table.
-`resproxy-upstream.patch` records all changes against the pinned commit.
+`resproxy-upstream.patch` records the initial changes against the pinned commit.
+`resproxy-route-only-sniff.patch` applies the TCP sniffing correction after it.
 
 The command entry points in internal/xraycli are adapted from upstream main,
 run and version. Their original copyright/license remain MPL-2.0. The gateway
 entry point uses this CLI only when invoked through the xray compatibility
-symlink. Normal gateway operation uses core.StartInstance and a persistent
-local API client in the same process.
+symlink. Normal gateway operation runs this executable as a separate core process
+and uses a persistent local API client.
 
 Go module dependencies are pinned by go.mod/go.sum and included in vendor.
 The independent Xray binary in testlab is a test reference and is not installed.
+
+Route-only TCP sniffing allows five seconds for the initial HTTP/TLS data. This
+prevents a delayed ClientHello from missing domain rules under CPU contention.
+UDP and destination-replacement sniffing retain the upstream 200 ms budget.
+
+`resproxy-health-probe-close.patch` bounds internal health and refresh CONNECT
+requests to eight seconds, including blocked upstream TLS/REALITY handshakes.
+Probe failures release raw sockets and skip REALITY camouflage browsing after
+invalid authentication. Normal client streams and their camouflage behavior
+remain unchanged. Failed ordinary TCP TLS handshakes also release their socket.

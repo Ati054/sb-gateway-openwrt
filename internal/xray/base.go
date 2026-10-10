@@ -40,23 +40,25 @@ type BasePolicy struct {
 }
 
 type RouteRule struct {
-	ID             string
-	Name           string // User-facing label; ID remains the stable reference.
-	Network        string // Empty means TCP and UDP.
-	Protocols      []string
-	Inbounds       []string // transparent and/or socks; empty means both.
-	Ports          string   // Destination ports/ranges.
-	Action         string   // direct or proxy
-	Domains        []string
-	CIDRs          []string
-	ServicePacks   []string // Optional reviewed domain catalog groups.
-	Country        string   // ru, cn, ir, or empty
-	UseGeosite     bool
-	UseGeoIP       bool
-	CountryDomains []string // Compiled selected GeoSite entries.
-	CountryGeoIP   string   // Immutable content-addressed Xray ext reference.
-	CountryCIDRs   []string // Compiled selected GeoIP entries.
-	ServiceDomains []string // Compiled selected domain catalog entries.
+	ID                string
+	Name              string // User-facing label; ID remains the stable reference.
+	Network           string // Empty means TCP and UDP.
+	Protocols         []string
+	Inbounds          []string // transparent and/or socks; empty means both.
+	Ports             string   // Destination ports/ranges.
+	Action            string   // direct or proxy
+	OutageAction      string   // Legacy per-match outage setting.
+	ProxyOutageAction string   // Rule-database choice for all proxy traffic of referencing lists.
+	Domains           []string
+	CIDRs             []string
+	ServicePacks      []string // Optional reviewed domain catalog groups.
+	Country           string   // ru, cn, ir, or empty
+	UseGeosite        bool
+	UseGeoIP          bool
+	CountryDomains    []string // Compiled selected GeoSite entries.
+	CountryGeoIP      string   // Immutable content-addressed Xray ext reference.
+	CountryCIDRs      []string // Compiled selected GeoIP entries.
+	ServiceDomains    []string // Compiled selected domain catalog entries.
 }
 
 func DefaultBaseConfig() BaseConfig {
@@ -127,6 +129,9 @@ func (c BaseConfig) Validate() error {
 				return fmt.Errorf("invalid source CIDR for policy %q", policy.ID)
 			}
 		}
+		if _, err := policy.ProxyOutageBehavior(); err != nil {
+			return err
+		}
 		for _, rule := range policy.Rules {
 			if err := rule.Validate(); err != nil {
 				return fmt.Errorf("policy %q: %w", policy.ID, err)
@@ -146,6 +151,12 @@ func (rule RouteRule) Validate() error {
 	}
 	if !policyIDPattern.MatchString(rule.ID) || (rule.Action != "direct" && rule.Action != "proxy") {
 		return errors.New("invalid rule group ID or action")
+	}
+	if rule.ProxyOutageAction != "" && rule.ProxyOutageAction != "block" && rule.ProxyOutageAction != "wan" {
+		return errors.New("invalid proxy traffic outage action")
+	}
+	if rule.OutageAction != "" && rule.OutageAction != "block" && rule.OutageAction != "wan" {
+		return errors.New("invalid proxy outage action")
 	}
 	if rule.Country != "" && rule.Country != "ru" && rule.Country != "cn" && rule.Country != "ir" {
 		return fmt.Errorf("invalid country in rule group %q", rule.ID)
@@ -291,11 +302,17 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 			"tag": "resproxy-" + policy.ID, "selector": []string{"block"},
 			"strategy": map[string]any{"type": "random"},
 		})
+		if policy.HasWANFallback() {
+			balancers = append(balancers, map[string]any{
+				"tag": WANFallbackTag(policy.ID), "selector": []string{"block"},
+				"strategy": map[string]any{"type": "random"},
+			})
+		}
 		if len(policy.SourceCIDRs) > 0 {
 			rules = appendPolicyExceptions(rules, policy, []string{"resproxy-transparent", "resproxy-transparent6"})
 			rules = append(rules, map[string]any{
 				"type": "field", "inboundTag": []string{"resproxy-transparent", "resproxy-transparent6"},
-				"sourceIP": policy.SourceCIDRs, "balancerTag": "resproxy-" + policy.ID,
+				"sourceIP": policy.SourceCIDRs, "balancerTag": policy.ProxyTrafficTag(),
 			})
 		}
 	}
@@ -333,8 +350,10 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 			"balancerTag": "resproxy-" + policy.ID})
 	}
 	rules = append(rules, map[string]any{"type": "field",
-		"inboundTag":  []string{"resproxy-transparent", "resproxy-transparent6", "resproxy-socks", "resproxy-http"},
-		"balancerTag": "resproxy-" + c.DefaultPolicy})
+		"inboundTag": []string{"resproxy-http"}, "balancerTag": "resproxy-" + c.DefaultPolicy})
+	rules = append(rules, map[string]any{"type": "field",
+		"inboundTag":  []string{"resproxy-transparent", "resproxy-transparent6", "resproxy-socks"},
+		"balancerTag": c.defaultProxyTrafficTag()})
 	config := map[string]any{
 		"log":      map[string]any{"access": "none", "loglevel": "warning"},
 		"api":      map[string]any{"tag": apiTag, "services": []string{"RoutingService", "HandlerService"}},
@@ -350,6 +369,59 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 			"tag": "resproxy-routing-dns", "queryStrategy": "UseIPv4"}
 	}
 	return json.MarshalIndent(config, "", "  ")
+}
+
+func WANFallbackTag(policyID string) string { return "resproxy-rule-wan:" + policyID }
+
+// All explicitly configured database rules used by one list must agree.
+// Unconfigured older rules inherit the list's database choice.
+func (policy BasePolicy) ProxyOutageBehavior() (string, error) {
+	behavior := ""
+	for _, rule := range policy.Rules {
+		if rule.ProxyOutageAction == "" {
+			continue
+		}
+		if rule.ProxyOutageAction != "block" && rule.ProxyOutageAction != "wan" {
+			return "", fmt.Errorf("policy %q: invalid proxy outage action", policy.ID)
+		}
+		if behavior != "" && behavior != rule.ProxyOutageAction {
+			return "", fmt.Errorf("policy %q: conflicting proxy outage choices in referenced rules", policy.ID)
+		}
+		behavior = rule.ProxyOutageAction
+	}
+	if behavior == "" {
+		behavior = "block"
+	}
+	return behavior, nil
+}
+
+func (policy BasePolicy) ProxyTrafficTag() string {
+	behavior, _ := policy.ProxyOutageBehavior()
+	if behavior == "wan" {
+		return WANFallbackTag(policy.ID)
+	}
+	return "resproxy-" + policy.ID
+}
+
+func (c BaseConfig) defaultProxyTrafficTag() string {
+	for _, policy := range c.Policies {
+		if policy.ID == c.DefaultPolicy {
+			return policy.ProxyTrafficTag()
+		}
+	}
+	return "resproxy-" + c.DefaultPolicy
+}
+
+func (policy BasePolicy) HasWANFallback() bool {
+	if behavior, _ := policy.ProxyOutageBehavior(); behavior == "wan" {
+		return true
+	}
+	for _, rule := range policy.Rules {
+		if rule.Action == "proxy" && rule.OutageAction == "wan" {
+			return true
+		}
+	}
+	return false
 }
 
 func HealthProbeTags(configs ...BaseConfig) []string {
@@ -381,7 +453,10 @@ func appendPolicyExceptions(rules []any, policy BasePolicy, inbounds []string) [
 		if group.Action == "direct" {
 			groupBase["outboundTag"] = "direct-wan"
 		} else {
-			groupBase["balancerTag"] = "resproxy-" + policy.ID
+			groupBase["balancerTag"] = policy.ProxyTrafficTag()
+			if group.OutageAction == "wan" {
+				groupBase["balancerTag"] = WANFallbackTag(policy.ID)
+			}
 		}
 		if len(group.Domains)+len(group.CountryDomains)+len(group.ServiceDomains) > 0 {
 			match := make(map[string]any, len(groupBase)+1)

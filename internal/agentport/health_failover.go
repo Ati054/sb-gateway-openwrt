@@ -104,21 +104,32 @@ func clearUnderlayFailure(item *policyHealthState) bool {
 	return changed
 }
 
-func knownFreshReserve(now time.Time, selected string, candidates []string, mode string, groups map[string]int, item *policyHealthState, p effectivePolicySettings) string {
+func freshEmergencyReserves(now time.Time, selected string, candidates []string, mode string, groups map[string]int, item *policyHealthState, p effectivePolicySettings) []string {
+	if item == nil {
+		return nil
+	}
 	fresh := make([]string, 0, len(candidates))
+	delays := make(map[string]*int)
 	for _, candidate := range candidates {
-		if candidate == selected || !item.AvailabilityOK[candidate] || !item.QualityOK[candidate] ||
-			item.AvailabilityFailures[candidate] != 0 || item.Recoveries[candidate] < p.recoveryThreshold ||
-			item.MedianDelayMS[candidate] == nil || item.LastProbeAt[candidate] <= 0 ||
-			float64(now.Unix())-item.LastProbeAt[candidate] > float64(p.backup) {
+		age, valid := qualitySampleAge(now, item, candidate)
+		if candidate == selected || !valid || age > float64(p.backup) ||
+			!item.AvailabilityOK[candidate] || !item.QualityOK[candidate] ||
+			item.AvailabilityFailures[candidate] != 0 || item.Recoveries[candidate] < p.recoveryThreshold {
 			continue
 		}
 		fresh = append(fresh, candidate)
+		samples := item.Samples[candidate]
+		delays[candidate] = samples[len(samples)-1].DelayMS
 	}
+	return rankCandidates(fresh, mode, groups, nil, delays)
+}
+
+func knownFreshReserve(now time.Time, selected string, candidates []string, mode string, groups map[string]int, item *policyHealthState, p effectivePolicySettings) string {
+	fresh := freshEmergencyReserves(now, selected, candidates, mode, groups, item, p)
 	if len(fresh) == 0 {
 		return ""
 	}
-	return rankCandidates(fresh, mode, groups, item.DailyStats, item.MedianDelayMS)[0]
+	return fresh[0]
 }
 
 // A cached reserve gets the first emergency slot, but must pass a current
@@ -140,7 +151,18 @@ func prioritizeEmergencyReserve(targets []string, reserve string, closed map[str
 	return result
 }
 
-func (controller *healthController) probeEmergencyCandidates(policyID string, candidates []string, p effectivePolicySettings) (observations map[string]probeEvidence, chosen string, probeErr error) {
+func (controller *healthController) probeEmergencyCandidates(now time.Time, policyID string, candidates []string, p effectivePolicySettings) (observations map[string]probeEvidence, chosen string, probeErr error) {
+	preferred := []string(nil)
+	if p.mode == "best" {
+		item := controller.state[policyID]
+		selected := ""
+		if item != nil {
+			selected = item.Selected
+		}
+		preferred = freshEmergencyReserves(now, selected, candidates, p.mode, nil, item, p)
+		// Start qualified reserves first even when the batch has fewer lanes.
+		candidates = uniqueCandidates(append(append([]string(nil), preferred...), candidates...))
+	}
 	if p.mode == "priority" {
 		candidates = append([]string(nil), candidates...)
 		if order := controller.processedPool.HealthPolicies[policyID].Candidates; len(order) > 0 {
@@ -177,6 +199,34 @@ func (controller *healthController) probeEmergencyCandidates(policyID string, ca
 				if result.OK {
 					wanted = earlier
 					break
+				}
+			}
+		}
+		if p.mode == "best" && len(preferred) > 0 {
+			// An earlier result cannot steal selection from a faster qualified
+			// reserve. Each emergency probe has bounded origin deadlines; a
+			// failed preferred path releases already completed alternatives.
+			wanted = ""
+			for _, reserve := range preferred {
+				result, done := completed[reserve]
+				if !done {
+					return false
+				}
+				if result.LocalFailure {
+					selectErr = errProbeSelectorUnavailable
+					return false
+				}
+				if result.OK {
+					wanted = reserve
+					break
+				}
+			}
+			if wanted == "" {
+				for _, alternative := range candidates {
+					if result := completed[alternative]; result.OK && !result.LocalFailure {
+						wanted = alternative
+						break
+					}
 				}
 			}
 		}

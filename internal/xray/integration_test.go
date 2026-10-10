@@ -43,7 +43,9 @@ func freePort(t *testing.T) int {
 	integrationPorts.Lock()
 	defer integrationPorts.Unlock()
 	for {
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		// Core inbounds can bind all interfaces; exclude ports already occupied
+		// by a private-interface test origin, not only loopback listeners.
+		listener, err := net.Listen("tcp", "0.0.0.0:0")
 		if err != nil {
 			t.Fatal(err)
 		}

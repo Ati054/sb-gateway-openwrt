@@ -15,7 +15,7 @@ function decorate(node) {
 		document.head.appendChild(E('link', {
 			'id': 'sbg-ui-style',
 			'rel': 'stylesheet',
-			'href': L.resource('view/resproxy/style.css') + '?v=r83-monitor-3plus2'
+			'href': L.resource('view/resproxy/style.css') + '?v=r103-ui'
 		}));
 	node.classList.add('sbg-page');
 	return node;
