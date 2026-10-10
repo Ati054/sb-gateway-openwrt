@@ -19,7 +19,7 @@ Route devices and services through proxies with automatic node selection. Config
 - **Monitoring:** active nodes and backups, availability, HTTPS errors, latency, and differences between fresh measurements. Data refreshes without reloading the page; the active node appears first, with up to 10 nodes in the table.
 - **Updates:** check GitHub and install with a button while preserving settings; manual APK upload is also available. Compact updates keep the APK and backup in RAM.
 
-The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Applying settings preserves history and the selected node if it remains eligible for the route list. Client traffic is blocked when no working proxy route is available.
+The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Applying settings preserves history and the selected node if it remains eligible for the route list. If no working proxy node is available, proxy routes are blocked; direct WAN rules remain active. WAN DNS fallback is configured separately.
 
 ## Installation
 
