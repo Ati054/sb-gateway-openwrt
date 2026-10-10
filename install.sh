@@ -15,7 +15,7 @@ fetch() {
  elif command -v wget >/dev/null; then wget -q -O "$2" "$1"
  else echo 'wget or uclient-fetch is required.' >&2; return 1; fi
 }
-echo 'Checking releaseвЂ¦'
+echo 'Checking release...'
 fetch "https://api.github.com/repos/Ati054/sb-gateway-openwrt/releases?per_page=20" "$work/releases.json"
 [ "$(wc -c < "$work/releases.json")" -le 1048576 ] || { echo 'Invalid release list.' >&2; exit 1; }
 tag=$(jsonfilter -i "$work/releases.json" -e '@[*].tag_name' | head -n 1)
@@ -45,7 +45,7 @@ ram=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
 free=$(df -Pk /tmp | awk 'NR==2 {print $4}')
 needed=$(( (size + 1023) / 1024 + 32768 ))
 [ "$ram" -ge "$needed" ] && [ "$free" -ge "$needed" ] || { echo 'Not enough free RAM for installation.' >&2; exit 1; }
-echo "Downloading SB Gateway $version ($arch)вЂ¦"
+echo "Downloading SB Gateway $version ($arch)..."
 fetch "$base/$name" "$work/package.apk"
 [ "$(wc -c < "$work/package.apk")" = "$size" ] || { echo 'APK download is incomplete.' >&2; exit 1; }
 printf '%s  %s\n' "$sha" "$work/package.apk" | sha256sum -c -
@@ -54,7 +54,7 @@ if apk info -e sb-gateway-openwrt >/dev/null 2>&1; then
  [ -x /usr/libexec/sb-gateway-upgrade ] || { echo 'Update the installed package through LuCI.' >&2; exit 1; }
  mv "$work/package.apk" /tmp/sb-gateway-upgrade.apk
  /usr/libexec/sb-gateway-upgrade start "$sha"
- echo 'Update started. Open SB Gateway в†’ Update in LuCI for its status.'
+ echo 'Update started. Open SB Gateway > Update in LuCI for its status.'
 else
  installed_size=$(apk adbdump "$work/package.apk" | awk '$1=="installed-size:" {print $2; exit}')
  printf '%s' "$installed_size" | grep -Eq '^[0-9]+$' || exit 1
@@ -62,5 +62,5 @@ else
  [ "$overlay" -ge "$(( (installed_size+1023)/1024+4096 ))" ] || { echo 'Not enough free flash for installation.' >&2; exit 1; }
  apk --no-cache add --simulate --allow-untrusted "$work/package.apk"
  apk --no-cache add --allow-untrusted "$work/package.apk"
- echo 'Installed. Open Services в†’ SB Gateway in LuCI.'
+ echo 'Installed. Open Services > SB Gateway in LuCI.'
 fi

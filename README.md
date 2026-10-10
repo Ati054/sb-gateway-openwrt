@@ -26,21 +26,34 @@
 | `aarch64_generic` | Сборка ARM64 Generic |
 | `aarch64_cortex-a53` | Сборка Cortex-A53 / Filogic |
 
-Выполните по SSH от root:
+Выполните в терминале ПК, в том числе в Windows PowerShell. Замените `192.168.1.1` на IP роутера:
 
 ```sh
-wget -O /tmp/sb-gateway-install.sh https://raw.githubusercontent.com/Ati054/sb-gateway-openwrt/main/install.sh && sh /tmp/sb-gateway-install.sh
+ssh root@192.168.1.1 "wget -O /tmp/sb-gateway-install.sh https://raw.githubusercontent.com/Ati054/sb-gateway-openwrt/main/install.sh && sh /tmp/sb-gateway-install.sh"
 ```
 
-Скрипт определит архитектуру, проверит место, скачает APK, сверит SHA-256 и установит зависимости. Можно также скачать APK из [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases) и установить его командой `apk add --allow-untrusted /tmp/ИМЯ_ФАЙЛА.apk`.
+Скрипт определит архитектуру, проверит место, скачает последнюю версию, сверит SHA-256 и установит зависимости.
 
-После установки откройте **Службы → SB Gateway** в LuCI:
+### Если роутер не открывает GitHub
+
+Скачайте APK своей архитектуры из [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases) на ПК и сохраните как `sb-gateway.apk`. Откройте PowerShell в папке с файлом и выполните, подставив IP роутера:
+
+```powershell
+scp -O .\sb-gateway.apk root@192.168.1.1:/tmp/sb-gateway.apk
+ssh root@192.168.1.1 "apk --no-cache add --allow-untrusted /tmp/sb-gateway.apk"
+```
+
+`-O` включает SCP для Dropbear; `--allow-untrusted` разрешает установку этого APK без подписи OpenWrt. Зависимости устанавливаются из репозиториев OpenWrt.
+
+### Настройка
+
+После первой установки служба выключена. Откройте **Службы → SB Gateway** в LuCI:
 
 1. Добавьте подписки и загрузите узлы.
 2. Создайте правила и маршрутные листы, выберите устройства и узлы.
 3. Настройте DNS, включите SB Gateway, сохраните и примените настройки.
 
-Для обновления откройте **Обновление пакета → Проверить обновления → Обновить с GitHub**. Можно переходить сразу на последнюю доступную версию, пропуская промежуточные. Во время установки служба прокси перезапускается.
+Для обновления откройте **Обновление пакета → Проверить обновления → Обновить с GitHub**. Проверка получает сведения о версии; скачивание и установка начинаются после отдельного нажатия «Обновить с GitHub». Промежуточные версии можно пропускать. Настройки и состояние включения службы сохраняются; работающая служба перезапускается.
 
 ## Сборка
 
