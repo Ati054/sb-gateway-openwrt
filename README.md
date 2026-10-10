@@ -36,14 +36,22 @@ ssh root@192.168.1.1 "wget -O /tmp/sb-gateway-install.sh https://raw.githubuserc
 
 ### Если роутер не открывает GitHub
 
-Скачайте APK своей архитектуры из [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases) на ПК и сохраните как `sb-gateway.apk`. Откройте PowerShell в папке с файлом и выполните, подставив IP роутера:
+1. Узнайте архитектуру роутера. В PowerShell выполните, заменив IP на свой:
 
-```powershell
-scp -O .\sb-gateway.apk root@192.168.1.1:/tmp/sb-gateway.apk
-ssh root@192.168.1.1 "apk --no-cache add --allow-untrusted /tmp/sb-gateway.apk"
-```
+   ```powershell
+   ssh root@192.168.1.1 "cat /etc/apk/arch"
+   ```
 
-`-O` включает SCP для Dropbear; `--allow-untrusted` разрешает установку этого APK без подписи OpenWrt. Зависимости устанавливаются из репозиториев OpenWrt.
+2. В [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases) скачайте APK с такой же архитектурой в названии. Например, для `aarch64_cortex-a53` — файл, оканчивающийся на `-aarch64_cortex-a53.apk`. Сохраните его на ПК как `sb-gateway.apk`.
+3. Откройте папку с файлом в Проводнике, нажмите правой кнопкой по пустому месту → **Открыть в терминале**. Выберите PowerShell. В Windows 10: **Shift + правая кнопка → Открыть окно PowerShell здесь**.
+4. Передайте файл на роутер и установите:
+
+   ```powershell
+   scp -O .\sb-gateway.apk root@192.168.1.1:/tmp/sb-gateway.apk
+   ssh root@192.168.1.1 "apk --no-cache add --allow-untrusted /tmp/sb-gateway.apk"
+   ```
+
+`-O` включает SCP для Dropbear, а `--allow-untrusted` разрешает установку этого APK без подписи OpenWrt. Зависимости устанавливаются из репозиториев OpenWrt.
 
 ### Настройка
 
