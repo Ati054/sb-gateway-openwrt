@@ -18,6 +18,7 @@ import (
 	"example.org/resilient-proxy/internal/capture"
 	"example.org/resilient-proxy/internal/daemon"
 	"example.org/resilient-proxy/internal/generation"
+	"example.org/resilient-proxy/internal/releaseupdate"
 	"example.org/resilient-proxy/internal/rulesets"
 	"example.org/resilient-proxy/internal/selection"
 	"example.org/resilient-proxy/internal/settings"
@@ -80,6 +81,18 @@ func execute(arguments []string) error {
 	}
 	paths := daemon.DefaultPaths()
 	switch arguments[0] {
+	case "update-check", "update-download":
+		timeout := 90 * time.Second
+		if arguments[0] == "update-download" {
+			timeout = 8 * time.Minute
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		if arguments[0] == "update-check" {
+			return releaseupdate.CheckWorker(ctx)
+		}
+		return releaseupdate.DownloadWorker(ctx)
+
 	case "plugins-status":
 		return json.NewEncoder(os.Stdout).Encode(sip003.Status())
 	case "plugins-install", "plugins-worker":

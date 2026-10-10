@@ -65,6 +65,12 @@
         ],
         "/usr/libexec/resproxy-plugins install obfs-local": [
           "exec"
+        ],
+        "/usr/libexec/sb-gateway-upgrade check": [
+          "exec"
+        ],
+        "/usr/libexec/sb-gateway-upgrade github-start": [
+          "exec"
         ]
       },
       "ubus": {

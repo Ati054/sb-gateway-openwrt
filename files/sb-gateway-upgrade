@@ -10,6 +10,7 @@ runner=/tmp/.sb-gateway-upgrade-runner
 state=/var/run/sb-gateway-upgrade
 phase=$state/phase
 busy=$state/busy
+remote_phase=$state/remote-phase
 legacy=/etc/sb-gateway-upgrade
 guard=/etc/init.d/sb-gateway-upgrade-guard
 
@@ -33,7 +34,7 @@ archive_field() {
 check_archive() {
 	[ -f "$1" ] && [ ! -L "$1" ] || die "APK file is missing or is a symlink"
 	archive_size=$(wc -c < "$1")
-	[ "$archive_size" -gt 0 ] && [ "$archive_size" -le 67108864 ] || die "APK size must be 1–64 MiB"
+	[ "$archive_size" -gt 0 ] && [ "$archive_size" -le 67108864 ] || die "APK size must be 1-64 MiB"
 	apk verify --allow-untrusted "$1" >/dev/null 2>&1 || die "APK integrity check failed"
 	archive_meta=$(apk adbdump "$1" 2>/dev/null) || die "Cannot read APK metadata"
 	archive_name=$(archive_field name)
@@ -158,7 +159,7 @@ finish_install() {
   /etc/init.d/resproxy start || :
  fi
  if [ "$result" -ne 0 ]; then write_phase failed; fi
- rm -f "$busy" "$staged" "$runner" "$state/inspected-sha256"
+ rm -f "$busy" "$staged" "$runner" "$state/inspected-sha256" "$state/worker.pid"
  exit "$result"
 }
 
@@ -234,15 +235,78 @@ migrate_legacy() {
 	note "legacy recovery cache removed"
 }
 
+github_check() {
+ trap 'rm -f "$busy" "$runner" "$state/worker.pid"' EXIT
+ if resproxyd update-check > "$state/remote.log" 2>&1; then
+  echo checked > "$remote_phase"
+ else echo failed > "$remote_phase"; fi
+}
+github_install() {
+ trap 'rm -f "$busy" "$runner" "$state/github-sha256" "$state/worker.pid"' EXIT
+ if ! resproxyd update-download > "$state/remote.log" 2>&1; then
+  echo failed > "$remote_phase"; return 1
+ fi
+ expected_hash=$(cat "$state/github-sha256")
+ printf '%s' "$expected_hash" | grep -Eq '^[0-9a-f]{64}$' || die "Invalid GitHub APK checksum"
+ mv "$candidate" "$staged"
+ printf '%s\n' "$expected_hash" > "$state/inspected-sha256"
+ echo downloaded > "$remote_phase"
+ write_phase staged
+ # Continue in the copied shell, so APK replacement cannot change our worker.
+ trap - EXIT
+ install > "$state/install.log" 2>&1
+}
 case "${1:-}" in
-	status)
+ status)
+  if [ -f "$busy" ] && [ -s "$state/worker.pid" ]; then
+   worker_pid=$(cat "$state/worker.pid")
+   case "$worker_pid" in ''|*[!0-9]*) worker_pid=0;;esac
+   if [ "$worker_pid" -le 1 ] || ! kill -0 "$worker_pid" 2>/dev/null; then
+    echo 'Update worker stopped; retry the update' > "$state/remote.log"
+    echo failed > "$remote_phase"; write_phase failed
+    rm -f "$busy" "$state/worker.pid"
+   fi
+  fi
 		printf 'version=%s\n' "$(installed_field version)"
 		printf 'phase=%s\n' "$(cat "$phase" 2>/dev/null || echo idle)"
 		[ -f "$busy" ] && echo busy=yes || echo busy=no
+  printf 'remote_phase=%s\n' "$(cat "$remote_phase" 2>/dev/null || echo idle)"
+  if [ "$(cat "$remote_phase" 2>/dev/null || :)" = checked ] && [ -s "$state/release.json" ]; then
+   printf 'release='; cat "$state/release.json"; printf '\n'
+  fi
+  if [ "$(cat "$remote_phase" 2>/dev/null || :)" = failed ] && [ -s "$state/remote.log" ]; then
+   printf 'remote_error=%s\n' "$(tail -n 1 "$state/remote.log" | cut -c 1-240)"
+  fi
 		if [ "$(cat "$phase" 2>/dev/null || :)" = failed ] && [ -s "$state/install.log" ]; then
 			printf 'error=%s\n' "$(tail -n 1 "$state/install.log" | cut -c 1-240)"
 		fi
 		;;
+ check|github-start)
+  umask 077
+  mkdir -p "$state"; chmod 700 "$state"
+  ( set -C; : > "$busy" ) 2>/dev/null || die "Another update is in progress"
+  trap 'rm -f "$busy" "$runner"' EXIT
+  cp /usr/libexec/sb-gateway-upgrade "$runner"; chmod 700 "$runner"
+  if [ "$1" = check ]; then
+   echo checking > "$remote_phase"
+   /bin/sh "$runner" github-check-worker </dev/null > "$state/check-worker.log" 2>&1 &
+  else
+   [ -s "$state/release.json" ] || die "Check for updates first"
+   echo downloading > "$remote_phase"
+   /bin/sh "$runner" github-install-worker </dev/null > "$state/check-worker.log" 2>&1 &
+  fi
+  printf '%s\n' "$!" > "$state/worker.pid"
+  trap - EXIT
+  echo started=pending
+  ;;
+ github-check-worker)
+  [ -f "$busy" ] || die "No pending update check"
+  github_check
+  ;;
+ github-install-worker)
+  [ -f "$busy" ] || die "No pending GitHub update"
+  github_install
+  ;;
 	inspect)
   [ ! -f "$busy" ] || die "Another update is in progress"
 		preflight "$candidate"
@@ -253,7 +317,7 @@ case "${1:-}" in
 		mkdir -p "$state"
 		chmod 700 "$state"
 		( set -C; : > "$busy" ) 2>/dev/null || die "Another update is in progress"
-		trap 'rm -f "$busy" "$staged" "$runner" "$state/inspected-sha256"' EXIT
+		trap 'rm -f "$busy" "$staged" "$runner" "$state/inspected-sha256" "$state/worker.pid"' EXIT
 		expected_hash=${2:-}
 		printf '%s' "$expected_hash" | grep -Eq '^[0-9a-f]{64}$' || die "A SHA-256 hash from APK inspection is required"
   # Expensive archive/dependency/hash checks run in the background worker.
@@ -267,6 +331,7 @@ case "${1:-}" in
   chmod 700 "$runner"
   write_phase staged
 		/bin/sh "$runner" install </dev/null > "$state/install.log" 2>&1 &
+		printf '%s\n' "$!" > "$state/worker.pid"
 		trap - EXIT
 		printf 'started=pending\n'
 		;;
@@ -278,6 +343,6 @@ case "${1:-}" in
 		migrate_legacy
 		;;
 	*)
-		die "Usage: sb-gateway-upgrade {status|inspect|start}"
+		die "Usage: sb-gateway-upgrade {status|check|github-start|inspect|start}"
 		;;
 esac

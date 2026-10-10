@@ -1629,3 +1629,36 @@ msgstr "Улучшение URLTest, мс"
 
 msgid "RAM history, KiB"
 msgstr "История в RAM, КиБ"
+
+msgid "Check for updates"
+msgstr "Проверить обновления"
+
+msgid "Update from GitHub"
+msgstr "Обновить с GitHub"
+
+msgid "Available: %s"
+msgstr "Доступна: %s"
+
+msgid "Latest version is installed."
+msgstr "Установлена последняя версия."
+
+msgid "Release notes"
+msgstr "Описание версии"
+
+msgid "No published APK for this router yet."
+msgstr "Для этого роутера пока нет опубликованного APK."
+
+msgid "Checking GitHub…"
+msgstr "Проверка GitHub…"
+
+msgid "Downloading APK…"
+msgstr "Загрузка APK…"
+
+msgid "Settings are kept. The proxy service restarts during installation."
+msgstr "Настройки сохраняются. При установке служба прокси перезапускается."
+
+msgid "Install an APK file"
+msgstr "Установить файл APK"
+
+msgid "No updates available."
+msgstr "Обновлений нет."
