@@ -38,6 +38,45 @@ func priorityOrderChanged(signature string, candidates []string) bool {
 	return !slices.Equal(oldCommon, newCommon)
 }
 
+// Members of one location share priority. Subscription reordering inside a
+// location must not withdraw a working member on reload or restart.
+func priorityGroupOrderChanged(signature string, candidates []string, groups map[string]int) bool {
+	if signature == "" {
+		return true
+	}
+	if !priorityOrderChanged(signature, candidates) {
+		return false
+	}
+	previous := uniqueCandidates(strings.Split(signature, "\n"))
+	oldSet, newSet := make(map[string]bool, len(previous)), make(map[string]bool, len(candidates))
+	for _, node := range previous {
+		oldSet[node] = true
+	}
+	for _, node := range candidates {
+		newSet[node] = true
+	}
+	oldCommon, newCommon := []int{}, []int{}
+	for _, node := range previous {
+		if newSet[node] {
+			group, ok := groups[node]
+			if !ok {
+				return true
+			}
+			oldCommon = append(oldCommon, group)
+		}
+	}
+	for _, node := range uniqueCandidates(candidates) {
+		if oldSet[node] {
+			group, ok := groups[node]
+			if !ok {
+				return true
+			}
+			newCommon = append(newCommon, group)
+		}
+	}
+	return !slices.Equal(oldCommon, newCommon)
+}
+
 func rememberWorkingSelection(contract healthPolicyContract, item *policyHealthState) bool {
 	if !item.RuntimeConfirmed || item.RuntimeSelected != item.Selected ||
 		!item.AvailabilityOK[item.Selected] || item.Selected == "block" ||
@@ -63,7 +102,8 @@ func restorableWorkingSelection(contract healthPolicyContract, item *policyHealt
 		return false
 	}
 	if contract.Mode == "priority" {
-		if priorityOrderChanged(saved.CandidateSignature, contract.Candidates) {
+		groups, _, _ := candidateGroups(contract.Groups, contract.Candidates, contract.Mode)
+		if priorityGroupOrderChanged(saved.CandidateSignature, contract.Candidates, groups) {
 			return false
 		}
 		// Repair a former cold-start race; this is not a confirmed outage/recovery.
@@ -72,7 +112,7 @@ func restorableWorkingSelection(contract healthPolicyContract, item *policyHealt
 				if candidate == saved.Selected {
 					break
 				}
-				if item.AvailabilityOK[candidate] && item.AvailabilityFailures[candidate] == 0 {
+				if groups[candidate] < groups[saved.Selected] && item.AvailabilityOK[candidate] && item.AvailabilityFailures[candidate] == 0 {
 					return false
 				}
 			}

@@ -116,7 +116,7 @@ func TestAvailabilityProbeStopsAtFirstSuccessAndFallsBack(t *testing.T) {
 	}
 }
 
-func TestAvailabilityProbeChecksIndependentTargetAfterTimeout(t *testing.T) {
+func TestAvailabilityProbeHedgesIndependentTargetWithoutTimingOutPrimary(t *testing.T) {
 	originalTargets := healthTargets
 	originalTimeout := availabilityProbeTimeout
 	defer func() {
@@ -142,7 +142,7 @@ func TestAvailabilityProbeChecksIndependentTargetAfterTimeout(t *testing.T) {
 	runtime := newXraySelectorRuntime(Options{ProbeURL: server.URL})
 	runtime.selectorMembers["outbound-health-probe"] = "direct-wan"
 	evidence := runtime.ProbeAvailability("direct-wan")
-	if !evidence.OK || calls.Load() < 2 || calls.Load() > 3 || evidence.TargetFailures["gstatic-204"] != probeFailureTimeout {
+	if !evidence.OK || calls.Load() < 2 || calls.Load() > 3 || evidence.TargetFailures["gstatic-204"] != "" {
 		t.Fatalf("availability fallback: evidence=%#v calls=%d, want independent success", evidence, calls.Load())
 	}
 }
@@ -183,13 +183,13 @@ func TestAvailabilityProbeUsesThirdOriginAfterTwoFailures(t *testing.T) {
 	runtime := newXraySelectorRuntime(Options{ProbeURL: server.URL})
 	runtime.selectorMembers["outbound-health-probe"] = "direct-wan"
 	evidence := runtime.ProbeAvailability("direct-wan")
-	if !evidence.OK || evidence.TargetFailures["gstatic-204"] != probeFailureTimeout ||
+	if !evidence.OK || evidence.TargetFailures["gstatic-204"] != "" ||
 		evidence.Targets["example-web"] == nil {
 		t.Fatalf("third independent origin did not preserve a working route: %#v", evidence)
 	}
 }
 
-func TestAvailabilityProbeAcceptsSlowFallbackWithinThreeSecondBudget(t *testing.T) {
+func TestAvailabilityProbeAcceptsLatePrimaryWithinSharedBudget(t *testing.T) {
 	originalTargets, originalTimeout, originalFallback := healthTargets, availabilityProbeTimeout, availabilityFallbackTimeout
 	defer func() {
 		healthTargets, availabilityProbeTimeout, availabilityFallbackTimeout = originalTargets, originalTimeout, originalFallback
@@ -212,8 +212,8 @@ func TestAvailabilityProbeAcceptsSlowFallbackWithinThreeSecondBudget(t *testing.
 	runtime := newXraySelectorRuntime(Options{ProbeURL: server.URL})
 	runtime.selectorMembers["outbound-health-probe"] = "direct-wan"
 	evidence := runtime.ProbeAvailability("direct-wan")
-	if !evidence.OK || evidence.TargetFailures["gstatic-204"] != probeFailureTimeout {
-		t.Fatalf("2–3 second path was incorrectly treated as unavailable: %#v", evidence)
+	if !evidence.OK || evidence.Targets["gstatic-204"] == nil || evidence.TargetFailures["gstatic-204"] != "" {
+		t.Fatalf("2вЂ“3 second path was incorrectly treated as unavailable: %#v", evidence)
 	}
 }
 

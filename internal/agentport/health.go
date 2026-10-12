@@ -828,7 +828,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	}
 	// A parallel transition may finish before a preferred candidate's fresh
 	// probe. Do not immediately replace its winner with that candidate's cache.
-	if !replacedRemovedActive && contract.Mode == "priority" && item.CandidateSignature != "" && priorityOrderChanged(item.CandidateSignature, candidates) && contains(candidates, selected) {
+	if !replacedRemovedActive && contract.Mode == "priority" && item.CandidateSignature != "" && priorityGroupOrderChanged(item.CandidateSignature, candidates, groupIndex) && contains(candidates, selected) {
 		for _, candidate := range candidates {
 			if candidate == selected {
 				break

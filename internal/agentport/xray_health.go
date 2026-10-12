@@ -962,11 +962,10 @@ func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) 
 	return evidence
 }
 
-// Keep the healthy fast path to one request. If it fails, give both remaining
-// independent origins a bounded chance in parallel. A slow public endpoint
-// must not make a working outbound look dead. Confirmed emergency discovery
-// starts all three together without shortening any origin deadline. Join
-// canceled requests before the selector can be reused for another candidate.
+// Ordinary availability preserves the primary until the shared round deadline,
+// hedging independent origins after the short fast-path interval. Confirmation
+// and emergency discovery start all origins immediately. Join canceled workers
+// before returning ownership of the probe selector.
 func (runtime *xraySelectorRuntime) probeAvailabilityTargets(evidence probeEvidence, parallelPrimary bool) probeEvidence {
 	return runtime.probeAvailabilityTargetsWithTimeout(evidence, parallelPrimary, 0)
 }
@@ -1011,41 +1010,68 @@ func (runtime *xraySelectorRuntime) probeAvailabilityTargetsWithTimeout(evidence
 		evidence.Failure = probeFailureTransient
 		return evidence
 	}
-	first := 0
-	if !parallelPrimary {
-		if record(probe(runtime.requestContext(), 0, availabilityProbeTimeout)) {
-			return evidence
-		}
-		if evidence.LocalFailure {
-			return evidence
-		}
-		first = 1
-	}
-
-	// Production has three origins; never grow emergency fanout implicitly.
-	count := minInt(len(healthTargets), 3) - first
+	// Production has three origins; never grow the fanout implicitly.
+	count := minInt(len(healthTargets), 3)
 	ctx, cancel := context.WithCancel(runtime.requestContext())
 	defer cancel()
 	results := make(chan targetResult, count)
-	for index := first; index < first+count; index++ {
-		go func(index int) {
-			timeout := availabilityFallbackTimeout
-			if index == 0 {
-				timeout = availabilityProbeTimeout
+	started, received := 0, 0
+	deadline := time.Now().Add(availabilityProbeTimeout + availabilityFallbackTimeout)
+	launch := func(index int) {
+		started++
+		timeout := availabilityFallbackTimeout
+		if index == 0 {
+			timeout = availabilityProbeTimeout
+		}
+		if parallelPrimary && confirmationTimeout > 0 {
+			timeout = confirmationTimeout
+		}
+		go func() {
+			if !parallelPrimary {
+				// Calculate after this worker is scheduled, so delayed dispatch
+				// cannot extend the shared deadline. Per-request timers retain
+				// local scheduling-delay classification without a timed parent.
+				timeout = time.Until(deadline)
 			}
-			if confirmationTimeout > 0 {
-				timeout = confirmationTimeout
+			if timeout <= 0 {
+				results <- targetResult{label: healthTargets[index].label, err: context.DeadlineExceeded}
+				return
 			}
 			results <- probe(ctx, index, timeout)
-		}(index)
+		}()
 	}
-	for received := 0; received < count; received++ {
-		result := <-results
-		if evidence.OK {
-			continue // Canceled sibling is not a failed target.
+	launchRest := func() {
+		for started < count {
+			launch(started)
 		}
-		if record(result) || evidence.LocalFailure {
-			cancel()
+	}
+	launch(0)
+	var hedge <-chan time.Time
+	if parallelPrimary {
+		launchRest()
+	} else {
+		timer := time.NewTimer(availabilityProbeTimeout)
+		defer timer.Stop()
+		hedge = timer.C
+	}
+	for received < started {
+		select {
+		case result := <-results:
+			received++
+			if evidence.OK || evidence.LocalFailure {
+				continue // Cancellation is not another failed target.
+			}
+			if record(result) || evidence.LocalFailure {
+				cancel()
+				hedge = nil
+			} else if started == 1 {
+				// An explicit primary failure need not wait for the hedge timer.
+				launchRest()
+				hedge = nil
+			}
+		case <-hedge:
+			launchRest()
+			hedge = nil
 		}
 	}
 	if !evidence.OK {
