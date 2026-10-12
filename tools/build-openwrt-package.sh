@@ -8,8 +8,10 @@ case "$1" in
 esac
 source=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 [ -f "$sdk/rules.mk" ];[ -f "$source/vendor/modules.txt" ];[ -f "$source/third_party/xray-core/core/xray.go" ]
+version=$(sed -n 's/^PKG_VERSION:=\([0-9][A-Za-z0-9._+~-]*\)$/\1/p' "$source/Makefile")
+[ -n "$version" ]
 release=$(sed -n 's/^PKG_RELEASE:=\([0-9][0-9]*\)$/\1/p' "$source/Makefile")
-[ -n "$release" ]
+if [ -n "$release" ]; then version=$version-r$release; fi
 # A complete source stage prevents retired Go files surviving an SDK overlay.
 stage=$(mktemp -d "$sdk/package/.resproxy-stage-XXXXXX")
 previous=
@@ -30,7 +32,7 @@ mv "$stage" "$sdk/package/resproxy"
 make -C "$sdk/package/resproxy" TOPDIR="$sdk" clean V=s
 make -C "$sdk/package/resproxy" TOPDIR="$sdk" compile V=s
 mkdir -p "$source/dist"
-cp "$sdk/bin/packages/$arch/base/sb-gateway-openwrt-0.1.0-r$release.apk" "$source/dist/sb-gateway-openwrt-0.1.0-r$release-$arch.apk"
+cp "$sdk/bin/packages/$arch/base/sb-gateway-openwrt-$version.apk" "$source/dist/sb-gateway-openwrt-$version-$arch.apk"
 # Keep the previous sources on failure for recovery, but do not accumulate a
 # complete vendor/source copy after every successful build and delivery.
 case "$previous" in
