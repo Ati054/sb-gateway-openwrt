@@ -784,8 +784,19 @@ func TestHealthContractReloadPreservesLiveXraySelectorCache(t *testing.T) {
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	runtime := newXraySelectorRuntime(Options{HealthPoolFile: path})
-	runtime.xrayPID = processPID("xray")
+	// Pin this fixture to its own live process. Other integration packages
+	// may run xray processes concurrently; those are not this runtime's core.
+	comm, err := os.ReadFile("/proc/self/comm")
+	if err != nil {
+		t.Skip("live core readiness requires procfs")
+	}
+	ready := filepath.Join(filepath.Dir(path), "core-ready")
+	if err := os.WriteFile(ready, []byte(fmt.Sprint(os.Getpid())), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime := newXraySelectorRuntime(Options{HealthPoolFile: path, XrayReadyFile: ready, XrayProcessName: strings.TrimSpace(string(comm))})
+	runtime.xrayPID = os.Getpid()
+	runtime.inventoryLoaded = true
 	runtime.poolSignature = "previous-contract"
 	runtime.loadedDynamic["live-dynamic"] = true
 	runtime.selectorMembers["europe"] = "live-dynamic"
