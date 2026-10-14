@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"example.org/resilient-proxy/internal/agentport"
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/health"
-	"example.org/resilient-proxy/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/health"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
 var ErrRestartRequired = errors.New("configuration requires service restart")

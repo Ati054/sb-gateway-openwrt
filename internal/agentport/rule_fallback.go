@@ -2,8 +2,8 @@ package agentport
 
 import (
 	"errors"
-	"example.org/resilient-proxy/internal/xray"
 	"fmt"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 	"time"
 )
 
@@ -65,4 +65,29 @@ func (runtime *responsiveSelectorRuntime) ReconcileRuleFallback(policy string, o
 		return fallback.ReconcileRuleFallback(policy, outage)
 	}
 	return false, errors.New("rule fallback runtime is unavailable")
+}
+
+// Selecting the same blocked primary during pool/DNS reconciliation must not
+// revoke a WAN route already authorized by the live core. This never enables
+// WAN: a fresh core, a transition from a proxy, or an inconsistent auxiliary
+// selector still remains blocked until a completed health decision.
+// The caller holds MutationMu.
+func (runtime *xraySelectorRuntime) reconcileFallbackSelection(policy, tag, member string) error {
+	if member == "block" {
+		main, err := runtime.selectedRuntimeMember(policy)
+		if err != nil {
+			return err
+		}
+		runtime.selectorMembers[policy] = main
+		if main == "block" {
+			fallback, err := runtime.selectedRuntimeMember(tag)
+			if err != nil {
+				return err
+			}
+			if fallback == "direct-wan" {
+				return nil
+			}
+		}
+	}
+	return runtime.setRuleFallbackMember(tag, member)
 }

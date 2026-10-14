@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"example.org/resilient-proxy/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
 )
 
 // RenderOutbound returns the legacy Xray configuration form required by

@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"sync"
 
-	"example.org/resilient-proxy/internal/agentport"
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
 // Control acknowledgements must stay responsive while HTTPS/probes are busy.

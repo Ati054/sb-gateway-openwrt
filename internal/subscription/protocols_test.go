@@ -47,15 +47,15 @@ func TestAdditionalProtocolFormsAndSecrets(t *testing.T) {
 	}
 }
 
-func TestMixedProtocolsBase64AndWholeFeedValidation(t *testing.T) {
+func TestMixedProtocolsBase64AndPartialFeedValidation(t *testing.T) {
 	valid := "trojan://password@tr.example.test:443#DE%20Berlin\nss://aes-256-gcm:password@ss.example.test:8388#CA%20Toronto\n" + vmessShare(`{"add":"vm.example.test","port":8080,"id":"2f1c08fc-3f43-4e95-8f57-f8bded750a1a","aid":0,"net":"tcp"}`)
 	encoded := base64.StdEncoding.EncodeToString([]byte(testVLESS + "\n" + valid + "\nhy2://password@hy.example.test:443#US%20Chicago"))
 	nodes, err := Parse("mixed", []byte(encoded), 10)
 	if err != nil || len(nodes) != 5 {
 		t.Fatalf("mixed feed: %d %v", len(nodes), err)
 	}
-	if _, err := Parse("mixed", []byte(encoded), 4); err == nil {
-		t.Fatal("limit silently dropped a protocol")
+	if nodes, stats, err := ParseWithStats("mixed", []byte(encoded), 4); err != nil || len(nodes) != 4 || stats.Limited != 1 {
+		t.Fatal("limit did not preserve a bounded catalog and warning")
 	}
 	invalid := []string{
 		"trojan://@tr.example.test:443",
@@ -66,8 +66,11 @@ func TestMixedProtocolsBase64AndWholeFeedValidation(t *testing.T) {
 		vmessShare(`{"add":"vm.example.test","port":443,"id":"2f1c08fc-3f43-4e95-8f57-f8bded750a1a","aid":64}`),
 	}
 	for _, link := range invalid {
-		if _, err := Parse("mixed", []byte(testVLESS+"\n"+link), 10); err == nil || strings.Contains(err.Error(), "do-not-expose") {
-			t.Fatal("invalid connection accepted or secret exposed")
+		if nodes, stats, err := ParseWithStats("mixed", []byte(testVLESS+"\n"+link), 10); err != nil || len(nodes) != 1 || stats.Invalid != 1 {
+			t.Fatal("invalid node poisoned the valid catalog")
+		}
+		if _, err := Parse("mixed", []byte(link), 10); err == nil || strings.Contains(err.Error(), "do-not-expose") {
+			t.Fatal("invalid-only feed accepted or secret exposed")
 		}
 	}
 }

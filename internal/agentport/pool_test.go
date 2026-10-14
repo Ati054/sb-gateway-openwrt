@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/health"
-	"example.org/resilient-proxy/internal/selection"
-	"example.org/resilient-proxy/internal/settings"
-	"example.org/resilient-proxy/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/health"
+	"github.com/Ati054/sb-gateway-openwrt/internal/selection"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
 func TestWritePoolCarriesFullSelectedInventory(t *testing.T) {

@@ -24,13 +24,37 @@ type subscriptionParseError struct {
 
 func (failure *subscriptionParseError) Error() string { return failure.message }
 
+// ParseStats contains counts only; never retain links, labels or credentials.
+type ParseStats struct {
+	Invalid     int
+	Unsupported int
+	Limited     int
+}
+
+func (s ParseStats) Skipped() int { return s.Invalid + s.Unsupported + s.Limited }
+
 func parseProxySubscription(body []byte, maxNodes int) ([]map[string]any, error) {
+	nodes, _, err := parseProxySubscriptionWithStats(body, maxNodes)
+	return nodes, err
+}
+
+func parseProxySubscriptionWithStats(body []byte, maxNodes int) ([]map[string]any, ParseStats, error) {
+	return parseProxySubscriptionValidated(body, maxNodes, nil)
+}
+func parseProxySubscriptionValidated(body []byte, maxNodes int, validate func(map[string]any) error) ([]map[string]any, ParseStats, error) {
+	stats := ParseStats{}
 	if maxNodes < 1 {
-		return nil, &subscriptionParseError{code: "invalid_limit", message: "Subscription node limit is invalid."}
+		return nil, stats, &subscriptionParseError{code: "invalid_limit", message: "Subscription node limit is invalid."}
 	}
-	text := strings.TrimSpace(string(body))
+	if len(body) > MaxFeedBytes {
+		return nil, stats, &subscriptionParseError{code: "invalid_content", message: "Subscription content exceeds the size limit."}
+	}
+	if nodes, stats, structured, err := structuredSubscription(body, maxNodes, validate); structured {
+		return nodes, stats, err
+	}
+	text := strings.TrimPrefix(strings.TrimSpace(string(body)), "\ufeff")
 	if text == "" || !utf8.ValidString(text) {
-		return nil, &subscriptionParseError{code: "invalid_content", message: "Subscription content is empty or not UTF-8."}
+		return nil, stats, &subscriptionParseError{code: "invalid_content", message: "Subscription content is empty or not UTF-8."}
 	}
 	if !containsProxyScheme(text) {
 		compact := strings.Map(func(value rune) rune {
@@ -41,57 +65,57 @@ func parseProxySubscription(body []byte, maxNodes int) ([]map[string]any, error)
 		}, text)
 		decoded, err := decodeSubscriptionBase64(compact)
 		if err != nil || !utf8.Valid(decoded) {
-			return nil, &subscriptionParseError{code: "invalid_content", message: "Subscription is neither supported proxy links nor valid base64 text."}
+			return nil, stats, &subscriptionParseError{code: "invalid_content", message: "Subscription is neither supported proxy links nor valid base64 text."}
+		}
+		if nodes, stats, structured, err := structuredSubscription(decoded, maxNodes, validate); structured {
+			return nodes, stats, err
 		}
 		text = string(decoded)
 	}
-	links := make([]string, 0, min(maxNodes, 64))
-	for _, line := range strings.FieldsFunc(strings.ReplaceAll(text, "\r", "\n"), func(value rune) bool { return value == '\n' }) {
+	result := make([]map[string]any, 0, min(maxNodes, 64))
+	index := 0
+	for _, line := range strings.Split(strings.ReplaceAll(text, "\r", "\n"), "\n") {
 		link := strings.TrimSpace(line)
-		lower := strings.ToLower(link)
-		if supportedProxyLink(lower) {
-			links = append(links, link)
-			if len(links) > maxNodes {
-				return nil, &subscriptionParseError{code: "too_many_nodes", message: "Subscription contains too many nodes."}
+		if !supportedProxyLink(strings.ToLower(link)) {
+			if strings.Contains(link, "://") {
+				stats.Unsupported++
 			}
+			continue
 		}
-	}
-	if len(links) == 0 {
-		return nil, &subscriptionParseError{code: "unsupported_nodes", message: "Subscription contains no supported proxy nodes."}
-	}
-	result := make([]map[string]any, 0, len(links))
-	var firstError error
-	for index, link := range links {
+		index++
+		if len(result) >= maxNodes {
+			stats.Limited++
+			continue
+		}
 		var node map[string]any
 		var err error
 		switch strings.SplitN(strings.ToLower(link), ":", 2)[0] {
 		case "vless":
-			node, err = parseSubscriptionVLESSLink(link, index+1)
+			node, err = parseSubscriptionVLESSLink(link, index)
 		case "hysteria2", "hy2":
-			node, err = parseSubscriptionHysteria2Link(link, index+1)
+			node, err = parseSubscriptionHysteria2Link(link, index)
 		case "vmess":
-			node, err = parseSubscriptionVMessLink(link, index+1)
+			node, err = parseSubscriptionVMessLink(link, index)
 		case "trojan":
-			node, err = parseSubscriptionTrojanLink(link, index+1)
+			node, err = parseSubscriptionTrojanLink(link, index)
 		case "ss":
-			node, err = parseSubscriptionSSLink(link, index+1)
+			node, err = parseSubscriptionSSLink(link, index)
 		}
 		if err != nil {
-			if firstError == nil {
-				firstError = err
-			}
+			stats.Invalid++
+			continue
+		}
+		if validate != nil && validate(node) != nil {
+			stats.Invalid++
 			continue
 		}
 		result = append(result, node)
 	}
-	if firstError != nil {
-		return nil, firstError
-	}
 	if len(result) == 0 {
-		return nil, &subscriptionParseError{code: "unsupported_nodes", message: "Subscription contains no valid proxy nodes."}
+		return nil, stats, &subscriptionParseError{code: "unsupported_nodes", message: "Subscription contains no valid supported proxy nodes."}
 	}
 	deduplicateSubscriptionNodeIDs(result)
-	return result, nil
+	return result, stats, nil
 }
 
 func containsProxyScheme(value string) bool {
@@ -144,7 +168,7 @@ func parseSubscriptionHysteria2Link(link string, index int) (map[string]any, err
 	if suffix, exists := parsed.User.Password(); exists {
 		password += ":" + suffix
 	}
-	if password == "" || strings.ContainsAny(password, "\r\n") {
+	if !validPassword(password) {
 		return nil, &subscriptionParseError{code: "invalid_node", message: "Hysteria 2 link has no authentication password."}
 	}
 	query, err := url.ParseQuery(parsed.RawQuery)

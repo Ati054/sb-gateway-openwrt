@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"example.org/resilient-proxy/internal/subscription"
+	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
 	"github.com/xtls/xray-core/core"
 )
 

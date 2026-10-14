@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"example.org/resilient-proxy/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
 )
 
 func canonicalJSON(value any) ([]byte, error) {
@@ -71,31 +71,50 @@ func subscriptionTransport(node map[string]any) string {
 // the OpenWrt client catalog. Credentials remain in memory for the later
 // dedicated secret store; callers must never serialize them into public files.
 func Parse(providerID string, body []byte, maxNodes int) ([]catalog.Node, error) {
-	normalized, err := parseProxySubscription(body, maxNodes)
+	nodes, _, err := ParseWithStats(providerID, body, maxNodes)
+	return nodes, err
+}
+
+func ParseWithStats(providerID string, body []byte, maxNodes int) ([]catalog.Node, ParseStats, error) {
+	return ParseValidated(providerID, body, maxNodes, nil)
+}
+
+// ParseValidated checks each accepted connection before it consumes a catalog
+// slot. A rejected core configuration cannot invalidate the other entries.
+func ParseValidated(providerID string, body []byte, maxNodes int, validate func(catalog.Node) error) ([]catalog.Node, ParseStats, error) {
+	var check func(map[string]any) error
+	if validate != nil {
+		check = func(raw map[string]any) error { return validate(catalogNode(providerID, raw)) }
+	}
+	normalized, stats, err := parseProxySubscriptionValidated(body, maxNodes, check)
 	if err != nil {
-		return nil, err
+		return nil, stats, err
 	}
 	result := make([]catalog.Node, 0, len(normalized))
 	for _, raw := range normalized {
-		settings := make(map[string]any)
-		for _, key := range []string{"flow", "tls", "transport", "up_mbps", "down_mbps", "obfs", "method", "security", "plugin"} {
-			if value, exists := raw[key]; exists {
-				settings[key] = cloneJSONValue(value)
-			}
-		}
-		credentials := make(map[string]string)
-		for _, pair := range [][2]string{{"_uuid", "uuid"}, {"_password", "password"}, {"_obfs_password", "obfs_password"}} {
-			if value := subscriptionText(raw[pair[0]]); value != "" {
-				credentials[pair[1]] = value
-			}
-		}
-		port, _ := raw["server_port"].(int)
-		result = append(result, catalog.Node{
-			ProviderID: providerID, Label: subscriptionText(raw["label"]),
-			Country: subscriptionText(raw["country"]), City: subscriptionText(raw["city"]),
-			Protocol: subscriptionText(raw["protocol"]), Transport: subscriptionTransport(raw),
-			Server: subscriptionText(raw["server"]), Port: port, Settings: settings, Credentials: credentials,
-		})
+		result = append(result, catalogNode(providerID, raw))
 	}
-	return result, nil
+	return result, stats, nil
+}
+
+func catalogNode(providerID string, raw map[string]any) catalog.Node {
+	settings := make(map[string]any)
+	for _, key := range []string{"flow", "tls", "transport", "up_mbps", "down_mbps", "obfs", "method", "security", "plugin"} {
+		if value, exists := raw[key]; exists {
+			settings[key] = cloneJSONValue(value)
+		}
+	}
+	credentials := make(map[string]string)
+	for _, pair := range [][2]string{{"_uuid", "uuid"}, {"_password", "password"}, {"_obfs_password", "obfs_password"}} {
+		if value := subscriptionText(raw[pair[0]]); value != "" {
+			credentials[pair[1]] = value
+		}
+	}
+	port, _ := raw["server_port"].(int)
+	return catalog.Node{
+		ProviderID: providerID, Label: subscriptionText(raw["label"]),
+		Country: subscriptionText(raw["country"]), City: subscriptionText(raw["city"]),
+		Protocol: subscriptionText(raw["protocol"]), Transport: subscriptionTransport(raw),
+		Server: subscriptionText(raw["server"]), Port: port, Settings: settings, Credentials: credentials,
+	}
 }

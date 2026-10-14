@@ -1,14 +1,16 @@
 # Embedded Xray source
 
-Pinned upstream: XTLS/Xray-core 26.9.30, commit
-b26a91de4f3294e26a0ad0a970b81a386a41f789. Licensed under MPL-2.0;
+Pinned upstream: XTLS/Xray-core main as of 2026-10-14, commit
+0888beb38a9ba45440557175e71ce21cf8ba3b13. Licensed under MPL-2.0;
 see LICENSE. The complete source is retained here for reproducible builds.
 
 The source includes the existing gateway patches for passive failure signals,
 Vision/xhttp/TLS behavior and atomic routing publication with current balancer
 overrides. The integrated release additionally passes RPC cancellation into
 routing compilation and checks it before publishing the replacement table.
-`resproxy-upstream.patch` records the initial changes against the pinned commit.
+`resproxy-upstream.patch` records the initial changes against the previous upstream commit
+b26a91de4f3294e26a0ad0a970b81a386a41f789. `resproxy-current.patch`
+records the complete gateway delta against the current pinned commit.
 `resproxy-route-only-sniff.patch` applies the TCP sniffing correction after it.
 
 The command entry points in internal/xraycli are adapted from upstream main,

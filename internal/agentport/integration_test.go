@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"example.org/resilient-proxy/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
 func testPort(t *testing.T) int {

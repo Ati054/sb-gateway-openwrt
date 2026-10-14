@@ -50,6 +50,9 @@ func parseVLESSLink(link, entityID string, providerLink bool) (map[string]any, s
 		}
 		return fallback
 	}
+	if encryption := one("encryption", "none"); encryption != "none" {
+		return nil, "", errors.New("unsupported VLESS encryption")
+	}
 	security := strings.ToLower(one("security", "none"))
 	if security != "none" && security != "tls" && security != "reality" {
 		return nil, "", errors.New("VLESS reserve security mode is unsupported")
@@ -87,6 +90,9 @@ func parseVLESSLink(link, entityID string, providerLink bool) (map[string]any, s
 		node["country"] = country
 	}
 	if flow := one("flow", ""); flow != "" {
+		if flow != "xtls-rprx-vision" {
+			return nil, "", errors.New("unsupported VLESS flow")
+		}
 		node["flow"] = flow
 	}
 	if security == "tls" || security == "reality" {

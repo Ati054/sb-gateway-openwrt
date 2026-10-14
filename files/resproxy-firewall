@@ -52,7 +52,7 @@ if [ "$action" = apply ]; then
 fi
 
 mv "$temporary" "$rules"
-if ! fw4 check; then
+if [ "$action" = apply ] && ! fw4 check; then
 	mv "$backup" "$rules"
 	exit 1
 fi

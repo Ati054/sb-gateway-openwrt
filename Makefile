@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sb-gateway-openwrt
-PKG_VERSION:=0.1.1
+PKG_VERSION:=0.1.2
 PKG_RELEASE:=
 PKG_LICENSE:=AGPL-3.0-only AND MPL-2.0 AND MIT AND Apache-2.0 AND BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE XRAY-LICENSE DOMAIN-LIST-LICENSE
@@ -44,7 +44,7 @@ endef
 # A Linux Go 1.27.2 host toolchain is required by the SDK build host.
 define Build/Compile
 	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.2 GOMAXPROCS=2 \
-		GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=b26a91de4f3294e26a0ad0a970b81a386a41f789' \
+		GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=0888beb38a9ba45440557175e71ce21cf8ba3b13' \
 		-o $(PKG_BUILD_DIR)/resproxyd ./cmd/resproxyd
 endef
 
@@ -59,6 +59,9 @@ define Package/sb-gateway-openwrt/install
 	$(INSTALL_DATA) ./files/domain-list-community.LICENSE $(1)/usr/share/licenses/resproxy-domain-list-community/LICENSE
 	$(INSTALL_DIR) $(1)/usr/share/licenses/resproxy-go
 	$(INSTALL_DATA) ./files/go-dependency-licenses/* $(1)/usr/share/licenses/resproxy-go/
+	$(INSTALL_DIR) $(1)/usr/share/resproxy/update-keys $(1)/etc/apk/keys
+	$(INSTALL_DATA) ./files/update-key.pub $(1)/usr/share/resproxy/update-keys/sb-gateway.rsa.pub
+	$(INSTALL_DATA) ./files/update-key.pub $(1)/etc/apk/keys/ati054-sb-gateway.rsa.pub
 	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/init.d $(1)/etc/resproxy
 	$(INSTALL_DIR) $(1)/usr/libexec
 	$(INSTALL_CONF) ./files/resproxy.config $(1)/etc/config/resproxy

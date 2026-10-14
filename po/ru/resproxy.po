@@ -1677,3 +1677,9 @@ msgstr "WAN по правилам"
 
 msgid "Block"
 msgstr "Блокировать"
+
+msgid "Block WAN ping"
+msgstr "Блокировать ping через WAN"
+
+msgid "Blocking TCP/UDP preserves local IPv6. Ping follows its separate setting."
+msgstr "Блокировка TCP/UDP сохраняет локальную связь IPv6. Ping настраивается отдельно."

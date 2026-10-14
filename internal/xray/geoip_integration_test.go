@@ -2,7 +2,7 @@ package xray
 
 import (
 	"encoding/json"
-	"example.org/resilient-proxy/internal/geoipasset"
+	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
 	"os"
 	"os/exec"
 	"path/filepath"

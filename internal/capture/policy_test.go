@@ -43,7 +43,7 @@ func TestModesAndPrecedence(t *testing.T) {
 				t.Fatal("IPv6 proxy missing")
 			}
 		case "direct":
-			if strings.Contains(v6, "drop") || strings.Contains(v6, "tproxy") || strings.Contains(v6, "redirect") {
+			if strings.Contains(v6, "tproxy") || strings.Contains(v6, "redirect") {
 				t.Fatal("direct mode intercepts IPv6")
 			}
 		case "block":
@@ -84,7 +84,7 @@ func TestEditableDirectListAndRouterDNS(t *testing.T) {
 		if !strings.Contains(body, "ip6 hoplimit 255 icmpv6 type") {
 			t.Fatal("empty direct list breaks IPv6 neighbour discovery")
 		}
-		if strings.Contains(body, "192.168.0.0/16") || strings.Contains(body, "ff00::/8") {
+		if strings.Contains(body, "192.168.0.0/16") {
 			t.Fatal("unsaved defaults still active in proxy mode")
 		}
 		if !strings.Contains(body, "fib daddr type local return") || !strings.Contains(body, "fib daddr oifname") {
@@ -96,5 +96,52 @@ func TestEditableDirectListAndRouterDNS(t *testing.T) {
 		if router < 0 || len(values) > 0 && router >= direct {
 			t.Fatal("direct list overrides managed router DNS")
 		}
+	}
+}
+
+func TestControlTrafficAndStrictPingBeforeExceptions(t *testing.T) {
+	for _, mode := range []string{"proxy", "direct", "block"} {
+		for _, strict := range []bool{false, true} {
+			p, _ := New(mode, []string{"203.0.113.0/24", "2001:db8::/64"})
+			p.BlockPing = strict
+			body, err := Render("br-lan", 12345, 1053, p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, family := range []string{"ip", "ip6"} {
+				start := strings.Index(body, "table "+family+" ")
+				if start < 0 {
+					t.Fatal("missing family")
+				}
+			}
+			for _, match := range []string{"ip daddr 224.0.0.0/4 return", "fib daddr type broadcast return", "ip6 daddr ff00::/8 return", "meta l4proto icmp ct state related return", "meta l4proto ipv6-icmp ct state related return"} {
+				if !strings.Contains(body, match) {
+					t.Fatalf("%s mode=%s", match, mode)
+				}
+			}
+			action := "return"
+			if strict {
+				action = "counter drop"
+			}
+			for _, header := range []string{"icmp", "icmpv6"} {
+				if !strings.Contains(body, header+" type { echo-request, echo-reply } "+action) {
+					t.Fatal("ping mode not applied")
+				}
+			}
+		}
+	}
+}
+
+func TestSystemDNSDoesNotBypassExternalResolverTraffic(t *testing.T) {
+	policy, _ := New("proxy", nil)
+	body, err := Render("br-lan", 12345, 0, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(body, "dport 53 return") || strings.Contains(body, "redirect to") {
+		t.Fatal("external DNS bypasses traffic policy")
+	}
+	if !strings.Contains(body, "fib daddr type local return") || !strings.Contains(body, "tproxy to 127.0.0.1:12345") {
+		t.Fatal("system DNS or traffic capture missing")
 	}
 }

@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/generation"
-	"example.org/resilient-proxy/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
 const linkCA = "vless://2f1c08fc-3f43-4e95-8f57-f8bded750a1a@ca.example.test:443?security=tls#CA%20Toronto"
@@ -247,5 +247,20 @@ func TestUnselectedImportRollsBackPoolOnPublicationFailure(t *testing.T) {
 	_, err := service.Apply(context.Background(), "ca", []byte(linkCA), 10, "main", func([]catalog.Node) (string, error) { return "", nil })
 	if err == nil || !rolledBack || runtime.calls != 0 {
 		t.Fatalf("unselected publication rollback: %v rollback=%v calls=%d", err, rolledBack, runtime.calls)
+	}
+}
+
+func TestInvalidCoreSettingsDoNotRejectOtherNodes(t *testing.T) {
+	store := generation.Store{Root: t.TempDir()}
+	runtime := &fakeRuntime{previousTag: "block"}
+	service := Service{Store: store, Runtime: runtime}
+	bad := "vless://2f1c08fc-3f43-4e95-8f57-f8bded750a1a@bad.example.test:443?security=reality&pbk=invalid&sid=zz"
+	result, err := service.Apply(context.Background(), "provider", []byte(bad+"\n"+linkCA), 1, "main", firstNode)
+	if err != nil || result.ParseStats.Invalid != 1 {
+		t.Fatal("bad connection invalidated subscription", result, err)
+	}
+	_, nodes, err := store.Current()
+	if err != nil || len(nodes) != 1 || nodes[0].Server != "ca.example.test" {
+		t.Fatal("valid entry missing", err)
 	}
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"example.org/resilient-proxy/internal/daemon"
+	"github.com/Ati054/sb-gateway-openwrt/internal/daemon"
 	"os"
 	"path/filepath"
 	"testing"

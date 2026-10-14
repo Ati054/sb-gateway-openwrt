@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"strings"
 
-	"example.org/resilient-proxy/internal/capture"
-	"example.org/resilient-proxy/internal/dnsproxy"
-	"example.org/resilient-proxy/internal/health"
-	"example.org/resilient-proxy/internal/rulesets"
-	"example.org/resilient-proxy/internal/selection"
-	"example.org/resilient-proxy/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
+	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
+	"github.com/Ati054/sb-gateway-openwrt/internal/health"
+	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
+	"github.com/Ati054/sb-gateway-openwrt/internal/selection"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
 type Getter func(context.Context, string) (string, error)
@@ -130,6 +130,7 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("capture settings: %w", err)
 	}
+	config.Capture.BlockPing = read("block_ping") == "1"
 	if config.UpdateSeconds, err = integer(read("update_interval_seconds"), 1800, 300, 86400); err != nil {
 		return Config{}, fmt.Errorf("update interval: %w", err)
 	}

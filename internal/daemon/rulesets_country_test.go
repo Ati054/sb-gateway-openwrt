@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"example.org/resilient-proxy/internal/rulesets"
-	"example.org/resilient-proxy/internal/settings"
-	"example.org/resilient-proxy/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
 func TestWithRulesetsCompilesOnlySelectedCountryKinds(t *testing.T) {

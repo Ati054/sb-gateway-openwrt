@@ -15,16 +15,16 @@ import (
 	"sync"
 	"time"
 
-	"example.org/resilient-proxy/internal/agentport"
-	"example.org/resilient-proxy/internal/capture"
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/dnsproxy"
-	"example.org/resilient-proxy/internal/generation"
-	"example.org/resilient-proxy/internal/refresh"
-	"example.org/resilient-proxy/internal/settings"
-	"example.org/resilient-proxy/internal/sip003"
-	"example.org/resilient-proxy/internal/subscription"
-	"example.org/resilient-proxy/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
+	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
+	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
+	"github.com/Ati054/sb-gateway-openwrt/internal/refresh"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
+	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
 type Paths struct {
@@ -159,14 +159,12 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		}
 		if handedOff {
 			defer func() {
-				if err := RestoreDNSMasqHandoff(paths); err != nil {
-					log.Printf("resproxy: restore router DNS after exit: %v", err)
-				}
-				if err := RestoreDNSHandoff(paths); err != nil {
-					log.Printf("resproxy: restore https-dns-proxy after exit: %v", err)
+				if err := RestoreManagedDNS(paths); err != nil {
+					log.Printf("resproxy: restore managed DNS after exit: %v", err)
 				}
 			}()
 		}
+
 		dnsInterop = resolveDNSInterop(ctx, config.DNSMode, currentNFTRules, activeExternalDNSService)
 		if handedOff && dnsInterop.Reason == "other-dns-redirect" {
 			// The other service's firewall reload can lag behind its stop.
@@ -214,7 +212,10 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				updateDNS = update
 				dnsPort = config.DNSPort
 				if handedOff {
-					if err := acquireDNSMasqHandoff(dnsmasqHandoffFile(paths), dnsPort, systemDNSMasqOps()); err == nil {
+					ops := systemDNSMasqOps()
+					ops.LANInterface = config.LANInterface
+					err = acquireDNSMasqHandoff(dnsmasqHandoffFile(paths), dnsPort, ops)
+					if err == nil {
 						err = verifyRouterDNS(ctx)
 					}
 					if err != nil {
@@ -242,6 +243,12 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			return fmt.Errorf("enable LAN capture: %w", err)
 		}
 		defer func() {
+			// Only an intentional stop opens the normal LAN path. Keep the
+			// last capture policy during an unexpected exit until procd retries.
+			if parentCtx.Err() == nil {
+				log.Printf("resproxy: retaining LAN capture until service recovery")
+				return
+			}
 			cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			if err := setFirewall(cleanup, "remove", "", 0, 0, capture.Policy{}); err != nil {
@@ -594,6 +601,9 @@ func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, p
 	arguments := []string{action}
 	if action == "apply" {
 		arguments = append(arguments, iface, strconv.Itoa(port), strconv.Itoa(dnsPort), policy.IPv6Mode)
+		if policy.BlockPing {
+			arguments = append(arguments, "--block-ping")
+		}
 		arguments = append(arguments, policy.DirectIPs...)
 	}
 	output, err := boundedCommand(ctx, "/usr/libexec/resproxy-firewall", arguments...).CombinedOutput()
@@ -652,6 +662,9 @@ func refreshOnce(ctx context.Context, source settings.Subscription, config setti
 	result, err := service.Apply(ctx, source.ID, body, source.MaxNodes, "resproxy-"+config.Base.DefaultPolicy, chosen)
 	if err != nil {
 		return "", "", err
+	}
+	if stats := result.ParseStats; stats.Skipped() > 0 {
+		log.Printf("resproxy: subscription %q imported with skipped entries: invalid=%d unsupported=%d limit=%d", source.ID, stats.Invalid, stats.Unsupported, stats.Limited)
 	}
 	return etag, result.OldTag, nil
 }

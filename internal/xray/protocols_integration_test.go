@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/generation"
-	"example.org/resilient-proxy/internal/sip003"
-	"example.org/resilient-proxy/internal/subscription"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
+	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
+	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
 )
 
 func TestRealXrayAdditionalProtocolsTCPUDPAndLiveSwitch(t *testing.T) {

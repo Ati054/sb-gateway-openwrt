@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"example.org/resilient-proxy/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
 )
 
 const maxGenerationBytes = 16 << 20

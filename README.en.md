@@ -8,7 +8,7 @@ Route devices and services through proxies with automatic node selection. Config
 
 ## Features
 
-- **Subscriptions:** multiple sources, node import, manual and scheduled updates. Failed updates preserve the working catalog; successful updates take effect without restarting the core.
+- **Subscriptions:** multiple sources; links, Clash YAML, sing-box JSON, and Xray JSON. Invalid and unsupported nodes are skipped; manual and scheduled updates. Failed updates preserve the working catalog; successful updates take effect without restarting the core.
 - **Protocols:** VLESS, VMess, Trojan, Shadowsocks, and Hysteria2. Shadowsocks SIP003 plugins v2ray-plugin and obfs-local can be installed from the interface.
 - **Route lists:** separate settings for all devices, selected IP addresses, or subnets. Select nodes by name, subscription, country, location, protocol, and filters.
 - **URLTest:** selection by HTTPS response time; switches to a faster node after two fresh measurements confirm the configured improvement.
@@ -16,11 +16,14 @@ Route devices and services through proxies with automatic node selection. Config
 - **Presets:** country rules for Russia, China, and Iran; service cards for YouTube, Discord, Telegram, WhatsApp, social networks, AI services, games, exchanges, and smart homes. Each exchange card includes its website and API.
 - **Custom rules:** domains, IP networks, ports, TCP/UDP, and detected protocols. Send traffic through the route list's proxy or directly through WAN; the first matching rule determines the route.
 - **All proxies unavailable:** an independent rule-database setting blocks proxy traffic or temporarily sends it through WAN. Available for preset variants and custom rules; selected cards keep their separate routing action. Traffic returns to the proxy when a node recovers.
-- **DNS:** proxy and WAN resolvers, DoH/DoT, and device queries handled according to their route list and rules. DNS WAN fallback follows the rule’s proxy failure setting.
+- **System protocols:** multicast, broadcast, and related ICMP errors are preserved. WAN ping can be blocked; GRE, ESP, and other unsupported protocols are blocked from WAN.
+- **DNS:** proxy and WAN resolvers, DoH/DoT, and device queries handled according to their route list and rules. DNS WAN fallback follows the rule’s proxy failure setting. An active external DNS service keeps OpenWrt DNS; handing over https-dns-proxy requires separate confirmation.
 - **Monitoring:** active nodes and backups, availability, HTTPS errors, latency, and differences between fresh measurements. Data refreshes without reloading the page; the active node appears first, with up to 10 nodes in the table.
-- **Updates:** check GitHub and install with a button while preserving settings; manual APK upload is also available. Compact updates keep the APK and backup in RAM.
+- **Updates:** check GitHub and install with a button while preserving settings; manual APK upload is also available. Packages are verified against the project signing key. Compact updates keep the APK and backup in RAM.
 
 The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Applying settings preserves history and the selected node if it remains eligible for the route list. If no working proxy node is available, the behavior selected in the rule database applies: blocking or WAN fallback. Direct WAN rules remain active. DNS follows the same rule when the proxy fails.
+
+Keep the router powered during an update. When flash space is low, compact installation keeps the recovery copy in RAM; a power interruption at that point may require reinstalling the APK. Configuration is retained. To recover, transfer the APK using the instructions below and run `apk --no-cache add --force-reinstall --allow-untrusted /tmp/sb-gateway.apk`.
 
 ## Installation
 
@@ -37,7 +40,7 @@ Run this in a terminal on your PC, including Windows PowerShell. Replace `192.16
 ssh root@192.168.1.1 "wget -O /tmp/sb-gateway-install.sh https://raw.githubusercontent.com/Ati054/sb-gateway-openwrt/main/install.sh && sh /tmp/sb-gateway-install.sh"
 ```
 
-The installer detects the architecture, checks available space, downloads the latest version, verifies SHA-256, and installs dependencies.
+The installer detects the architecture, checks available space, downloads the latest stable version, verifies the APK signature and SHA-256, and installs dependencies.
 
 ### If the router cannot access GitHub
 

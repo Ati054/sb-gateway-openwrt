@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"example.org/resilient-proxy/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
 )
 
 func TestFilterPreservesSubscriptionOrderAndUpdatesMembership(t *testing.T) {

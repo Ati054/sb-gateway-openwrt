@@ -35,7 +35,7 @@ func TestVPNRoutesKeepKernelPolicyAndIPv6Block(t *testing.T) {
 	if !strings.Contains(body, `fib daddr . mark oifname { "wg0", "tun0" } return`) || !strings.Contains(body, "192.0.2.20/32") {
 		t.Fatal(body)
 	}
-	if strings.Index(body, "oifname {") > strings.Index(body, "ip daddr") || strings.Index(body, "oifname {") > strings.LastIndex(body, "udp dport 53 redirect") {
+	if strings.Index(body, "oifname {") > strings.Index(body, "ip daddr { 10.0.0.0/8") || strings.Index(body, "oifname {") > strings.LastIndex(body, "udp dport 53 redirect") {
 		t.Fatal("VPN protection after interception")
 	}
 	p.IPv6Mode = "block"
@@ -44,11 +44,32 @@ func TestVPNRoutesKeepKernelPolicyAndIPv6Block(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, v6, _ := strings.Cut(body, "table ip6")
-	if strings.Contains(v6, "oifname {") {
+	if strings.Contains(v6, `iifname "br-lan" fib daddr . mark oifname {`) {
 		t.Fatal("VPN overrides explicit IPv6 block")
 	}
 	p.Automatic.Interfaces = []string{"wg0;drop"}
 	if _, err = Render("br-lan", 12345, 1053, p); err == nil {
 		t.Fatal("unsafe tunnel name accepted")
+	}
+}
+
+func TestStrictWANPingPreservesVPNRoutePing(t *testing.T) {
+	policy, _ := New("block", nil)
+	policy.BlockPing = true
+	policy.Automatic.Interfaces = []string{"wg0"}
+	body, err := Render("br-lan", 12345, 1053, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, proto := range []string{"icmp", "ipv6-icmp"} {
+		exception := strings.Index(body, "meta l4proto "+proto+" fib daddr . mark oifname")
+		header := "icmp"
+		if proto == "ipv6-icmp" {
+			header = "icmpv6"
+		}
+		drop := strings.Index(body, header+" type { echo-request, echo-reply } counter drop")
+		if exception < 0 || drop < 0 || exception > drop {
+			t.Fatal("strict WAN ping breaks tunnel ICMP")
+		}
 	}
 }

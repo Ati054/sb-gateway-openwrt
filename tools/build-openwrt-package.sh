@@ -6,6 +6,9 @@ case "$1" in
  filogic) sdk=/root/sdk/openwrt-sdk-25.12.5-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64; arch=aarch64_cortex-a53;;
  *) exit 2;;
 esac
+# Serialize SDK source replacement and package database writes.
+exec 8>"$sdk/package/.resproxy-build.lock"
+flock -x 8
 source=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 [ -f "$sdk/rules.mk" ];[ -f "$source/vendor/modules.txt" ];[ -f "$source/third_party/xray-core/core/xray.go" ]
 version=$(sed -n 's/^PKG_VERSION:=\([0-9][A-Za-z0-9._+~-]*\)$/\1/p' "$source/Makefile")
@@ -33,6 +36,11 @@ make -C "$sdk/package/resproxy" TOPDIR="$sdk" clean V=s
 make -C "$sdk/package/resproxy" TOPDIR="$sdk" compile V=s
 mkdir -p "$source/dist"
 cp "$sdk/bin/packages/$arch/base/sb-gateway-openwrt-$version.apk" "$source/dist/sb-gateway-openwrt-$version-$arch.apk"
+# Release keys stay outside the source stage and are provided by the maintainer.
+if [ -n "${SB_GATEWAY_SIGN_KEY:-}" ]; then
+ "$sdk/staging_dir/host/bin/apk" --allow-untrusted adbsign --reset-signatures --sign-key "$SB_GATEWAY_SIGN_KEY" "$source/dist/sb-gateway-openwrt-$version-$arch.apk"
+ "$sdk/staging_dir/host/bin/apk" --keys-dir "$source/files" verify "$source/dist/sb-gateway-openwrt-$version-$arch.apk"
+fi
 # Keep the previous sources on failure for recovery, but do not accumulate a
 # complete vendor/source copy after every successful build and delivery.
 case "$previous" in

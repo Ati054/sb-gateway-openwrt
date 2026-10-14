@@ -58,9 +58,9 @@ func TestHysteriaRetirementKeepsTCPAndUDPAndReclaimsCache(t *testing.T) {
 		if remains {
 			t.Fatal("retired Hysteria generation remains cached")
 		}
-		cached.Lock()
+		cached.lock <- struct{}{}
 		open := cached.conn != nil || cached.tr != nil || cached.pktConn != nil || cached.udpSM != nil
-		cached.Unlock()
+		cached.unlock()
 		if open {
 			t.Fatal("retired QUIC resources remain open")
 		}

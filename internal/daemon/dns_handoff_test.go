@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -83,5 +84,19 @@ func TestDNSHandoffFailedStopRollsBackMarker(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("failed takeover left a marker: %v", err)
+	}
+}
+
+func TestDNSRestoreReadFailureRetainsMarker(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handoff.json")
+	if err := writeDNSHandoff(path, dnsHandoffState{}); err != nil {
+		t.Fatal(err)
+	}
+	ops := dnsHandoffOps{installed: func() bool { return true }, running: func() bool { return false }, enabled: func() bool { return false }, action: func(string) error { return nil }, err: func() error { return context.DeadlineExceeded }}
+	if err := restoreDNSHandoff(path, ops); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("read failure ignored", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("recovery marker discarded", err)
 	}
 }

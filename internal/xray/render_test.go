@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/subscription"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
 )
 
 func TestRenderOutboundFromSubscription(t *testing.T) {

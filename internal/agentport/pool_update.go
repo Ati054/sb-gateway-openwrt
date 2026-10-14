@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"example.org/resilient-proxy/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
 // UpdatePoolHealth edits the latest published inventory, including a catalog

@@ -35,7 +35,7 @@ check_archive() {
 	[ -f "$1" ] && [ ! -L "$1" ] || die "APK file is missing or is a symlink"
 	archive_size=$(wc -c < "$1")
 	[ "$archive_size" -gt 0 ] && [ "$archive_size" -le 67108864 ] || die "APK size must be 1-64 MiB"
-	apk verify --allow-untrusted "$1" >/dev/null 2>&1 || die "APK integrity check failed"
+	apk --keys-dir /usr/share/resproxy/update-keys verify "$1" >/dev/null 2>&1 || die "APK integrity check failed"
 	archive_meta=$(apk adbdump "$1" 2>/dev/null) || die "Cannot read APK metadata"
 	archive_name=$(archive_field name)
 	archive_version=$(archive_field version)
@@ -155,10 +155,17 @@ preflight() {
   check_compact_ram planned-stop
   compact=yes
  fi
-	plan=$(apk add --simulate --allow-untrusted "$1") || die "APK dependency preflight failed"
-	changes=$(printf '%s\n' "$plan" | grep -E '^\([0-9]+/[0-9]+\) ' || :)
-	[ "$changes" = "(1/1) Upgrading $pkg ($old_version -> $archive_version)" ] ||
-		die "APK would change packages other than $pkg"
+	plan=$(apk add --simulate "$1") || die "APK dependency preflight failed"
+	# New dependencies may be installed, but existing unrelated packages must
+ # never be removed, downgraded or upgraded by this package's update.
+ printf '%s\n' "$plan" | awk -v package="$pkg" '
+  /^\([0-9]+\/[0-9]+\) / {
+   if ($3 == package && $2 == "Upgrading") { own++; next }
+   if ($3 != package && $2 == "Installing") { next }
+   unsafe=1
+  }
+  END { exit (unsafe || own != 1) }
+ ' || die "APK update plan contains unexpected package changes"
 }
 
 ready() {
@@ -200,7 +207,7 @@ install() {
  printf '%s\n' "$archive_version" > "$state/version"
  if [ "$compact" = yes ]; then prepare_compact; fi
  write_phase installing
- if ! apk add --allow-untrusted "$staged"; then
+ if ! apk add "$staged"; then
   if [ "$compact" = yes ]; then
    if restore_compact; then
     compact_released=no
@@ -219,6 +226,11 @@ install() {
 		write_phase failed
 		die "Installed package version differs from selected APK"
 	fi
+ # APK has committed the new version; restoring old files would no longer
+ # match its database. Release installation-only RAM before starting both
+ # processes, including on devices with a small tmpfs.
+ rm -f "$state/previous-payload.tar" "$state/previous-payload.sha256" "$state/previous-files" "$staged"
+ compact_released=no
  printf '%s\n' "$archive_version" > "$state/status-version"
 	write_phase activating
 	if ! /etc/init.d/resproxy restart; then

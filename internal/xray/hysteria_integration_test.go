@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
-	"example.org/resilient-proxy/internal/subscription"
+	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
 	"fmt"
 	"io"
 	"net"

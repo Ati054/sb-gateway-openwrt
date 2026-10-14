@@ -753,7 +753,10 @@ return view.extend({
         ipv6.value('block', _('Block internet access'));
         ipv6.default = 'proxy';
         ipv6.rmempty = false;
-        ipv6.description = _('Blocking preserves local IPv6 connectivity and takes precedence over user IPv6 exceptions.');
+        ipv6.description = _('Blocking TCP/UDP preserves local IPv6. Ping follows its separate setting.');
+        var ping = common.option(form.Flag, 'block_ping', _('Block WAN ping'));
+        ping.default = '0';
+        ping.rmempty = false;
         var bypass = common.option(form.TextValue, 'bypass_cidrs', _('Direct IP addresses and networks'));
         bypass.rows = 13;
         bypass.rmempty = true;

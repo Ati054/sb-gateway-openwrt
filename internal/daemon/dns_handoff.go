@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -24,27 +26,46 @@ type dnsHandoffOps struct {
 	running   func() bool
 	enabled   func() bool
 	action    func(string) error
+	err       func() error
 }
 
 func dnsHandoffFile(paths Paths) string {
 	return filepath.Join(paths.DataRoot, "dns-handoff.json")
 }
 
-func httpsDNSProxyOps() dnsHandoffOps {
+func httpsDNSProxyOps() dnsHandoffOps { return httpsDNSProxyOpsWithContext(context.Background()) }
+
+func httpsDNSProxyOpsWithContext(parent context.Context) dnsHandoffOps {
+	var stateError error
 	call := func(action string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 		defer cancel()
-		output, err := exec.CommandContext(ctx, httpsDNSProxyInit, action).CombinedOutput()
+		output, err := boundedCommand(ctx, httpsDNSProxyInit, action).CombinedOutput()
 		if err != nil {
+			if action == "running" || action == "enabled" {
+				var exit *exec.ExitError
+				if ctx.Err() != nil {
+					stateError = ctx.Err()
+				} else if !errors.As(err, &exit) || exit.ExitCode() != 1 {
+					stateError = err
+				}
+			}
 			return fmt.Errorf("https-dns-proxy %s: %w: %s", action, err, strings.TrimSpace(string(output)))
 		}
 		return nil
 	}
 	return dnsHandoffOps{
-		installed: func() bool { _, err := os.Stat(httpsDNSProxyInit); return err == nil },
-		running:   func() bool { return call("running") == nil },
-		enabled:   func() bool { return call("enabled") == nil },
-		action:    call,
+		installed: func() bool {
+			_, err := os.Stat(httpsDNSProxyInit)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				stateError = err
+			}
+			return err == nil
+		},
+		err:     func() error { return errors.Join(parent.Err(), stateError) },
+		running: func() bool { return call("running") == nil },
+		enabled: func() bool { return call("enabled") == nil },
+		action:  call,
 	}
 }
 
@@ -56,6 +77,9 @@ func acquireDNSHandoff(path string, authorized bool, ops dnsHandoffOps) (bool, e
 		return false, err
 	}
 	if !ops.installed() {
+		if err := dnsHandoffError(ops); err != nil {
+			return false, err
+		}
 		if exists {
 			return false, os.Remove(path)
 		}
@@ -63,9 +87,12 @@ func acquireDNSHandoff(path string, authorized bool, ops dnsHandoffOps) (bool, e
 	}
 	if !exists {
 		if !ops.running() || !authorized {
-			return false, nil
+			return false, dnsHandoffError(ops)
 		}
 		state = dnsHandoffState{WasEnabled: ops.enabled(), WasRunning: true}
+		if err := dnsHandoffError(ops); err != nil {
+			return false, err
+		}
 		if err := writeDNSHandoff(path, state); err != nil {
 			return false, err
 		}
@@ -90,6 +117,9 @@ func acquireDNSHandoff(path string, authorized bool, ops dnsHandoffOps) (bool, e
 			return false, errors.New("https-dns-proxy is still enabled after disable")
 		}
 	}
+	if err := dnsHandoffError(ops); err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
@@ -101,6 +131,9 @@ func restoreDNSHandoff(path string, ops dnsHandoffOps) error {
 		return err
 	}
 	if !ops.installed() {
+		if err := dnsHandoffError(ops); err != nil {
+			return err
+		}
 		return os.Remove(path)
 	}
 	if state.WasEnabled != ops.enabled() {
@@ -124,11 +157,20 @@ func restoreDNSHandoff(path string, ops dnsHandoffOps) error {
 	if state.WasEnabled != ops.enabled() || state.WasRunning != ops.running() {
 		return errors.New("https-dns-proxy state could not be restored")
 	}
+	if err := dnsHandoffError(ops); err != nil {
+		return err
+	}
 	return os.Remove(path)
+}
+func dnsHandoffError(ops dnsHandoffOps) error {
+	if ops.err != nil {
+		return ops.err()
+	}
+	return nil
 }
 
 func readDNSHandoff(path string) (dnsHandoffState, bool, error) {
-	content, err := os.ReadFile(path)
+	content, err := readDNSMarker(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return dnsHandoffState{}, false, nil
 	}
@@ -147,17 +189,70 @@ func writeDNSHandoff(path string, state dnsHandoffState) error {
 	if err != nil {
 		return err
 	}
-	temporary := path + ".new"
-	if err := os.WriteFile(temporary, append(content, '\n'), 0o600); err != nil {
+	return writeDurableDNSMarker(path, append(content, '\n'))
+}
+func writeDurableDNSMarker(path string, body []byte) error {
+	file, err := os.CreateTemp(filepath.Dir(path), ".dns-handoff-*")
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(temporary, path); err != nil {
-		_ = os.Remove(temporary)
+	name := file.Name()
+	defer os.Remove(name)
+	if err = file.Chmod(0600); err == nil {
+		_, err = file.Write(body)
+	}
+	if err == nil {
+		err = file.Sync()
+	}
+	err = errors.Join(err, file.Close())
+	if err != nil {
 		return err
 	}
-	return nil
+	if err = os.Rename(name, path); err != nil {
+		return err
+	}
+	directory, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	return directory.Sync()
 }
 
 func RestoreDNSHandoff(paths Paths) error {
 	return restoreDNSHandoff(dnsHandoffFile(paths), httpsDNSProxyOps())
+}
+
+// Cleanup shares one deadline across both owned handoffs. A failure restoring
+// dnsmasq must not prevent attempting to restart the user's previous resolver.
+func RestoreManagedDNS(paths Paths) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	return errors.Join(restoreDNSMasqHandoff(dnsmasqHandoffFile(paths), systemDNSMasqOpsWithContext(ctx)), restoreDNSHandoff(dnsHandoffFile(paths), httpsDNSProxyOpsWithContext(ctx)))
+}
+
+func readDNSMarker(path string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Size() > 65536 {
+		return nil, errors.New("invalid DNS handoff marker size or type")
+	}
+	body, err := io.ReadAll(io.LimitReader(file, 65537))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > 65536 {
+		return nil, errors.New("DNS handoff marker exceeds the limit")
+	}
+	return body, nil
 }

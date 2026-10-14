@@ -3,7 +3,7 @@ package xray
 import (
 	"encoding/json"
 	"errors"
-	"example.org/resilient-proxy/internal/geoipasset"
+	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
 	"fmt"
 	"net/netip"
 	"net/url"
@@ -268,11 +268,11 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 	inbounds := []any{
 		map[string]any{"tag": apiTag, "listen": "127.0.0.1", "port": c.APIPort,
 			"protocol": "dokodemo-door", "settings": map[string]any{"address": "127.0.0.1"}},
-		map[string]any{"tag": "resproxy-transparent", "listen": "0.0.0.0", "port": c.TransparentPort,
+		map[string]any{"tag": "resproxy-transparent", "listen": "127.0.0.1", "port": c.TransparentPort,
 			"protocol": "dokodemo-door", "settings": map[string]any{"network": "tcp,udp", "followRedirect": true},
 			"streamSettings": map[string]any{"sockopt": map[string]any{"tproxy": "tproxy"}},
 			"sniffing":       map[string]any{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "routeOnly": true}},
-		map[string]any{"tag": "resproxy-transparent6", "listen": "::", "port": c.TransparentPort,
+		map[string]any{"tag": "resproxy-transparent6", "listen": "::1", "port": c.TransparentPort,
 			"protocol": "dokodemo-door", "settings": map[string]any{"network": "tcp,udp", "followRedirect": true},
 			"streamSettings": map[string]any{"sockopt": map[string]any{"tproxy": "tproxy", "V6Only": true}},
 			"sniffing":       map[string]any{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "routeOnly": true}},

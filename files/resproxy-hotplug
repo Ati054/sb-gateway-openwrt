@@ -1,7 +1,7 @@
 #!/bin/sh
 # netifd may discard policy-routing rules on a network restart. Reapply only
 # this package's TProxy plumbing; never restart the long-lived Xray process.
-case "${ACTION:-}" in ifup|ifdown) ;; *) exit 0 ;; esac
+case "${ACTION:-}" in ifup|ifdown|ifupdate) ;; *) exit 0 ;; esac
 
 . /lib/functions.sh
 config_load resproxy

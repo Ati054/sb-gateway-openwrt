@@ -11,10 +11,10 @@ import (
 	"os"
 	"sync"
 
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/generation"
-	"example.org/resilient-proxy/internal/subscription"
-	"example.org/resilient-proxy/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
+	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
 type Runtime interface {
@@ -36,6 +36,7 @@ type Result struct {
 	SelectedID   string
 	OldTag       string // Retire later, only after a drain period.
 	Delta        catalog.Delta
+	ParseStats   subscription.ParseStats
 }
 
 // Apply keeps the current generation untouched until parse, reconcile,
@@ -55,7 +56,7 @@ func (s *Service) Apply(ctx context.Context, providerID string, feed []byte, max
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Result{}, fmt.Errorf("current generation cannot be verified: %w", err)
 	}
-	parsed, err := subscription.Parse(providerID, feed, maxNodes)
+	parsed, stats, err := subscription.ParseValidated(providerID, feed, maxNodes, xray.ValidateOutbound)
 	if err != nil {
 		return Result{}, err
 	}
@@ -143,5 +144,5 @@ func (s *Service) Apply(ctx context.Context, providerID string, feed []byte, max
 	if switched.Changed {
 		oldTag = switched.PreviousTag
 	}
-	return Result{GenerationID: id, SelectedID: selectedID, OldTag: oldTag, Delta: delta}, nil
+	return Result{GenerationID: id, SelectedID: selectedID, OldTag: oldTag, Delta: delta, ParseStats: stats}, nil
 }

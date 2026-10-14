@@ -10,6 +10,7 @@ import (
 
 type Policy struct {
 	IPv6Mode  string
+	BlockPing bool
 	DirectIPs []string
 	Automatic Inventory
 }
@@ -73,6 +74,7 @@ func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	normalized.BlockPing = policy.BlockPing
 	autoIPs := []string{}
 	for _, item := range policy.Automatic.Addresses {
 		if item.Kind == "endpoint" {
@@ -109,7 +111,8 @@ func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
 		if v6 {
 			family, table, addr = "ip6", "resproxy6", "ip6"
 		}
-		fmt.Fprintf(&b, "table %s %s {\n", family, table)
+		// The fw4 include must replace existing private tables on every reload.
+		fmt.Fprintf(&b, "add table %s %s\ndelete table %s %s\ntable %s %s {\n", family, table, family, table, family, table)
 		custom := []string{}
 		for _, value := range normalized.DirectIPs {
 			if strings.Contains(value, ":") == v6 {
@@ -119,6 +122,12 @@ func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
 		// DNS remains a separate managed service. Explicit destination exceptions
 		// also bypass its port-53 redirect. Direct/block IPv6 never redirects DNS.
 		b.WriteString("\tchain dns_prerouting {\n\t\ttype nat hook prerouting priority dstnat - 1; policy accept;\n")
+		if v6 {
+			fmt.Fprintf(&b, "\t\tiifname %q ip6 daddr ff00::/8 return\n", iface)
+		} else {
+			fmt.Fprintf(&b, "\t\tiifname %q ip daddr 224.0.0.0/4 return\n", iface)
+			fmt.Fprintf(&b, "\t\tiifname %q fib daddr type broadcast return\n", iface)
+		}
 		if !v6 || normalized.IPv6Mode == "proxy" {
 			// The router's DNS listener remains managed even when a private range
 			// is direct. Otherwise the default private ranges disable LAN DNS.
@@ -138,35 +147,58 @@ func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
 			}
 		}
 		b.WriteString("\t}\n\tchain prerouting {\n\t\ttype filter hook prerouting priority mangle + 1; policy accept;\n")
+		icmpProtocol, icmpHeader := "icmp", "icmp"
+		if v6 {
+			icmpProtocol, icmpHeader = "ipv6-icmp", "icmpv6"
+		}
+		// Link control and broadcasts never depend on editable WAN exceptions.
+		if v6 {
+			fmt.Fprintf(&b, "\t\tiifname %q ip6 daddr ff00::/8 return\n", iface)
+			fmt.Fprintf(&b, "\t\tiifname %q ip6 hoplimit 255 icmpv6 type { nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } return\n", iface)
+		} else {
+			fmt.Fprintf(&b, "\t\tiifname %q ip daddr 224.0.0.0/4 return\n", iface)
+			fmt.Fprintf(&b, "\t\tiifname %q fib daddr type broadcast return\n", iface)
+		}
+		// Preserve related errors (including Packet Too Big) before any blocking.
+		fmt.Fprintf(&b, "\t\tiifname %q meta l4proto %s ct state related return\n", iface, icmpProtocol)
+		fmt.Fprintf(&b, "\t\tiifname %q meta l4proto != { tcp, udp, %s } counter drop\n", iface, icmpProtocol)
+		fmt.Fprintf(&b, "\t\tiifname %q fib daddr type local return\n", iface)
+		fmt.Fprintf(&b, "\t\tiifname %q fib daddr oifname %q return\n", iface, iface)
+
+		if len(tunnelNames) > 0 {
+			fmt.Fprintf(&b, "\t\tiifname %q meta l4proto %s fib daddr . mark oifname { %s } return\n", iface, icmpProtocol, strings.Join(tunnelNames, ", "))
+		}
+		pingAction := "return"
+		if normalized.BlockPing {
+			pingAction = "counter drop"
+		}
+		fmt.Fprintf(&b, "\t\tiifname %q %s type { echo-request, echo-reply } %s\n", iface, icmpHeader, pingAction)
+		fmt.Fprintf(&b, "\t\tiifname %q meta l4proto %s counter drop\n", iface, icmpProtocol)
 		if !v6 || normalized.IPv6Mode != "direct" {
-			if v6 {
-				// IPv6 neighbour discovery must remain available even with an empty
-				// direct list. These link control messages require hop limit 255.
-				fmt.Fprintf(&b, "\t\tiifname %q ip6 hoplimit 255 icmpv6 type { nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } return\n", iface)
-			}
-			fmt.Fprintf(&b, "\t\tiifname %q fib daddr type local return\n", iface)
-			fmt.Fprintf(&b, "\t\tiifname %q fib daddr oifname %q return\n", iface, iface)
 			if v6 && normalized.IPv6Mode == "block" {
-				// Blocking internet access keeps IPv6 local and control traffic.
-				// In proxy mode only the editable direct list exempts these ranges.
-				fmt.Fprintf(&b, "\t\tiifname %q ip6 daddr { ::/127, fc00::/7, fe80::/10, ff00::/8 } return\n", iface)
+				fmt.Fprintf(&b, "\t\tiifname %q ip6 daddr { ::/127, fc00::/7, fe80::/10 } return\n", iface)
 				fmt.Fprintf(&b, "\t\tiifname %q counter drop\n", iface)
 			} else {
 				tunnelBypass(&b)
 				if len(custom) > 0 {
 					fmt.Fprintf(&b, "\t\tiifname %q %s daddr { %s } return\n", iface, addr, strings.Join(custom, ", "))
 				}
-				for _, proto := range []string{"udp", "tcp"} {
-					fmt.Fprintf(&b, "\t\tiifname %q %s dport 53 return\n", iface, proto)
+				if dnsPort != 0 {
+					for _, proto := range []string{"udp", "tcp"} {
+						fmt.Fprintf(&b, "\t\tiifname %q %s dport 53 return\n", iface, proto)
+					}
 				}
-				fmt.Fprintf(&b, "\t\tiifname %q meta l4proto { tcp, udp } tproxy to :%d meta mark set 0x5253 accept\n", iface, port)
+				target := "127.0.0.1"
 				if v6 {
-					fmt.Fprintf(&b, "\t\tiifname %q counter drop\n", iface)
-				} else {
-					fmt.Fprintf(&b, "\t\tiifname %q meta l4proto { tcp, udp } drop\n", iface)
+					target = "[::1]"
 				}
+				fmt.Fprintf(&b, "\t\tiifname %q meta l4proto { tcp, udp } tproxy to %s:%d meta mark set 0x5253 accept\n", iface, target, port)
+				fmt.Fprintf(&b, "\t\tiifname %q meta l4proto { tcp, udp } drop\n", iface)
 			}
 		}
+
+		b.WriteString("\t}\n\tchain input {\n\t\ttype filter hook input priority filter - 1; policy accept;\n")
+		fmt.Fprintf(&b, "\t\tmeta mark != 0x5253 meta l4proto { tcp, udp } th dport %d counter drop\n", port)
 		b.WriteString("\t}\n}\n")
 	}
 	return b.String(), nil

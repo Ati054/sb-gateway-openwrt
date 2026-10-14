@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"example.org/resilient-proxy/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
 // OpenWrt's date uses /etc/TZ, including custom POSIX zones. Go's default

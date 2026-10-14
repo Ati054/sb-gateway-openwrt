@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"example.org/resilient-proxy/internal/healthcontract"
+	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
 )
 
 const (

@@ -3,6 +3,7 @@ package releaseupdate
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
@@ -58,6 +59,7 @@ type githubAsset struct {
 type githubRelease struct {
 	Tag         string        `json:"tag_name"`
 	Draft       bool          `json:"draft"`
+	Prerelease  bool          `json:"prerelease"`
 	PublishedAt time.Time     `json:"published_at"`
 	Assets      []githubAsset `json:"assets"`
 }
@@ -67,13 +69,14 @@ type Installed struct {
 	Arch    string `json:"arch"`
 }
 type Source struct {
-	Client  *http.Client
-	Compare func(context.Context, string, string) (bool, error)
+	SigningKey ed25519.PublicKey
+	Client     *http.Client
+	Compare    func(context.Context, string, string) (bool, error)
 }
 
 func NewSource() *Source {
 	t := &http.Transport{Proxy: http.ProxyFromEnvironment, MaxIdleConns: 2, MaxIdleConnsPerHost: 2, IdleConnTimeout: 30 * time.Second, ResponseHeaderTimeout: 30 * time.Second, TLSHandshakeTimeout: 15 * time.Second, DisableCompression: true, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
-	return &Source{Client: &http.Client{Transport: t, CheckRedirect: func(r *http.Request, via []*http.Request) error {
+	return &Source{SigningKey: signingPublicKey(), Client: &http.Client{Transport: t, CheckRedirect: func(r *http.Request, via []*http.Request) error {
 		if len(via) >= 5 || !safeURL(r.URL) {
 			return errors.New("GitHub download redirect rejected")
 		}
@@ -120,24 +123,32 @@ func (s *Source) get(ctx context.Context, address string) (*http.Response, error
 	}
 	return response, nil
 }
-func (s *Source) readJSON(ctx context.Context, address string, limit int64, result any) error {
-	response, e := s.get(ctx, address)
-	if e != nil {
-		return e
+func (s *Source) readBlob(ctx context.Context, address string, limit int64) ([]byte, error) {
+	response, err := s.get(ctx, address)
+	if err != nil {
+		return nil, err
 	}
 	defer response.Body.Close()
-	b, e := io.ReadAll(io.LimitReader(response.Body, limit+1))
-	if e != nil {
-		return errors.New("GitHub response interrupted")
+	body, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
+	if err != nil {
+		return nil, errors.New("GitHub response interrupted")
 	}
-	if int64(len(b)) > limit {
-		return errors.New("GitHub response exceeds the size limit")
+	if int64(len(body)) > limit {
+		return nil, errors.New("GitHub response exceeds the size limit")
 	}
-	if json.Unmarshal(b, result) != nil {
+	return body, nil
+}
+func (s *Source) readJSON(ctx context.Context, address string, limit int64, result any) error {
+	body, err := s.readBlob(ctx, address, limit)
+	if err != nil {
+		return err
+	}
+	if json.Unmarshal(body, result) != nil {
 		return errors.New("Invalid GitHub release metadata")
 	}
 	return nil
 }
+
 func (s *Source) Check(ctx context.Context, installed Installed) (Choice, error) {
 	if installed.Name != "sb-gateway-openwrt" || !versionPattern.MatchString(installed.Version) {
 		return Choice{}, errors.New("Installed package metadata unavailable")
@@ -151,24 +162,53 @@ func (s *Source) Check(ctx context.Context, installed Installed) (Choice, error)
 	}
 	result := Choice{CheckedAt: time.Now().UTC()}
 	for _, release := range releases {
-		if release.Draft || release.PublishedAt.IsZero() || !tagPattern.MatchString(release.Tag) {
+		if release.Draft || release.Prerelease || release.PublishedAt.IsZero() || !tagPattern.MatchString(release.Tag) {
 			continue
 		}
-		var metadata *githubAsset
+		var metadata, signature *githubAsset
 		for i := range release.Assets {
 			a := &release.Assets[i]
 			if a.Name == "release.json" && a.State == "uploaded" && a.Size > 0 && a.Size <= 16384 && a.URL == assetURL(release.Tag, a.Name) {
 				metadata = a
-				break
+			}
+			if a.Name == "release.json.sig" && a.State == "uploaded" && a.Size > 0 && a.Size <= 256 && a.URL == assetURL(release.Tag, a.Name) {
+				signature = a
 			}
 		}
 		if metadata == nil {
 			continue
 		}
-		var manifest Manifest
-		if e := s.readJSON(ctx, metadata.URL, 16384, &manifest); e != nil {
+		if signature == nil {
+			// Releases predating signing cannot be offered for installation.
+			// An already installed or older unsigned release is simply history.
+			taggedVersion := strings.TrimPrefix(release.Tag, "v")
+			if versionPattern.MatchString(taggedVersion) {
+				newer, err := s.Compare(ctx, taggedVersion, installed.Version)
+				if err != nil {
+					return Choice{}, errors.New("Cannot compare package versions")
+				}
+				if !newer {
+					continue
+				}
+			}
+			return Choice{}, errors.New("Release signature is missing")
+		}
+		body, e := s.readBlob(ctx, metadata.URL, 16384)
+		if e != nil {
 			return Choice{}, e
 		}
+		sig, e := s.readBlob(ctx, signature.URL, 256)
+		if e != nil {
+			return Choice{}, e
+		}
+		if e = verifyManifest(s.SigningKey, body, sig); e != nil {
+			return Choice{}, e
+		}
+		var manifest Manifest
+		if json.Unmarshal(body, &manifest) != nil {
+			return Choice{}, errors.New("Invalid signed release manifest")
+		}
+
 		if manifest.Schema != 1 || manifest.Tag != release.Tag || !versionPattern.MatchString(manifest.Version) || len(manifest.Assets) > 8 {
 			return Choice{}, errors.New("Invalid release manifest")
 		}
@@ -193,12 +233,8 @@ func (s *Source) Check(ctx context.Context, installed Installed) (Choice, error)
 			if !found {
 				return Choice{}, errors.New("Release APK is missing or incomplete")
 			}
-			if result.Version == "" || newer {
-				result = Choice{Version: manifest.Version, Tag: release.Tag, URL: assetURL(release.Tag, asset.Name), Asset: asset, Available: newer, CheckedAt: time.Now().UTC()}
-			}
-			if newer {
-				return result, nil
-			}
+			return Choice{Version: manifest.Version, Tag: release.Tag, URL: assetURL(release.Tag, asset.Name), Asset: asset, Available: newer, CheckedAt: time.Now().UTC()}, nil
+
 		}
 	}
 	return result, nil

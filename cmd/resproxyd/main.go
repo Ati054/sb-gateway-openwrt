@@ -14,20 +14,20 @@ import (
 	"syscall"
 	"time"
 
-	"example.org/resilient-proxy/internal/agentport"
-	"example.org/resilient-proxy/internal/capture"
-	"example.org/resilient-proxy/internal/daemon"
-	"example.org/resilient-proxy/internal/generation"
-	"example.org/resilient-proxy/internal/releaseupdate"
-	"example.org/resilient-proxy/internal/rulesets"
-	"example.org/resilient-proxy/internal/selection"
-	"example.org/resilient-proxy/internal/settings"
-	"example.org/resilient-proxy/internal/sip003"
-	"example.org/resilient-proxy/internal/xray"
-	"example.org/resilient-proxy/internal/xraycli"
+	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
+	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
+	"github.com/Ati054/sb-gateway-openwrt/internal/daemon"
+	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
+	"github.com/Ati054/sb-gateway-openwrt/internal/releaseupdate"
+	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
+	"github.com/Ati054/sb-gateway-openwrt/internal/selection"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xraycli"
 )
 
-var version = "0.1.0"
+var version = "dev"
 
 func main() {
 	if filepath.Base(os.Args[0]) == "xray" {
@@ -45,8 +45,8 @@ func main() {
 
 func execute(arguments []string) error {
 	if len(arguments) > 0 && arguments[0] == "capture-rules" {
-		if len(arguments) < 5 || len(arguments) > 261 {
-			return errors.New("usage: capture-rules IFNAME PORT DNSPORT IPV6MODE [IP...]")
+		if len(arguments) < 5 || len(arguments) > 262 {
+			return errors.New("usage: capture-rules IFNAME PORT DNSPORT IPV6MODE [--block-ping] [IP...]")
 		}
 		port, err := strconv.Atoi(arguments[2])
 		if err != nil {
@@ -56,11 +56,12 @@ func execute(arguments []string) error {
 		if err != nil {
 			return err
 		}
-		policy, err := capture.New(arguments[4], arguments[5:])
+		policy, err := capture.New(arguments[4], captureAddresses(arguments[5:]))
 		if err != nil {
 			return err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		policy.BlockPing = len(arguments) > 5 && arguments[5] == "--block-ping"
 		policy.Automatic = capture.Discover(ctx)
 		cancel()
 		if !policy.Automatic.Complete {
@@ -72,6 +73,12 @@ func execute(arguments []string) error {
 		}
 		_, err = fmt.Print(body)
 		return err
+	}
+	if len(arguments) > 0 && arguments[0] == "verify-release" {
+		if len(arguments) != 3 {
+			return errors.New("usage: verify-release MANIFEST SIGNATURE")
+		}
+		return releaseupdate.VerifyFiles(arguments[1], arguments[2])
 	}
 	if len(arguments) < 1 || len(arguments) > 2 {
 		return errors.New("usage: resproxyd {run|reload|render-base|refresh [source-id]|status|health|locations|capture-restore|rulesets|rulesets-refresh|dns-restore|version}")
@@ -107,14 +114,14 @@ func execute(arguments []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		return daemon.RequestReload(ctx, paths)
+	case "update-key":
+		fmt.Println(releaseupdate.SigningPublicKeyHex())
+		return nil
 	case "version":
 		fmt.Println(version)
 		return nil
 	case "dns-restore":
-		if err := daemon.RestoreDNSMasqHandoff(paths); err != nil {
-			return err
-		}
-		return daemon.RestoreDNSHandoff(paths)
+		return daemon.RestoreManagedDNS(paths)
 	case "refresh":
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
@@ -444,4 +451,11 @@ func running(paths daemon.Paths) bool {
 	}
 	comm, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "comm"))
 	return err == nil && strings.TrimSpace(string(comm)) == "resproxyd"
+}
+
+func captureAddresses(values []string) []string {
+	if len(values) > 0 && values[0] == "--block-ping" {
+		return values[1:]
+	}
+	return values
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"example.org/resilient-proxy/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
 func TestRefreshDue(t *testing.T) {

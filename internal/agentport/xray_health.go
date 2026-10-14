@@ -9,8 +9,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"example.org/resilient-proxy/internal/xray"
 	"fmt"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 	"io"
 	"net"
 	"net/http"
@@ -280,7 +280,7 @@ func (runtime *xraySelectorRuntime) Select(selector, member string) (selectionEr
 	}
 	if policySelector {
 		if fallback := runtime.pool.HealthPolicies[selector].WANFallbackSelector; fallback != "" {
-			if err := runtime.setRuleFallbackMember(fallback, runtimeMember); err != nil {
+			if err := runtime.reconcileFallbackSelection(selector, fallback, runtimeMember); err != nil {
 				return err
 			}
 		}

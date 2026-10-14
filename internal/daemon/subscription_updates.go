@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
 type SubscriptionUpdate struct {

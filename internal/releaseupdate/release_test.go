@@ -3,7 +3,10 @@ package releaseupdate
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -24,11 +27,16 @@ func (f fixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { r
 func fixtureSource(t *testing.T, body []byte) (*Source, Choice, *Manifest, *[]githubRelease) {
 	t.Helper()
 	sum := sha256.Sum256(body)
-	choice := Choice{Version: "0.1.0-r85", Tag: "v0.1.0-rc.1", Available: true, CheckedAt: time.Now().UTC(), Asset: Asset{Arch: "aarch64_generic", Name: "sb-gateway-openwrt-0.1.0-r85-aarch64_generic.apk", Size: int64(len(body)), SHA256: hex.EncodeToString(sum[:])}}
+	choice := Choice{Version: "0.1.2", Tag: "v0.1.2", Available: true, CheckedAt: time.Now().UTC(), Asset: Asset{Arch: "aarch64_generic", Name: "sb-gateway-openwrt-0.1.2-aarch64_generic.apk", Size: int64(len(body)), SHA256: hex.EncodeToString(sum[:])}}
 	choice.URL = assetURL(choice.Tag, choice.Asset.Name)
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 	manifest := &Manifest{Schema: 1, Version: choice.Version, Tag: choice.Tag, Assets: []Asset{choice.Asset}}
-	releases := []githubRelease{{Tag: choice.Tag, PublishedAt: time.Now().UTC(), Assets: []githubAsset{{Name: "release.json", URL: assetURL(choice.Tag, "release.json"), State: "uploaded", Size: 500}, {Name: choice.Asset.Name, URL: choice.URL, State: "uploaded", Size: choice.Asset.Size}}}}
+	releases := []githubRelease{{Tag: choice.Tag, PublishedAt: time.Now().UTC(), Assets: []githubAsset{{Name: "release.json.sig", URL: assetURL(choice.Tag, "release.json.sig"), State: "uploaded", Size: 89}, {Name: "release.json", URL: assetURL(choice.Tag, "release.json"), State: "uploaded", Size: 500}, {Name: choice.Asset.Name, URL: choice.URL, State: "uploaded", Size: choice.Asset.Size}}}}
 	s := NewSource()
+	s.SigningKey = public
 	s.Compare = func(_ context.Context, a, b string) (bool, error) { return a != b && a == choice.Version, nil }
 	s.Client.Transport = fixtureTransport(func(r *http.Request) (*http.Response, error) {
 		var payload []byte
@@ -37,6 +45,9 @@ func fixtureSource(t *testing.T, body []byte) (*Source, Choice, *Manifest, *[]gi
 			payload, _ = json.Marshal(releases)
 		case assetURL(choice.Tag, "release.json"):
 			payload, _ = json.Marshal(manifest)
+		case assetURL(choice.Tag, "release.json.sig"):
+			data, _ := json.Marshal(manifest)
+			payload = []byte(base64.StdEncoding.EncodeToString(ed25519.Sign(private, data)) + "\n")
 		case choice.URL:
 			payload = body
 		default:
@@ -46,12 +57,12 @@ func fixtureSource(t *testing.T, body []byte) (*Source, Choice, *Manifest, *[]gi
 	})
 	return s, choice, manifest, &releases
 }
-func TestFirstPrereleaseAndCurrentVersion(t *testing.T) {
+func TestStableReleaseAndCurrentVersion(t *testing.T) {
 	s, choice, _, _ := fixtureSource(t, []byte("fixture APK"))
 	installed := Installed{Name: "sb-gateway-openwrt", Version: "0.1.0-r84", Arch: "aarch64_generic"}
 	got, e := s.Check(context.Background(), installed)
 	if e != nil || !got.Available || got.Asset != choice.Asset {
-		t.Fatalf("prerelease not offered: %+v %v", got, e)
+		t.Fatalf("stable release not offered: %+v %v", got, e)
 	}
 	installed.Version = choice.Version
 	got, e = s.Check(context.Background(), installed)
@@ -60,19 +71,21 @@ func TestFirstPrereleaseAndCurrentVersion(t *testing.T) {
 	}
 }
 func TestInvalidOrMissingReleaseCannotBeInstalled(t *testing.T) {
-	for _, test := range []string{"draft", "missing-apk", "other-repository", "wrong-size", "path-traversal", "bad-hash", "wrong-schema", "other-tag", "unsupported-arch"} {
+	for _, test := range []string{"draft", "prerelease", "missing-apk", "other-repository", "wrong-size", "path-traversal", "bad-hash", "wrong-schema", "other-tag", "unsupported-arch"} {
 		t.Run(test, func(t *testing.T) {
 			s, _, m, releases := fixtureSource(t, []byte("fixture APK"))
 			installed := Installed{Name: "sb-gateway-openwrt", Version: "0.1.0-r84", Arch: "aarch64_generic"}
 			switch test {
 			case "draft":
 				(*releases)[0].Draft = true
+			case "prerelease":
+				(*releases)[0].Prerelease = true
 			case "missing-apk":
-				(*releases)[0].Assets = (*releases)[0].Assets[:1]
+				(*releases)[0].Assets = (*releases)[0].Assets[:2]
 			case "other-repository":
-				(*releases)[0].Assets[1].URL = "https://github.com/other/repo/evil.apk"
+				(*releases)[0].Assets[2].URL = "https://github.com/other/repo/evil.apk"
 			case "wrong-size":
-				(*releases)[0].Assets[1].Size++
+				(*releases)[0].Assets[2].Size++
 			case "path-traversal":
 				m.Assets[0].Name = "../payload.apk"
 			case "bad-hash":
@@ -85,7 +98,7 @@ func TestInvalidOrMissingReleaseCannotBeInstalled(t *testing.T) {
 				installed.Arch = "arm_cortex-a7"
 			}
 			got, e := s.Check(context.Background(), installed)
-			if got.Available || (e == nil && test != "draft") {
+			if got.Available || (e == nil && test != "draft" && test != "prerelease") {
 				t.Fatalf("unsafe release accepted: %+v %v", got, e)
 			}
 		})
@@ -187,5 +200,59 @@ func TestUpdateSkipsIntermediateVersions(t *testing.T) {
 				t.Fatalf("intermediate update required: %+v %v", got, err)
 			}
 		})
+	}
+}
+
+func TestReleaseSignatureCannotBeReplacedByGitHubMetadata(t *testing.T) {
+	for _, failure := range []string{"unsigned", "wrong-key", "tampered-manifest", "tampered-signature"} {
+		t.Run(failure, func(t *testing.T) {
+			s, choice, _, releases := fixtureSource(t, []byte("fixture APK"))
+			if failure == "unsigned" {
+				(*releases)[0].Assets = (*releases)[0].Assets[1:]
+			}
+			if failure == "wrong-key" {
+				key, _, err := ed25519.GenerateKey(rand.Reader)
+				if err != nil {
+					t.Fatal(err)
+				}
+				s.SigningKey = key
+			}
+			original := s.Client.Transport
+			s.Client.Transport = fixtureTransport(func(r *http.Request) (*http.Response, error) {
+				response, err := original.RoundTrip(r)
+				if err != nil {
+					return nil, err
+				}
+				if failure == "tampered-manifest" && r.URL.String() == assetURL(choice.Tag, "release.json") {
+					b, _ := io.ReadAll(response.Body)
+					response.Body.Close()
+					b = append(b, ' ')
+					response.Body = io.NopCloser(bytes.NewReader(b))
+				}
+				if failure == "tampered-signature" && r.URL.String() == assetURL(choice.Tag, "release.json.sig") {
+					response.Body.Close()
+					response.Body = io.NopCloser(strings.NewReader(strings.Repeat("A", 88)))
+				}
+				return response, nil
+			})
+			got, err := s.Check(context.Background(), Installed{Name: "sb-gateway-openwrt", Version: "0.1.1", Arch: "aarch64_generic"})
+			if err == nil || got.Available {
+				t.Fatalf("unauthenticated update offered: %+v %v", got, err)
+			}
+		})
+	}
+}
+
+func TestUnsignedReleaseIsNotOfferedAsAnUpdate(t *testing.T) {
+	source, choice, _, releases := fixtureSource(t, []byte("fixture APK"))
+	(*releases)[0].Assets = (*releases)[0].Assets[1:]
+	installed := Installed{Name: "sb-gateway-openwrt", Version: choice.Version, Arch: "aarch64_generic"}
+	got, err := source.Check(context.Background(), installed)
+	if err != nil || got.Available {
+		t.Fatal("current unsigned historical release broke update check", got, err)
+	}
+	installed.Version = "0.1.1"
+	if _, err := source.Check(context.Background(), installed); err == nil {
+		t.Fatal("new unsigned update accepted")
 	}
 }

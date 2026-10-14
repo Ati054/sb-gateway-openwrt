@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"example.org/resilient-proxy/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
 func startupRoutesConfirmed(body []byte, config settings.Config) bool {

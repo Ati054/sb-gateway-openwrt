@@ -1,7 +1,7 @@
 package selection
 
 import (
-	"example.org/resilient-proxy/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
 	"fmt"
 	"testing"
 )

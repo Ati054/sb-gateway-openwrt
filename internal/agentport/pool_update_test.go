@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"example.org/resilient-proxy/internal/catalog"
-	"example.org/resilient-proxy/internal/health"
-	"example.org/resilient-proxy/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/health"
+	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
 func TestPoolHealthEditKeepsPublishedGenerationAndRejectsCancellation(t *testing.T) {

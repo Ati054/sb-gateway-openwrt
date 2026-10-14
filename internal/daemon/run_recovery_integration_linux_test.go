@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"example.org/resilient-proxy/internal/xray"
+	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
 // Exercise the whole daemon event loop, which must not compete with the
