@@ -299,10 +299,12 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	background.Add(2)
 	defer func() { cancelRun(); background.Wait() }()
 	go func() { defer background.Done(); runGeoIPCleanup(ctx, paths) }()
-	go func() {
+	// Copy the initial configuration before scheduling the worker: the main
+	// refresh loop replaces its own config variable with live snapshots.
+	go func(initial settings.Config) {
 		defer background.Done()
-		runRulesetUpdates(ctx, config, paths, manager, rulesetSnapshot, routingBase, updateDNS)
-	}()
+		runRulesetUpdates(ctx, initial, paths, manager, rulesetSnapshot, routingBase, updateDNS)
+	}(config)
 	watchdogSelector := "resproxy-" + config.Base.DefaultPolicy
 	background.Add(2)
 	go func() {
