@@ -52,16 +52,16 @@ ssh root@192.168.1.1 "wget -O /tmp/sb-gateway-install.sh https://raw.githubuserc
    ssh root@192.168.1.1 "cat /etc/apk/arch"
    ```
 
-2. В [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases) скачайте APK с такой же архитектурой в названии. Например, для `aarch64_cortex-a53` — файл, оканчивающийся на `-aarch64_cortex-a53.apk`. Сохраните его на ПК как `sb-gateway.apk`.
+2. В [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases) скачайте APK с такой же архитектурой в названии. Например, для `aarch64_cortex-a53` — файл, оканчивающийся на `-aarch64_cortex-a53.apk`. Сохраните его на ПК как `sb-gateway.apk`. В ту же папку скачайте [ключ подписи проекта](https://raw.githubusercontent.com/Ati054/sb-gateway-openwrt/main/files/update-key.pub) с именем `ati054-sb-gateway.rsa.pub`.
 3. Откройте папку с файлом в Проводнике, нажмите правой кнопкой по пустому месту → **Открыть в терминале**. Выберите PowerShell. В Windows 10: **Shift + правая кнопка → Открыть окно PowerShell здесь**.
-4. Передайте файл на роутер и установите:
+4. Передайте APK и ключ на роутер, добавьте ключ и установите пакет:
 
    ```powershell
-   scp -O .\sb-gateway.apk root@192.168.1.1:/tmp/sb-gateway.apk
-   ssh root@192.168.1.1 "apk --no-cache add --allow-untrusted /tmp/sb-gateway.apk"
+   scp -O .\sb-gateway.apk .\ati054-sb-gateway.rsa.pub root@192.168.1.1:/tmp/
+   ssh root@192.168.1.1 "mkdir -p /etc/apk/keys && cp /tmp/ati054-sb-gateway.rsa.pub /etc/apk/keys/ati054-sb-gateway.rsa.pub && apk --no-cache add /tmp/sb-gateway.apk"
    ```
 
-`-O` включает SCP для Dropbear, а `--allow-untrusted` разрешает установку этого APK без подписи OpenWrt. Зависимости устанавливаются из репозиториев OpenWrt.
+`-O` включает SCP для Dropbear. Подпись APK проверяется ключом проекта; зависимости устанавливаются из репозиториев OpenWrt.
 
 Ключ проекта устанавливается в `/etc/apk/keys`: APK доверяет любому пакету, подписанному этим ключом.
 

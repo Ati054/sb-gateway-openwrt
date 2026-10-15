@@ -167,3 +167,40 @@ func TestSystemDNSDoesNotBypassExternalResolverTraffic(t *testing.T) {
 		t.Fatal("system DNS or traffic capture missing")
 	}
 }
+
+// The same guard must survive recovery without adding DNS redirects before
+// the listener is ready, and must not reserve a port in system-DNS mode.
+func TestDNSInputGuardLifecycle(t *testing.T) {
+	for _, mode := range []string{"proxy", "direct", "block"} {
+		p, _ := New(mode, nil)
+		p.DNSListenerPort = 1053
+		ready, err := Render("br-lan", 12345, 1053, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		recovering, err := RenderEmergency("br-lan", 12345, p, []EmergencyPolicy{{AllowWAN: true}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, body := range []string{ready, recovering} {
+			if strings.Count(body, `iifname != { "lo", "br-lan" } meta l4proto { tcp, udp } th dport 1053 counter drop`) != 2 {
+				t.Fatal("DNS input must be protected in both address families")
+			}
+		}
+		if strings.Contains(recovering, "redirect to :1053") {
+			t.Fatal("recovery guard redirects to a listener before readiness")
+		}
+		system, err := Render("br-lan", 12345, 0, Policy{IPv6Mode: mode})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(system, "th dport 1053") {
+			t.Fatal("system DNS mode reserves another resolver's port")
+		}
+	}
+	for _, port := range []int{-1, 53, 65536, 12345} {
+		if _, err := RenderEmergency("br-lan", 12345, Policy{DNSListenerPort: port}, []EmergencyPolicy{{}}); err == nil {
+			t.Fatalf("invalid protected DNS port %d accepted", port)
+		}
+	}
+}

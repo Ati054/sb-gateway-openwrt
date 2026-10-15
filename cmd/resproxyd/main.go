@@ -90,6 +90,9 @@ func execute(arguments []string) error {
 			// Recovery may follow a live capture edit; use the same current UCI
 			// snapshot for source authorization and destination/ping exceptions.
 			config.Capture.Automatic = policy.Automatic
+			if config.DNSMode != "system" {
+				config.Capture.DNSListenerPort = config.DNSPort
+			}
 			body, err = capture.RenderEmergency(arguments[1], port, config.Capture, scopes)
 		} else {
 			body, err = capture.Render(arguments[1], port, dnsPort, policy)

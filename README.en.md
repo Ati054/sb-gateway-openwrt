@@ -52,16 +52,16 @@ The installer detects the architecture, checks available space, downloads the la
    ssh root@192.168.1.1 "cat /etc/apk/arch"
    ```
 
-2. Download the APK with the matching architecture from [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases). For example, `aarch64_cortex-a53` needs the file ending in `-aarch64_cortex-a53.apk`. Save it on your PC as `sb-gateway.apk`.
+2. Download the APK with the matching architecture from [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases). For example, `aarch64_cortex-a53` needs the file ending in `-aarch64_cortex-a53.apk`. Save it on your PC as `sb-gateway.apk`. Download the [project signing key](https://raw.githubusercontent.com/Ati054/sb-gateway-openwrt/main/files/update-key.pub) into the same folder as `ati054-sb-gateway.rsa.pub`.
 3. Open the folder in File Explorer, right-click an empty area, and select **Open in Terminal**. Select PowerShell. On Windows 10: **Shift + right-click → Open PowerShell window here**.
-4. Transfer the file to the router, then install it:
+4. Transfer the APK and key, add the key, and install the package:
 
    ```powershell
-   scp -O .\sb-gateway.apk root@192.168.1.1:/tmp/sb-gateway.apk
-   ssh root@192.168.1.1 "apk --no-cache add --allow-untrusted /tmp/sb-gateway.apk"
+   scp -O .\sb-gateway.apk .\ati054-sb-gateway.rsa.pub root@192.168.1.1:/tmp/
+   ssh root@192.168.1.1 "mkdir -p /etc/apk/keys && cp /tmp/ati054-sb-gateway.rsa.pub /etc/apk/keys/ati054-sb-gateway.rsa.pub && apk --no-cache add /tmp/sb-gateway.apk"
    ```
 
-`-O` uses SCP with Dropbear; `--allow-untrusted` allows this APK to be installed without an OpenWrt signature. Dependencies are installed from OpenWrt repositories.
+`-O` uses SCP with Dropbear. The APK signature is checked with the project key; dependencies are installed from OpenWrt repositories.
 
 The project key is installed in `/etc/apk/keys`: APK trusts any package signed by that key.
 

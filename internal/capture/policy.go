@@ -9,10 +9,12 @@ import (
 )
 
 type Policy struct {
-	IPv6Mode  string
-	BlockPing bool
-	DirectIPs []string
-	Automatic Inventory
+	// DNSListenerPort protects a listener during startup/recovery before redirects exist.
+	DNSListenerPort int
+	IPv6Mode        string
+	BlockPing       bool
+	DirectIPs       []string
+	Automatic       Inventory
 }
 
 func New(mode string, values []string) (Policy, error) {
@@ -71,7 +73,8 @@ func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
 
 func render(iface string, port, dnsPort int, policy Policy, emergency []EmergencyPolicy) (string, error) {
 	if !interfaceName.MatchString(iface) || port < 1024 || port > 65535 ||
-		dnsPort != 0 && (dnsPort < 1024 || dnsPort > 65535 || dnsPort == port) {
+		dnsPort != 0 && (dnsPort < 1024 || dnsPort > 65535 || dnsPort == port) ||
+		policy.DNSListenerPort != 0 && (policy.DNSListenerPort < 1024 || policy.DNSListenerPort > 65535 || policy.DNSListenerPort == port) {
 		return "", errors.New("invalid capture interface or ports")
 	}
 	normalized, err := New(policy.IPv6Mode, policy.DirectIPs)
@@ -232,6 +235,15 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 		}
 		b.WriteString("\tchain input {\n\t\ttype filter hook input priority filter - 1; policy accept;\n")
 		fmt.Fprintf(&b, "\t\tmeta mark != 0x5253 meta l4proto { tcp, udp } th dport %d counter drop\n", port)
+		listenerPort := dnsPort
+		if policy.DNSListenerPort != 0 {
+			listenerPort = policy.DNSListenerPort
+		}
+		if listenerPort != 0 {
+			// Enforce ingress independently of fw4 zone defaults and conntrack accepts.
+			// Router dnsmasq uses loopback; redirected client queries retain LAN ingress.
+			fmt.Fprintf(&b, "\t\tiifname != { \"lo\", %q } meta l4proto { tcp, udp } th dport %d counter drop\n", iface, listenerPort)
+		}
 		b.WriteString("\t}\n}\n")
 	}
 	return b.String(), nil

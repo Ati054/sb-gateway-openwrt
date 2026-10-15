@@ -1,5 +1,6 @@
 // Package dnsproxy serves LAN DNS without changing the router's system DNS.
-// Only packets redirected from the configured LAN bridge reach this listener.
+// The daemon installs an input guard before opening the listener: only the
+// configured LAN bridge and loopback may reach it, independently of fw4 zones.
 package dnsproxy
 
 import (
