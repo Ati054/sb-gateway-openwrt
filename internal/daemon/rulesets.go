@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,10 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"time"
 
 	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
 	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
+	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
 	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
@@ -46,6 +50,8 @@ func withRulesets(base xray.BaseConfig, policies []settings.Policy, snapshot rul
 		assetRoot = assetRoots[0]
 	}
 	refs := make(map[string]string)
+	countryDomains := make(map[string][]string)
+	serviceDomains := make(map[string][]string)
 	base.Policies = append([]xray.BasePolicy(nil), base.Policies...)
 	for index := range base.Policies {
 		if index >= len(policies) || base.Policies[index].ID != policies[index].ID {
@@ -54,9 +60,33 @@ func withRulesets(base xray.BaseConfig, policies []settings.Policy, snapshot rul
 		base.Policies[index].Rules = append([]xray.RouteRule(nil), base.Policies[index].Rules...)
 		for ruleIndex := range base.Policies[index].Rules {
 			rule := &base.Policies[index].Rules[ruleIndex]
-			serviceExpressions, err := rulesets.Expressions(rule.ServicePacks, snapshot)
-			if err != nil {
-				return xray.BaseConfig{}, err
+			selectedPacks := append([]string(nil), rule.ServicePacks...)
+			sort.Strings(selectedPacks)
+			var serviceExpressions []string
+			for _, packID := range selectedPacks {
+				expressions, found := serviceDomains[packID]
+				if !found {
+					if ref := snapshot.Packs[packID].Reference; ref != "" && assetRoot != "" {
+						if err := geoipasset.VerifyDomain(assetRoot, ref); err != nil {
+							return xray.BaseConfig{}, err
+						}
+					}
+					var err error
+					expressions, err = rulesets.Expressions([]string{packID}, snapshot)
+					if err != nil {
+						return xray.BaseConfig{}, err
+					}
+					if assetRoot != "" && len(expressions) > 0 && snapshot.Packs[packID].Reference == "" {
+						sum := sha256.Sum256([]byte(packID))
+						ref, err := geoipasset.PublishDomains(assetRoot, "service-"+hex.EncodeToString(sum[:12]), expressions)
+						if err != nil {
+							return xray.BaseConfig{}, err
+						}
+						expressions = []string{ref}
+					}
+					serviceDomains[packID] = expressions
+				}
+				serviceExpressions = append(serviceExpressions, expressions...)
 			}
 			serviceIPs, err := rulesets.ServiceCIDRs(rule.ServicePacks)
 			if err != nil {
@@ -69,7 +99,24 @@ func withRulesets(base xray.BaseConfig, policies []settings.Policy, snapshot rul
 			}
 			country := snapshot.Countries[rule.Country]
 			if rule.UseGeosite {
-				rule.CountryDomains = rulesets.GeoSiteExpressions(country.Geosite)
+				expressions, found := countryDomains[rule.Country]
+				if !found {
+					if ref := country.Geosite.Reference; ref != "" && assetRoot != "" {
+						if err := geoipasset.VerifyDomain(assetRoot, ref); err != nil {
+							return xray.BaseConfig{}, err
+						}
+					}
+					expressions = rulesets.GeoSiteExpressions(country.Geosite)
+					if assetRoot != "" && len(expressions) > 0 && country.Geosite.Reference == "" {
+						ref, err := geoipasset.PublishDomains(assetRoot, rule.Country, expressions)
+						if err != nil {
+							return xray.BaseConfig{}, err
+						}
+						expressions = []string{ref}
+					}
+					countryDomains[rule.Country] = expressions
+				}
+				rule.CountryDomains = expressions
 			}
 			if rule.UseGeoIP {
 				if assetRoot != "" && len(country.GeoIP) > 0 {
@@ -160,9 +207,19 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 			continue
 		}
 		next = time.Now().Add(time.Duration(config.RulesetUpdateSeconds) * time.Second)
+		release, leaseErr := resources.BeginUpdate(ctx)
+		if leaseErr != nil {
+			return
+		}
 		candidate, packStatuses, err := rulesets.BuildSelected(ctx, selected, countries, current,
 			rulesets.HTTPFetch(20*time.Second), rulesets.GeoSiteReleaseHTTPFetch(30*time.Second),
 			rulesets.GeoIPHTTPFetch(20*time.Second))
+		if err == nil {
+			candidate, _, err = compactRulesetSnapshot(candidate, filepath.Join(paths.DataRoot, "geoip-assets"))
+			if err == nil {
+				unchangedDomainStatuses(current, candidate, packStatuses)
+			}
+		}
 		for _, pack := range packStatuses {
 			if pack.Error != "" && pack.Entries == 0 {
 				next = time.Now().Add(5 * time.Minute)
@@ -238,6 +295,7 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 				log.Printf("resproxy: ruleset status unavailable: %v", writeErr)
 			}
 		}
+		release()
 	}
 }
 

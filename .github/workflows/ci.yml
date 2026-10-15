@@ -35,7 +35,7 @@ jobs:
           curl -fsSL --retry 2 --max-time 60 -o third_party/xray-core/resources/geosite.dat https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
           curl -fsSL --retry 2 --max-time 60 -o third_party/xray-core/resources/geoip.dat https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
           cd third_party/xray-core
-          go test ./app/router ./app/dispatcher ./app/proxyman/outbound ./transport/internet/tls ./transport/internet/reality ./transport/internet/hysteria ./transport/internet/grpc ./transport/internet/splithttp ./proxy/vless/outbound
+          go test ./common/geodata/... ./app/router ./app/dispatcher ./app/proxyman/inbound ./app/proxyman/outbound ./transport/internet/tls ./transport/internet/reality ./transport/internet/hysteria ./transport/internet/grpc ./transport/internet/splithttp ./proxy/vless/outbound
       - name: Vet
         run: go vet -mod=vendor ./...
       - name: Race checks
@@ -60,3 +60,20 @@ jobs:
           if [ "$pinned" != "$current" ]; then
             echo "::warning::Xray upstream has changed since $pinned. Review upstream fixes before the next release."
           fi
+
+  ui-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Install browser test dependencies
+        run: |
+          npm install --prefix /tmp/sbg-ui --no-save --package-lock=false playwright@1.64.1
+          node /tmp/sbg-ui/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Verify text rendering against stock LuCI
+        env:
+          PLAYWRIGHT_MODULE: /tmp/sbg-ui/node_modules/playwright
+        run: |
+          curl -fsSL --retry 2 --max-time 60 -o /tmp/luci.js https://raw.githubusercontent.com/openwrt/luci/128a7812f4be233c5dd7f7466f534fd888785caf/modules/luci-base/htdocs/luci-static/resources/luci.js
+          echo 'a8fd2e9100249f54e64def80bf96d43a03b5af6a3f86a9f151d898994a1e1966  /tmp/luci.js' | sha256sum -c -
+          node tools/test-luci-dom.mjs /tmp/luci.js

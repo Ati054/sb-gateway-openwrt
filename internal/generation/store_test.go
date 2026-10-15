@@ -136,3 +136,27 @@ func TestPruneOnlyRemovesOldStagingDirectories(t *testing.T) {
 		}
 	}
 }
+
+func TestUnchangedPublicationDoesNotRewriteFlashPointer(t *testing.T) {
+	store := Store{Root: t.TempDir()}
+	nodes := []catalog.Node{{ID: "a", SelectionIdentity: "stable", ProviderID: "test", Label: "Test", Protocol: "vless", Server: "example.test", Port: 443, Credentials: map[string]string{"uuid": "00000000-0000-4000-8000-000000000001"}}}
+	id, err := store.Stage(nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Publish(id); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(store.Root, "CURRENT")
+	before := time.Unix(1234, 0)
+	if err := os.Chtimes(path, before, before); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Publish(id); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(path)
+	if err != nil || !after.ModTime().Equal(before) {
+		t.Fatal("unchanged catalog rewrote pointer", err)
+	}
+}

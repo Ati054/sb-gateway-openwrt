@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
@@ -45,6 +46,7 @@ func (budget *coreRecoveryBudget) verified(now time.Time) { budget.stableSince =
 // cancels in-flight calls before a new child is admitted. No second controller
 // or telemetry cache is created, and the old child's Wait completes first.
 type supervisedCore struct {
+	onOOM           func()
 	mu              sync.RWMutex
 	current         *runningCore
 	generation      context.Context
@@ -126,6 +128,15 @@ func (supervisor *supervisedCore) run(ctx context.Context, window time.Duration,
 		case <-ctx.Done():
 			return ctx.Err()
 		case cause = <-core.exited:
+			if resources.KernelKilledForOOM(core.pid, core.startedBoot) {
+				log.Printf("resproxy: Xray was killed by the kernel for out-of-memory (pid %d)", core.pid)
+				supervisor.mu.RLock()
+				onOOM := supervisor.onOOM
+				supervisor.mu.RUnlock()
+				if onOOM != nil {
+					onOOM()
+				}
+			}
 			if cause == nil {
 				cause = errors.New("core exited unexpectedly")
 			}

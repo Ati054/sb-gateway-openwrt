@@ -9,6 +9,9 @@
 'require ui';
 'require rpc';
 'require poll';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 var commitSourceSettings = rpc.declare({
  object: 'uci', method: 'commit', params: ['config'], reject: true

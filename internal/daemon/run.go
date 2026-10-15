@@ -21,6 +21,8 @@ import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
 	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
 	"github.com/Ati054/sb-gateway-openwrt/internal/refresh"
+	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
+	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
 	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
 	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
@@ -65,7 +67,10 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	if err := rejectOtherXray(); err != nil {
 		return err
 	}
-	rulesetSnapshot := loadRulesetSnapshot(paths)
+	rulesetSnapshot, compactedSnapshot, err := compactRulesetSnapshot(loadRulesetSnapshot(paths), filepath.Join(paths.DataRoot, "geoip-assets"))
+	if err != nil {
+		return fmt.Errorf("prepare shared domain assets: %w", err)
+	}
 	routingBase, err := withRulesets(config.Base, config.Policies, rulesetSnapshot, filepath.Join(paths.DataRoot, "geoip-assets"))
 	if err != nil {
 		return err
@@ -128,7 +133,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		return err
 	}
 	defer os.Remove(readyPath)
-	store := generation.Store{Root: paths.DataRoot}
+	store := generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}
 	poolPath := filepath.Join(paths.RunRoot, "health-pool.json")
 	_, nodes, err := store.Current()
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -248,7 +253,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		}
 		captureDNSPort = dnsPort
 		if !recoveringCapture {
-			if err := setFirewall(ctx, "apply", config.LANInterface, config.Base.TransparentPort, dnsPort, config.Capture); err != nil {
+			if err := waitInitialCapture(ctx, func(attempt context.Context) error {
+				return setFirewall(attempt, "apply", config.LANInterface, config.Base.TransparentPort, dnsPort, config.Capture)
+			}, 2*time.Second); err != nil {
 				return fmt.Errorf("enable LAN capture: %w", err)
 			}
 		}
@@ -275,8 +282,16 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	}
 	defer stopReload()
 	progress := newHealthProgress()
+	supervisor.mu.Lock()
+	supervisor.onOOM = func() {
+		if body, err := json.Marshal(time.Now().UTC()); err == nil {
+			_ = os.WriteFile(filepath.Join(paths.RunRoot, "last-oom.json"), body, 0600)
+		}
+	}
+	supervisor.mu.Unlock()
 	healthOptions := agentport.Options{
 		OnProgress:      progress.mark,
+		BackgroundBusy:  resources.UpdateInProgress,
 		XrayProcessName: engine.processName, RunXrayCommand: supervisor.Command,
 		PrepareOutbound: plugins.Prepare, ReleaseOutbound: plugins.Release,
 		StateRoot:  filepath.Join(paths.RunRoot, "health-state"),
@@ -295,14 +310,22 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			return agentport.RunHealth(ctx, healthOptions)
 		})
 	}()
+	updatesReady := make(chan struct{})
 	var background sync.WaitGroup
-	background.Add(2)
+	background.Add(3)
+	go func() { defer background.Done(); monitorResources(ctx, paths, supervisor) }()
 	defer func() { cancelRun(); background.Wait() }()
 	go func() { defer background.Done(); runGeoIPCleanup(ctx, paths) }()
 	// Copy the initial configuration before scheduling the worker: the main
 	// refresh loop replaces its own config variable with live snapshots.
 	go func(initial settings.Config) {
 		defer background.Done()
+		select {
+		case <-ctx.Done():
+			return
+		case <-updatesReady:
+		}
+
 		runRulesetUpdates(ctx, initial, paths, manager, rulesetSnapshot, routingBase, updateDNS)
 	}(config)
 	watchdogSelector := "resproxy-" + config.Base.DefaultPolicy
@@ -388,7 +411,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		return err
 	}
 	if config.RouteEnabled && recoveringCapture {
-		if err := setFirewall(ctx, "apply", config.LANInterface, config.Base.TransparentPort, captureDNSPort, config.Capture); err != nil {
+		if err := waitInitialCapture(ctx, func(attempt context.Context) error {
+			return setFirewall(attempt, "apply", config.LANInterface, config.Base.TransparentPort, captureDNSPort, config.Capture)
+		}, 2*time.Second); err != nil {
 			return fmt.Errorf("restore recovered LAN capture: %w", err)
 		}
 		if err := os.Remove(crashFallbackFile(paths)); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -405,6 +430,13 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		return err
 	}
 	defer os.Remove(filepath.Join(paths.RunRoot, "daemon.pid"))
+	if compactedSnapshot {
+		if err := rulesets.Save(rulesetSnapshotPath(paths), rulesetSnapshot); err != nil {
+			log.Printf("resproxy: domain cache migration not persisted: %v", err)
+		}
+	}
+
+	close(updatesReady)
 	service := &refresh.Service{Store: store, Runtime: manager,
 		AfterSwitch: func(previous, next []catalog.Node) (func() error, error) {
 			if err := control.publishPool(poolPath, next); err != nil {
@@ -651,6 +683,11 @@ func dnsPoliciesFromBase(base xray.BaseConfig) []dnsproxy.Policy {
 }
 
 func refreshOnce(ctx context.Context, source settings.Subscription, config settings.Config, paths Paths, service *refresh.Service, manager *xray.Manager, previousETag string, probeCursor *int) (string, string, error) {
+	release, leaseErr := resources.BeginUpdate(ctx)
+	if leaseErr != nil {
+		return "", "", leaseErr
+	}
+	defer release()
 	_, existing, currentErr := service.Store.Current()
 	proxyAvailable := currentErr == nil && len(existing) > 0
 	ports := fetchPorts(source.FetchVia, proxyAvailable, config.Base.HTTPPort)

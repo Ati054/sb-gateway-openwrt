@@ -29,12 +29,14 @@ type dnsmasqOwnedState struct {
 	RemovedDefaults []string `json:"removed_defaults,omitempty"`
 }
 type dnsmasqHandoffOps struct {
-	LANInterface string
-	get          func(string) (string, error)
-	action       func(...string) error
-	restart      func() error
-	sections     func() ([]string, error)
-	scoped       func(string) dnsmasqHandoffOps
+	LANInterface   string
+	OwnPort        int
+	ensureRecovery func() error
+	get            func(string) (string, error)
+	action         func(...string) error
+	restart        func() error
+	sections       func() ([]string, error)
+	scoped         func(string) dnsmasqHandoffOps
 }
 
 var dnsmasqSectionName = regexp.MustCompile(`^(?:[A-Za-z0-9_]{1,64}|@dnsmasq\[[0-9]{1,3}\])$`)
@@ -74,6 +76,18 @@ func systemDNSMasqOpsWithContext(parent context.Context) dnsmasqHandoffOps {
 		}
 	}
 	ops := scope("@dnsmasq[0]")
+	// A fresh install must not treat another resolver using port 1053 as ours.
+	// Marker-less repair is allowed only after the user authorized DNS handoff.
+	if confirmed, err := run("uci", "-q", "get", "resproxy.main.dns_handoff_confirmed"); err == nil && strings.TrimSpace(string(confirmed)) == "1" {
+		ops.OwnPort = 1053
+		if data, err := run("uci", "-q", "get", "resproxy.main.dns_port"); err == nil {
+			if port, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && port >= 1024 && port <= 65535 {
+				ops.OwnPort = port
+			}
+		}
+	}
+
+	ops.ensureRecovery = ensureDNSBootRecovery
 	ops.scoped = scope
 	ops.sections = func() ([]string, error) {
 		data, err := run("uci", "-X", "show", "dhcp")
@@ -169,6 +183,15 @@ func prepareDNSMasq(section string, port int, ops dnsmasqHandoffOps) (dnsmasqOwn
 	}
 	state := dnsmasqOwnedState{Section: section, HadNoResolv: noErr == nil, NoResolv: noresolv, Server: fmt.Sprintf("127.0.0.1#%d", port)}
 	for _, server := range strings.Fields(servers) {
+		if server == state.Server {
+			// A previous release changed DHCP but its ownership marker was lost.
+			// Never preserve our own dead forwarder as a user's upstream.
+			if noresolv == "1" {
+				state.HadNoResolv = false
+				state.NoResolv = ""
+			}
+			continue
+		}
 		if !strings.HasPrefix(server, "/") {
 			state.RemovedDefaults = append(state.RemovedDefaults, server)
 		}
@@ -185,6 +208,15 @@ func acquireDNSMasqHandoff(path string, port int, ops dnsmasqHandoffOps) error {
 	if _, err := os.Stat(path); err == nil {
 		return errors.New("previous dnsmasq handoff must be restored first")
 	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if ops.ensureRecovery != nil {
+		if err := ops.ensureRecovery(); err != nil {
+			return err
+		}
+	}
+	ops.OwnPort = port
+	if err := repairOrphanedDNSMasq(path, ops); err != nil {
 		return err
 	}
 	names := []string{"@dnsmasq[0]"}
@@ -261,7 +293,7 @@ func acquireDNSMasqHandoff(path string, port int, ops dnsmasqHandoffOps) error {
 func restoreDNSMasqHandoff(path string, ops dnsmasqHandoffOps) error {
 	content, err := readDNSMarker(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return repairOrphanedDNSMasq(path, ops)
 	}
 	if err != nil {
 		return err
@@ -283,6 +315,15 @@ func restoreDNSMasqHandoff(path string, ops dnsmasqHandoffOps) error {
 	}
 	if len(state.Sections) > 32 {
 		return errors.New("invalid DNS handoff section count")
+	}
+	for index := range state.Sections {
+		item := &state.Sections[index]
+		for _, old := range item.RemovedDefaults {
+			if old == item.Server && item.NoResolv == "1" {
+				item.HadNoResolv = false
+				item.NoResolv = ""
+			}
+		}
 	}
 	for _, item := range state.Sections {
 		port, err := strconv.Atoi(strings.TrimPrefix(item.Server, "127.0.0.1#"))
@@ -363,7 +404,7 @@ func restoreDNSMasqHandoff(path string, ops dnsmasqHandoffOps) error {
 			changed = true
 		}
 		for _, old := range item.RemovedDefaults {
-			if !present[old] {
+			if old != item.Server && !present[old] {
 				if err := scoped.action("add_list", prefix+"server="+old); err != nil {
 					return err
 				}

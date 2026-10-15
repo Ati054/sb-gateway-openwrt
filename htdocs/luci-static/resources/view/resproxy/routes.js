@@ -9,6 +9,9 @@
 'require fs';
 'require ui';
 'require rpc';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 function values(value) {
 	if (!value)

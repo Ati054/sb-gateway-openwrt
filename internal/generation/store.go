@@ -19,7 +19,10 @@ import (
 
 const maxGenerationBytes = 16 << 20
 
-type Store struct{ Root string }
+type Store struct {
+	Root         string
+	MetadataRoot string
+}
 
 // Stage writes a complete, content-addressed generation. The public catalog
 // and private credentials are separate files; neither becomes current until
@@ -84,6 +87,11 @@ func (s Store) Publish(id string) error {
 	if _, err := s.Load(id); err != nil {
 		return err
 	}
+	// Rechecking an identical subscription must not rewrite a flash pointer.
+	if current, err := os.ReadFile(filepath.Join(s.Root, "CURRENT")); err == nil && strings.TrimSpace(string(current)) == id {
+		return nil
+	}
+
 	if err := os.MkdirAll(s.Root, 0o700); err != nil {
 		return err
 	}
@@ -121,6 +129,9 @@ func (s Store) Current() (string, []catalog.Node, error) {
 	}
 	id := strings.TrimSpace(string(body))
 	nodes, err := s.Load(id)
+	if err == nil {
+		s.applyMetadata(id, nodes)
+	}
 	return id, nodes, err
 }
 

@@ -84,9 +84,12 @@ func Publish(root, id string, body []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return publishEncoded(root, "geoip", strings.TrimPrefix(id, "geoip-"), data)
+}
+
+func publishEncoded(root, kind, code string, data []byte) (string, error) {
 	sum := sha256.Sum256(data)
-	code := strings.TrimPrefix(id, "geoip-")
-	name := "sb-geoip-" + code + "-" + hex.EncodeToString(sum[:]) + ".dat"
+	name := "sb-" + kind + "-" + code + "-" + hex.EncodeToString(sum[:]) + ".dat"
 	publication.Lock()
 	defer publication.Unlock()
 	if err := os.MkdirAll(root, 0700); err != nil {
@@ -141,7 +144,9 @@ func ReferenceName(reference string) (string, bool) {
 	return parts[1], match != nil && match[1] == parts[2]
 }
 
-func IsManagedName(name string) bool { return namePattern.MatchString(name) }
+func IsManagedName(name string) bool {
+	return namePattern.MatchString(name) || domainNamePattern.MatchString(name)
+}
 
 // Verify checks a persisted reference without loading its database into Go RAM.
 func Verify(root, reference string) error {

@@ -18,7 +18,7 @@ Route devices and services through proxies with automatic node selection. Config
 - **All proxies unavailable:** an independent rule-database setting blocks proxy traffic or temporarily sends it through WAN. Available for preset variants and custom rules; selected cards keep their separate routing action. Traffic returns to the proxy when a node recovers.
 - **System protocols:** local addresses, VPN routes, and direct IP exceptions take precedence over WAN restrictions. Multicast, broadcast, and related ICMP errors are preserved. WAN ping can be blocked; GRE/ESP are blocked outside exceptions. IPv6 direct mode does not restrict other protocols.
 - **DNS:** proxy and WAN resolvers, DoH/DoT, and device queries handled according to their route list and rules. DNS WAN fallback follows the rule’s proxy failure setting. An active external DNS service keeps OpenWrt DNS; handing over https-dns-proxy requires separate confirmation.
-- **Monitoring:** active nodes and backups, availability, HTTPS errors, latency, and differences between fresh measurements. Data refreshes without reloading the page; the active node appears first, with up to 10 nodes in the table.
+- **Monitoring:** active nodes and backups, availability, HTTPS errors, latency, and differences between fresh measurements. Data refreshes without reloading the page; the active node appears first, with up to 10 nodes in the table. Process memory, available RAM, and active TCP/UDP sessions are shown.
 - **Updates:** check GitHub and install with a button while preserving settings; manual APK upload is also available. Packages are verified against the project signing key. Compact updates keep the APK and backup in RAM.
 
 The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Applying settings preserves history and the selected node if it remains eligible for the route list. If no working proxy node is available, the behavior selected in the rule database applies: blocking or WAN fallback. Direct WAN rules remain active. DNS follows the same rule when the proxy fails. Strict route lists stay protected during router boot, service restarts and package updates. Direct IP exceptions and VPN routes remain available, including for DNS. Explicitly stopping the service removes interception.
@@ -28,6 +28,8 @@ Keep the router powered during an update. When flash space is low, compact insta
 ## Installation
 
 **OpenWrt 25.12 with APK, ARM64.** The package architecture is listed in `/etc/apk/arch`:
+
+At least 256 MB RAM is recommended. On routers with 128 MB flash, available space depends on the firmware; the installer checks it before installation.
 
 | Architecture | APK |
 |---|---|
@@ -71,7 +73,7 @@ The service is disabled after the first installation. Open **Services → SB Gat
 2. Create rules and route lists, then select devices and nodes.
 3. Configure DNS, enable SB Gateway, save, and apply settings.
 
-After three repeated service failures, emergency WAN with the restored OpenWrt DNS resolver is available only to lists that permit WAN for all proxy traffic. Strict lists and their DNS remain blocked. If settings cannot be read or validated, proxy traffic remains blocked. Domain-based rules require a working core; service recovery continues automatically.
+During service startup and recovery, temporary WAN access with the OpenWrt DNS resolver is available only to lists that permit WAN for all proxy traffic. Strict lists and their DNS remain blocked. If settings cannot be read or validated, proxy traffic remains blocked. Domain-based rules require a working core; service recovery continues automatically.
 
 To update, open **Package update → Check for updates → Update from GitHub**. Checking only fetches version information; download and installation start after a separate click on **Update from GitHub**. You can skip intermediate versions. Settings and the service's enabled or disabled state are preserved; a running service restarts during the update.
 

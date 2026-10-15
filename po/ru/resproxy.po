@@ -1683,3 +1683,30 @@ msgstr "Блокировать ping через WAN"
 
 msgid "Blocking TCP/UDP preserves local IPv6. Ping follows its separate setting."
 msgstr "Блокировка TCP/UDP сохраняет локальную связь IPv6. Ping настраивается отдельно."
+
+msgid "Controller RAM"
+msgstr "ОЗУ контроллера"
+
+msgid "Xray RAM"
+msgstr "ОЗУ Xray"
+
+msgid "Xray sessions"
+msgstr "Сессии Xray"
+
+msgid "Available RAM"
+msgstr "Свободно ОЗУ"
+
+msgid "RssAnon: %s · Files: %s / %s"
+msgstr "RssAnon: %s · Дескрипторы: %s / %s"
+
+msgid "%s TCP · %s UDP"
+msgstr "%s TCP · %s UDP"
+
+msgid "Low available router memory. Reduce connection load or selected rule sets."
+msgstr "Мало свободной памяти. Уменьшите число соединений или выбранных наборов правил."
+
+msgid "Xray is near its open-file limit."
+msgstr "Xray приближается к лимиту файловых дескрипторов."
+
+msgid "Xray was stopped by the kernel for lack of memory. See the journal."
+msgstr "Ядро остановило Xray из-за нехватки памяти. Подробности в журнале."

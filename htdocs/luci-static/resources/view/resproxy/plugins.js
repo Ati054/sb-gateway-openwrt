@@ -2,6 +2,9 @@
 'require baseclass';
 'require fs';
 'require poll';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 function read() {
  return fs.exec('/usr/libexec/resproxy-plugins', ['status']).then(function(result) {

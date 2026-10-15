@@ -4,6 +4,9 @@
 'require fs';
 'require ui';
 'require poll';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 var helper = '/usr/libexec/sb-gateway-upgrade';
 function values(stdout) {

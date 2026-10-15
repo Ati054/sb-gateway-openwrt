@@ -1,29 +1,7 @@
-diff --git a/.github/build/windows/xray_no_window.cmd b/.github/build/windows/xray_no_window.cmd
-index 0fb1528..d118cca 100644
---- a/.github/build/windows/xray_no_window.cmd
-+++ b/.github/build/windows/xray_no_window.cmd
-@@ -1 +1 @@
--powershell.exe -ExecutionPolicy Bypass -File ".\xray_no_window.ps1"
-+powershell.exe -ExecutionPolicy Bypass -File ".\xray_no_window.ps1"
-diff --git a/.github/build/windows/xray_no_window.ps1 b/.github/build/windows/xray_no_window.ps1
-index 6342a4e..abe6608 100644
---- a/.github/build/windows/xray_no_window.ps1
-+++ b/.github/build/windows/xray_no_window.ps1
-@@ -1 +1 @@
--Start-Process -FilePath ".\xray.exe" -ArgumentList "-config .\config.json" -WindowStyle Hidden
-+Start-Process -FilePath ".\xray.exe" -ArgumentList "-config .\config.json" -WindowStyle Hidden
-diff --git a/.github/build/windows/xray_no_window.vbs b/.github/build/windows/xray_no_window.vbs
-index 8aa8ae4..ab6cf14 100644
---- a/.github/build/windows/xray_no_window.vbs
-+++ b/.github/build/windows/xray_no_window.vbs
-@@ -1 +1 @@
--CreateObject("Wscript.Shell").Run "xray.exe -config config.json",0
-+CreateObject("Wscript.Shell").Run "xray.exe -config config.json",0
 diff --git a/app/dispatcher/default.go b/app/dispatcher/default.go
-index cae9735..8f33580 100644
 --- a/app/dispatcher/default.go
 +++ b/app/dispatcher/default.go
-@@ -389,6 +389,13 @@ func sniffer(ctx context.Context, cReader *cachedReader, metadataOnly bool, netw
+@@ -389,6 +389,13 @@
  
  	contentResult, contentErr := func() (SniffResult, error) {
  		cacheDeadline := 200 * time.Millisecond
@@ -37,11 +15,86 @@ index cae9735..8f33580 100644
  		totalAttempt := 0
  		for {
  			select {
+diff --git a/app/proxyman/inbound/always.go b/app/proxyman/inbound/always.go
+--- a/app/proxyman/inbound/always.go
++++ b/app/proxyman/inbound/always.go
+@@ -92,6 +92,15 @@
+ 
+ 	uplinkCounter, downlinkCounter := getStatCounter(core.MustFromContext(ctx), tag)
+ 
++	var activeTCP, activeUDP stats.Counter
++	switch tag {
++	case "resproxy-transparent", "resproxy-transparent6", "resproxy-socks", "resproxy-http":
++		if manager, ok := core.MustFromContext(ctx).GetFeature(stats.ManagerType()).(stats.Manager); ok {
++			activeTCP, _ = manager.GetOrRegisterCounter("sb-gateway>>>active>>>tcp")
++			activeUDP, _ = manager.GetOrRegisterCounter("sb-gateway>>>active>>>udp")
++		}
++	}
++
+ 	nl := p.Network()
+ 	pl := receiverConfig.PortList
+ 	address := receiverConfig.Listen.AsAddress()
+@@ -133,6 +142,7 @@
+ 					errors.LogDebug(ctx, "creating stream worker on ", address, ":", port)
+ 
+ 					worker := &tcpWorker{
++						activeCounter:   activeTCP,
+ 						address:         address,
+ 						port:            net.Port(port),
+ 						proxy:           p,
+@@ -150,6 +160,7 @@
+ 
+ 				if net.HasNetwork(nl, net.Network_UDP) {
+ 					worker := &udpWorker{
++						activeCounter:   activeUDP,
+ 						tag:             tag,
+ 						proxy:           p,
+ 						address:         address,
+diff --git a/app/proxyman/inbound/worker.go b/app/proxyman/inbound/worker.go
+--- a/app/proxyman/inbound/worker.go
++++ b/app/proxyman/inbound/worker.go
+@@ -35,6 +35,7 @@
+ }
+ 
+ type tcpWorker struct {
++	activeCounter   stats.Counter
+ 	address         net.Address
+ 	port            net.Port
+ 	proxy           proxy.Inbound
+@@ -59,6 +60,10 @@
+ }
+ 
+ func (w *tcpWorker) callback(conn stat.Connection) {
++	if w.activeCounter != nil {
++		w.activeCounter.Add(1)
++		defer w.activeCounter.Add(-1)
++	}
+ 	ctx, cancel := context.WithCancel(w.ctx)
+ 	sid := session.NewID()
+ 	ctx = c.ContextWithID(ctx, sid)
+@@ -257,6 +262,7 @@
+ }
+ 
+ type udpWorker struct {
++	activeCounter stats.Counter
+ 	sync.RWMutex
+ 
+ 	proxy           proxy.Inbound
+@@ -330,6 +336,10 @@
+ 		common.Must(w.checker.Start())
+ 
+ 		go func() {
++			if w.activeCounter != nil {
++				w.activeCounter.Add(1)
++				defer w.activeCounter.Add(-1)
++			}
+ 			ctx, cancel := context.WithCancel(w.ctx)
+ 			conn.cancel = cancel
+ 			sid := session.NewID()
 diff --git a/app/proxyman/outbound/handler.go b/app/proxyman/outbound/handler.go
-index fe43c42..d23a71f 100644
 --- a/app/proxyman/outbound/handler.go
 +++ b/app/proxyman/outbound/handler.go
-@@ -273,6 +273,9 @@ func (h *Handler) Dial(ctx context.Context, dest net.Destination) (stat.Connecti
+@@ -273,6 +273,9 @@
  	}
  
  	conn, err := internet.Dial(ctx, dest, h.streamSettings)
@@ -51,7 +104,7 @@ index fe43c42..d23a71f 100644
  	conn = h.getStatCouterConnection(conn)
  	return conn, err
  }
-@@ -329,11 +332,18 @@ func (h *Handler) Start() error {
+@@ -329,11 +332,18 @@
  
  // Close implements common.Closable.
  func (h *Handler) Close() error {
@@ -71,10 +124,9 @@ index fe43c42..d23a71f 100644
  func (h *Handler) SenderSettings() *serial.TypedMessage {
  	return serial.ToTypedMessage(h.senderSettings)
 diff --git a/app/proxyman/outbound/handler_test.go b/app/proxyman/outbound/handler_test.go
-index 7029442..afd97bc 100644
 --- a/app/proxyman/outbound/handler_test.go
 +++ b/app/proxyman/outbound/handler_test.go
-@@ -107,11 +107,11 @@ func TestTagsCache(t *testing.T) {
+@@ -107,11 +107,11 @@
  	v.AddFeature(ohm)
  	ctx := context.WithValue(context.Background(), xrayKey, v)
  
@@ -88,7 +140,7 @@ index 7029442..afd97bc 100644
  			time.Sleep(delay)
  			idx := counter.Add(1)
  			tag := fmt.Sprintf("%s%d", tags_prefix, idx)
-@@ -134,7 +134,7 @@ func TestTagsCache(t *testing.T) {
+@@ -134,7 +134,7 @@
  
  	rmHandlers := func() {
  		defer wg_add_rm.Done()
@@ -97,7 +149,7 @@ index 7029442..afd97bc 100644
  			time.Sleep(delay)
  			tags.Range(func(key interface{}, value interface{}) bool {
  				if _, ok := tags.LoadAndDelete(key); ok {
-@@ -149,10 +149,10 @@ func TestTagsCache(t *testing.T) {
+@@ -149,10 +149,10 @@
  
  	selectors := []string{tags_prefix}
  	wg_get := sync.WaitGroup{}
@@ -110,7 +162,7 @@ index 7029442..afd97bc 100644
  			time.Sleep(delay)
  			_ = ohm.Select(selectors)
  			// t.Logf("get tags: %v", tag)
-@@ -168,8 +168,8 @@ func TestTagsCache(t *testing.T) {
+@@ -168,8 +168,8 @@
  	}
  
  	time.Sleep(test_duration)
@@ -122,10 +174,9 @@ index 7029442..afd97bc 100644
  	wg_get.Wait()
  }
 diff --git a/app/proxyman/outbound/outbound.go b/app/proxyman/outbound/outbound.go
-index d865428..4eb8f53 100644
 --- a/app/proxyman/outbound/outbound.go
 +++ b/app/proxyman/outbound/outbound.go
-@@ -133,14 +133,18 @@ func (m *Manager) RemoveHandler(ctx context.Context, tag string) error {
+@@ -133,14 +133,18 @@
  		return common.ErrNoClue
  	}
  	m.access.Lock()
@@ -145,7 +196,7 @@ index d865428..4eb8f53 100644
  
  	return nil
  }
-@@ -162,14 +166,14 @@ func (m *Manager) ListHandlers(ctx context.Context) []outbound.Handler {
+@@ -162,13 +166,13 @@
  
  // Select implements outbound.HandlerSelector.
  func (m *Manager) Select(selectors []string) []string {
@@ -156,16 +207,1386 @@ index d865428..4eb8f53 100644
  	if cache, ok := m.tagsCache.Load(key); ok {
  		return cache.([]string)
  	}
- 
+-
 -	m.access.RLock()
 -	defer m.access.RUnlock()
--
+ 
  	tags := make([]string, 0, len(selectors))
  
- 	for tag := range m.taggedHandler {
+diff --git a/app/router/balancing.go b/app/router/balancing.go
+--- a/app/router/balancing.go
++++ b/app/router/balancing.go
+@@ -151,6 +151,8 @@
+ 
+ // SetOverrideTarget implements routing.BalancerOverrider
+ func (r *Router) SetOverrideTarget(tag, target string) error {
++	r.overrideMu.Lock()
++	defer r.overrideMu.Unlock()
+ 	if b, ok := (*r.balancers.Load())[tag]; ok {
+ 		b.override.Put(target)
+ 		return nil
+@@ -160,6 +162,8 @@
+ 
+ // GetOverrideTarget implements routing.BalancerOverrider
+ func (r *Router) GetOverrideTarget(tag string) (string, error) {
++	r.overrideMu.RLock()
++	defer r.overrideMu.RUnlock()
+ 	if b, ok := (*r.balancers.Load())[tag]; ok {
+ 		return b.override.Get(), nil
+ 	}
+diff --git a/app/router/command/command.go b/app/router/command/command.go
+--- a/app/router/command/command.go
++++ b/app/router/command/command.go
+@@ -6,6 +6,7 @@
+ 
+ 	"github.com/xtls/xray-core/common"
+ 	"github.com/xtls/xray-core/common/errors"
++	"github.com/xtls/xray-core/common/serial"
+ 	"github.com/xtls/xray-core/core"
+ 	"github.com/xtls/xray-core/features/routing"
+ 	"github.com/xtls/xray-core/features/stats"
+@@ -54,6 +55,14 @@
+ }
+ 
+ func (s *routingServer) AddRule(ctx context.Context, request *AddRuleRequest) (*AddRuleResponse, error) {
++	if contextual, ok := s.router.(interface {
++		AddRuleContext(context.Context, *serial.TypedMessage, bool) error
++	}); ok {
++		return &AddRuleResponse{}, contextual.AddRuleContext(ctx, request.Config, request.ShouldAppend)
++	}
++	if err := ctx.Err(); err != nil {
++		return nil, err
++	}
+ 	if bo, ok := s.router.(routing.Router); ok {
+ 		return &AddRuleResponse{}, bo.AddRule(request.Config, request.ShouldAppend)
+ 	}
+diff --git a/app/router/router.go b/app/router/router.go
+--- a/app/router/router.go
++++ b/app/router/router.go
+@@ -28,6 +28,7 @@
+ 	ohm        outbound.Manager
+ 	dispatcher routing.Dispatcher
+ 	mu         sync.Mutex
++	overrideMu sync.RWMutex
+ }
+ 
+ // Route is an implementation of routing.Route.
+@@ -82,19 +83,34 @@
+ 
+ // AddRule implements routing.Router.
+ func (r *Router) AddRule(config *serial.TypedMessage, shouldAppend bool) error {
++	return r.AddRuleContext(context.Background(), config, shouldAppend)
++}
++
++// AddRuleContext prevents an expired API request from publishing late routing.
++func (r *Router) AddRuleContext(ctx context.Context, config *serial.TypedMessage, shouldAppend bool) error {
++	if err := ctx.Err(); err != nil {
++		return err
++	}
+ 	inst, err := config.GetInstance()
+ 	if err != nil {
+ 		return err
+ 	}
+ 	if c, ok := inst.(*Config); ok {
+-		return r.ReloadRules(c, shouldAppend)
++		return r.ReloadRulesContext(ctx, c, shouldAppend)
+ 	}
+ 	return errors.New("AddRule: config type error")
+ }
+ 
+ func (r *Router) ReloadRules(config *Config, shouldAppend bool) error {
++	return r.ReloadRulesContext(context.Background(), config, shouldAppend)
++}
++
++func (r *Router) ReloadRulesContext(ctx context.Context, config *Config, shouldAppend bool) error {
+ 	r.mu.Lock()
+ 	defer r.mu.Unlock()
++	if err := ctx.Err(); err != nil {
++		return err
++	}
+ 
+ 	oldRules := *r.rules.Load()
+ 	oldBalancers := *r.balancers.Load()
+@@ -122,7 +138,20 @@
+ 		newBalancers[rule.Tag] = balancer
+ 	}
+ 
++	published := false
++	cleanupStart := 0
++	if shouldAppend {
++		cleanupStart = len(newRules)
++	}
++	defer func() {
++		if !published {
++			closeWebhooks(newRules[cleanupStart:])
++		}
++	}()
+ 	for _, rule := range config.Rule {
++		if err := ctx.Err(); err != nil {
++			return err
++		}
+ 		cond, err := rule.BuildCondition()
+ 		if err != nil {
+ 			return err
+@@ -153,8 +182,23 @@
+ 		newRules = append(newRules, rr)
+ 	}
+ 
++	// Compile against the immutable old routing while selector API stays live.
++	// Carry the latest override only at publication, including changes made
++	// while expensive GeoIP conditions were being built.
++	r.overrideMu.Lock()
++	if err := ctx.Err(); err != nil {
++		r.overrideMu.Unlock()
++		return err
++	}
++	for tag, balancer := range newBalancers {
++		if previous, found := oldBalancers[tag]; found {
++			balancer.override.Put(previous.override.Get())
++		}
++	}
+ 	r.balancers.Store(&newBalancers)
+ 	r.rules.Store(&newRules)
++	published = true
++	r.overrideMu.Unlock()
+ 	if !shouldAppend {
+ 		closeWebhooks(oldRules)
+ 	}
+diff --git a/common/geodata/domain_matcher.go b/common/geodata/domain_matcher.go
+--- a/common/geodata/domain_matcher.go
++++ b/common/geodata/domain_matcher.go
+@@ -213,7 +213,8 @@
+ 
+ func newDomainMatcherFactory() DomainMatcherFactory {
+ 	switch runtime.GOOS {
+-	case "ios", "android":
++	// The gateway targets Linux routers with several policies sharing assets.
++	case "linux", "ios", "android":
+ 		return &CompactMphDomainMatcherFactory{shared: utils.NewWeakCacheMap[string, strmatcher.MphValueMatcher]()}
+ 	default:
+ 		return &MphDomainMatcherFactory{shared: utils.NewWeakCacheMap[string, strmatcher.MphValueMatcher]()}
+diff --git a/common/geodata/ip_matcher_test.go b/common/geodata/ip_matcher_test.go
+--- a/common/geodata/ip_matcher_test.go
++++ b/common/geodata/ip_matcher_test.go
+@@ -2,10 +2,13 @@
+ 
+ import (
+ 	"net"
++	"os"
+ 	"path/filepath"
+ 	"reflect"
+ 	"slices"
+ 	"testing"
++
++	"google.golang.org/protobuf/proto"
+ 
+ 	"github.com/xtls/xray-core/common"
+ 	xnet "github.com/xtls/xray-core/common/net"
+@@ -400,13 +403,39 @@
+ 	}
+ }
+ 
++// Country ownership of a public anycast address changes with external data.
++// A local binary GeoIP fixture tests IPv6 loading and prefix boundaries without
++// asserting that a particular resolver must always belong to the US dataset.
++func ipv6USFixture(t testing.TB) {
++	t.Helper()
++	dir := t.TempDir()
++	t.Setenv("xray.location.asset", dir)
++	data, err := proto.Marshal(&GeoIPList{Entry: []*GeoIP{{Code: "US", Cidr: []*CIDR{
++		{Ip: net.ParseIP("2001:db8:1234::").To16(), Prefix: 48},
++		{Ip: net.IP{203, 0, 113, 0}, Prefix: 24},
++	}}}})
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(dir, "geoip.dat"), data, 0600); err != nil {
++		t.Fatal(err)
++	}
++}
++
+ func TestIPMatcher6US(t *testing.T) {
+-	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
+-
++	ipv6USFixture(t)
+ 	matcher := buildIPMatcher("geoip:us")
+-
+-	if !matcher.Match(xnet.ParseAddress("2001:4860:4860::8888").IP()) {
+-		t.Error("expect US geoip contain 2001:4860:4860::8888, but actually not")
++	for raw, want := range map[string]bool{
++		"2001:db8:1234::1":                       true,
++		"2001:db8:1234:ffff:ffff:ffff:ffff:ffff": true,
++		"2001:db8:1233:ffff:ffff:ffff:ffff:ffff": false,
++		"2001:db8:1235::1":                       false,
++		"203.0.113.5":                            true,
++		"203.0.114.5":                            false,
++	} {
++		if got := matcher.Match(xnet.ParseAddress(raw).IP()); got != want {
++			t.Errorf("GeoIP US match %s = %v, want %v", raw, got, want)
++		}
+ 	}
+ }
+ 
+@@ -424,10 +453,10 @@
+ }
+ 
+ func BenchmarkIPMatcher6US(b *testing.B) {
+-	b.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
++	ipv6USFixture(b)
+ 
+ 	matcher := buildIPMatcher("geoip:us")
+-	ip := xnet.ParseAddress("2001:4860:4860::8888").IP()
++	ip := xnet.ParseAddress("2001:db8:1234::1").IP()
+ 
+ 	b.ResetTimer()
+ 
+diff --git a/proxy/http/server.go b/proxy/http/server.go
+--- a/proxy/http/server.go
++++ b/proxy/http/server.go
+@@ -98,6 +98,22 @@
+ 	}
+ 	if !proxy.IsRAWTransportWithoutSecurity(conn) {
+ 		inbound.CanSpliceCopy = 3
++	}
++	// Health probes close after a bounded response. Vision's raw splice path
++	// extends its idle timer to 24h and can override the short EOF timeout,
++	// retaining a closed probe and upstream socket. Keep probes on the normal
++	// copy path; ordinary client HTTP/CONNECT still uses splice.
++	if strings.HasPrefix(inbound.Tag, "outbound-health-") || inbound.Tag == "resproxy-refresh-probe" {
++		inbound.CanSpliceCopy = 3
++		// CONNECT acknowledges before the upstream dial. A client timeout does
++		// not cancel that dial while REALITY/TLS is still waiting for its peer.
++		// Health requests finish within five seconds; allow an eight-second
++		// core lifetime, including cleanup, without limiting client streams.
++		var cancel context.CancelFunc
++		ctx, cancel = context.WithTimeout(ctx, 8*time.Second)
++		defer cancel()
++		stopClose := context.AfterFunc(ctx, func() { conn.Close() })
++		defer stopClose()
+ 	}
+ 	var reader *bufio.Reader
+ 	if len(firstbyte) > 0 {
+diff --git a/proxy/proxy.go b/proxy/proxy.go
+--- a/proxy/proxy.go
++++ b/proxy/proxy.go
+@@ -514,10 +514,23 @@
+ 		}
+ 		paddingLen = int32(l.Int64())
+ 	}
+-	if paddingLen > buf.Size-21-contentLen {
+-		paddingLen = buf.Size - 21 - contentLen
+-	}
+-	newbuffer := buf.New()
++	maxPaddingLen := int32(buf.Size-21) - contentLen
++	if maxPaddingLen < 0 {
++		maxPaddingLen = 0
++	}
++	if paddingLen > maxPaddingLen {
++		paddingLen = maxPaddingLen
++	}
++	bufferSize := contentLen + paddingLen + 5
++	if userUUID != nil {
++		bufferSize += int32(len(*userUUID))
++	}
++	var newbuffer *buf.Buffer
++	if bufferSize > buf.Size {
++		newbuffer = buf.NewWithSize(bufferSize)
++	} else {
++		newbuffer = buf.New()
++	}
+ 	if userUUID != nil {
+ 		newbuffer.Write(*userUUID)
+ 		*userUUID = nil
+diff --git a/proxy/vless/outbound/outbound.go b/proxy/vless/outbound/outbound.go
+--- a/proxy/vless/outbound/outbound.go
++++ b/proxy/vless/outbound/outbound.go
+@@ -5,6 +5,9 @@
+ 	"context"
+ 	gotls "crypto/tls"
+ 	"encoding/base64"
++	"encoding/json"
++	stdnet "net"
++	"os"
+ 	"reflect"
+ 	"strings"
+ 	"sync"
+@@ -61,6 +64,58 @@
+ 	preConns chan *ConnExpire
+ }
+ 
++// A fixed-size limiter keeps a broken active server from creating a socket
++// operation for every client connection. Hash collisions only defer hints;
++// independent periodic HTTPS checks remain the correctness fallback.
++type sbFailureSlot struct {
++	sync.Mutex
++	last time.Time
++}
++
++var sbFailureSlots [64]sbFailureSlot
++
++// This best-effort local hint never selects an outbound. The gateway confirms
++// the active path and its underlay with independent HTTPS probes. No target
++// address, credentials, or user data are sent across the socket.
++func signalSBServerFailure(ctx context.Context, tag, stage string) {
++	if inbound := session.InboundFromContext(ctx); inbound != nil && strings.HasPrefix(inbound.Tag, "outbound-health-") {
++		return
++	}
++	path := os.Getenv("SB_XRAY_FAILURE_SOCKET")
++	if path == "" || tag == "" {
++		return
++	}
++	index := uint64(1469598103934665603)
++	for i := range len(tag) {
++		index = (index ^ uint64(tag[i])) * 1099511628211
++	}
++	slot := &sbFailureSlots[index%uint64(len(sbFailureSlots))]
++	now := time.Now()
++	slot.Lock()
++	if now.Sub(slot.last) < 250*time.Millisecond {
++		slot.Unlock()
++		return
++	}
++	slot.last = now
++	slot.Unlock()
++	message, err := json.Marshal(struct {
++		Version int    `json:"v"`
++		PID     int    `json:"pid"`
++		Tag     string `json:"tag"`
++		Stage   string `json:"stage"`
++	}{1, os.Getpid(), tag, stage})
++	if err != nil || len(message) > 512 {
++		return
++	}
++	connection, err := stdnet.DialTimeout("unixgram", path, 10*time.Millisecond)
++	if err != nil {
++		return
++	}
++	defer connection.Close()
++	_ = connection.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
++	_, _ = connection.Write(message)
++}
++
+ type ConnExpire struct {
+ 	Conn   stat.Connection
+ 	Expire time.Time
+@@ -193,6 +248,7 @@
+ 			var err error
+ 			conn, err = dialer.Dial(ctx, rec.Destination)
+ 			if err != nil {
++				signalSBServerFailure(ctx, ob.Tag, "dial")
+ 				return err
+ 			}
+ 			return nil
+@@ -209,6 +265,7 @@
+ 	if h.encryption != nil {
+ 		var err error
+ 		if conn, err = h.encryption.Handshake(conn); err != nil {
++			signalSBServerFailure(ctx, ob.Tag, "handshake")
+ 			return errors.New("ML-KEM-768 handshake failed").Base(err)
+ 		}
+ 	}
+diff --git a/transport/internet/grpc/dial.go b/transport/internet/grpc/dial.go
+--- a/transport/internet/grpc/dial.go
++++ b/transport/internet/grpc/dial.go
+@@ -27,8 +27,10 @@
+ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (stat.Connection, error) {
+ 	errors.LogInfo(ctx, "creating connection to ", dest)
+ 
+-	conn, err := dialgRPC(ctx, dest, streamSettings)
++	release := streamSettings.AcquireDialer()
++	conn, err := dialgRPC(ctx, dest, streamSettings, release)
+ 	if err != nil {
++		release()
+ 		return nil, errors.New("failed to dial gRPC").Base(err)
+ 	}
+ 	return stat.Connection(conn), nil
+@@ -48,7 +50,7 @@
+ 	globalDialerAccess sync.Mutex
+ )
+ 
+-func dialgRPC(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (net.Conn, error) {
++func dialgRPC(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig, release func()) (net.Conn, error) {
+ 	grpcSettings := streamSettings.ProtocolSettings.(*Config)
+ 
+ 	conn, err := getGrpcClient(ctx, dest, streamSettings)
+@@ -56,25 +58,45 @@
+ 		return nil, errors.New("Cannot dial gRPC").Base(err)
+ 	}
+ 	client := encoding.NewGRPCServiceClient(conn)
++	ctx, cancel := context.WithCancel(ctx)
++	closeStream := func() { cancel(); release() }
+ 	if grpcSettings.MultiMode {
+ 		errors.LogDebug(ctx, "using gRPC multi mode service name: `"+grpcSettings.getServiceName()+"` stream name: `"+grpcSettings.getTunMultiStreamName()+"`")
+ 		grpcService, err := client.(encoding.GRPCServiceClientX).TunMultiCustomName(ctx, grpcSettings.getServiceName(), grpcSettings.getTunMultiStreamName())
+ 		if err != nil {
++			cancel()
+ 			return nil, errors.New("Cannot dial gRPC").Base(err)
+ 		}
+-		return encoding.NewMultiHunkConn(grpcService, nil, nil), nil
++		return encoding.NewMultiHunkConn(grpcService, closeStream, nil), nil
+ 	}
+ 
+ 	errors.LogDebug(ctx, "using gRPC tun mode service name: `"+grpcSettings.getServiceName()+"` stream name: `"+grpcSettings.getTunStreamName()+"`")
+ 	grpcService, err := client.(encoding.GRPCServiceClientX).TunCustomName(ctx, grpcSettings.getServiceName(), grpcSettings.getTunStreamName())
+ 	if err != nil {
++		cancel()
+ 		return nil, errors.New("Cannot dial gRPC").Base(err)
+ 	}
+ 
+-	return encoding.NewHunkConn(grpcService, nil, nil), nil
++	return encoding.NewHunkConn(grpcService, closeStream, nil), nil
+ }
+ 
+ func getGrpcClient(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (*grpc.ClientConn, error) {
++	streamSettings.RegisterDialerCleanup("grpc", func() {
++		globalDialerAccess.Lock()
++		var clients []*grpc.ClientConn
++		for key, client := range globalDialerMap {
++			if key.MemoryStreamConfig == streamSettings {
++				delete(globalDialerMap, key)
++				clients = append(clients, client)
++			}
++		}
++		globalDialerAccess.Unlock()
++		for _, client := range clients {
++			if client != nil {
++				client.Close()
++			}
++		}
++	})
+ 	globalDialerAccess.Lock()
+ 	defer globalDialerAccess.Unlock()
+ 
+@@ -197,7 +219,9 @@
+ 		setUserAgent(conn, userAgent)
+ 		conn.Connect()
+ 	}
+-	globalDialerMap[dialerConf{dest, streamSettings}] = conn
++	if err == nil {
++		globalDialerMap[dialerConf{dest, streamSettings}] = conn
++	}
+ 	return conn, err
+ }
+ 
+diff --git a/transport/internet/hysteria/conn.go b/transport/internet/hysteria/conn.go
+--- a/transport/internet/hysteria/conn.go
++++ b/transport/internet/hysteria/conn.go
+@@ -5,6 +5,7 @@
+ 	"encoding/binary"
+ 	"io"
+ 	"sync"
++	"sync/atomic"
+ 	"time"
+ 
+ 	"github.com/apernet/quic-go"
+@@ -20,8 +21,9 @@
+ 	local  net.Addr
+ 	remote net.Addr
+ 
+-	client bool
+-	user   *protocol.MemoryUser
++	client  bool
++	user    *protocol.MemoryUser
++	onClose func()
+ }
+ 
+ func (c *interConn) User() *protocol.MemoryUser {
+@@ -45,6 +47,9 @@
+ }
+ 
+ func (c *interConn) Close() error {
++	if c.onClose != nil {
++		defer c.onClose()
++	}
+ 	c.stream.CancelRead(0)
+ 	return c.stream.Close()
+ }
+@@ -77,11 +82,12 @@
+ 	ch     chan []byte
+ 	time   time.Time
+ 	mutex  sync.Mutex
+-	closed bool
+-
+-	write func(p []byte) error
+-	close func()
+-	user  *protocol.MemoryUser
++	closed atomic.Bool
++
++	write   func(p []byte) error
++	close   func()
++	user    *protocol.MemoryUser
++	onClose func()
+ }
+ 
+ func (i *InterConn) User() *protocol.MemoryUser {
+@@ -111,7 +117,7 @@
+ }
+ 
+ func (c *InterConn) Write(p []byte) (int, error) {
+-	if c.closed {
++	if c.closed.Load() {
+ 		return 0, io.ErrClosedPipe
+ 	}
+ 	binary.BigEndian.PutUint32(p, c.id)
+@@ -123,6 +129,9 @@
+ }
+ 
+ func (c *InterConn) Close() error {
++	if c.onClose != nil {
++		defer c.onClose()
++	}
+ 	c.close()
+ 	return nil
+ }
+@@ -161,8 +170,7 @@
+ }
+ 
+ func (m *udpSessionManager) close(udpConn *InterConn) {
+-	if !udpConn.closed {
+-		udpConn.closed = true
++	if udpConn.closed.CompareAndSwap(false, true) {
+ 		close(udpConn.ch)
+ 		delete(m.m, udpConn.id)
+ 	}
+@@ -172,12 +180,17 @@
+ 	ticker := time.NewTicker(idleCleanupInterval)
+ 	defer ticker.Stop()
+ 
+-	for range ticker.C {
++	for {
++		select {
++		case <-m.conn.Context().Done():
++			return
++		case <-ticker.C:
++		}
++		m.RLock()
+ 		if m.closed {
++			m.RUnlock()
+ 			return
+ 		}
+-
+-		m.RLock()
+ 		now := time.Now()
+ 		timeoutConn := make([]*InterConn, 0, len(m.m))
+ 		for _, udpConn := range m.m {
+@@ -220,7 +233,7 @@
+ 	}
+ }
+ 
+-func (m *udpSessionManager) udp() (*InterConn, error) {
++func (m *udpSessionManager) udp(release func()) (*InterConn, error) {
+ 	m.Lock()
+ 	defer m.Unlock()
+ 
+@@ -232,8 +245,9 @@
+ 		local:  m.conn.LocalAddr(),
+ 		remote: m.conn.RemoteAddr(),
+ 
+-		id: m.next,
+-		ch: make(chan []byte, udpMessageChanSize),
++		id:      m.next,
++		ch:      make(chan []byte, udpMessageChanSize),
++		onClose: release,
+ 	}
+ 	udpConn.write = m.conn.SendDatagram
+ 	udpConn.close = func() {
+diff --git a/transport/internet/hysteria/dialer.go b/transport/internet/hysteria/dialer.go
+--- a/transport/internet/hysteria/dialer.go
++++ b/transport/internet/hysteria/dialer.go
+@@ -233,7 +233,7 @@
+ 	<-c.lock
+ }
+ 
+-func (c *client) tcp(ctx context.Context) (stat.Connection, error) {
++func (c *client) tcp(ctx context.Context, release func()) (stat.Connection, error) {
+ 	select {
+ 	case <-ctx.Done():
+ 		return nil, ctx.Err()
+@@ -256,11 +256,12 @@
+ 		local:  c.conn.LocalAddr(),
+ 		remote: c.conn.RemoteAddr(),
+ 
+-		client: true,
++		client:  true,
++		onClose: release,
+ 	}, nil
+ }
+ 
+-func (c *client) udp(ctx context.Context) (stat.Connection, error) {
++func (c *client) udp(ctx context.Context, release func()) (stat.Connection, error) {
+ 	select {
+ 	case <-ctx.Done():
+ 		return nil, ctx.Err()
+@@ -273,7 +274,7 @@
+ 		return nil, err
+ 	}
+ 
+-	return c.udpSM.udp()
++	return c.udpSM.udp(release)
+ }
+ 
+ func (c *client) clean(force bool) {
+@@ -328,6 +329,7 @@
+ 	if tlsConfig == nil {
+ 		return nil, errors.New("tls config is nil")
+ 	}
++	release := streamSettings.AcquireDialer()
+ 
+ 	datagram := DatagramFromContext(ctx)
+ 	dest.Network = net.Network_UDP
+@@ -337,6 +339,20 @@
+ 			m: make(map[dialerConf]*client),
+ 		}
+ 		go manager.clean()
++	})
++	streamSettings.RegisterDialerCleanup("hysteria", func() {
++		manager.Lock()
++		var clients []*client
++		for key, client := range manager.m {
++			if key.MemoryStreamConfig == streamSettings {
++				delete(manager.m, key)
++				clients = append(clients, client)
++			}
++		}
++		manager.Unlock()
++		for _, client := range clients {
++			client.clean(true)
++		}
+ 	})
+ 
+ 	dialerConfKey := dialerConf{dest, streamSettings}
+@@ -364,10 +380,17 @@
+ 		manager.Unlock()
+ 	}
+ 
++	var conn stat.Connection
++	var err error
+ 	if datagram {
+-		return c.udp(ctx)
+-	}
+-	return c.tcp(ctx)
++		conn, err = c.udp(ctx, release)
++	} else {
++		conn, err = c.tcp(ctx, release)
++	}
++	if err != nil {
++		release()
++	}
++	return conn, err
+ }
+ 
+ func init() {
+diff --git a/transport/internet/memory_settings.go b/transport/internet/memory_settings.go
+--- a/transport/internet/memory_settings.go
++++ b/transport/internet/memory_settings.go
+@@ -21,6 +21,7 @@
+ 	QuicParams       *QuicParams
+ 	SocketSettings   *SocketConfig
+ 	DownloadSettings *MemoryStreamConfig
++	dialers          dialerLifetime
+ }
+ 
+ // ToMemoryStreamConfig converts a StreamConfig to MemoryStreamConfig. It returns a default non-nil MemoryStreamConfig for nil input.
+diff --git a/transport/internet/reality/reality.go b/transport/internet/reality/reality.go
+--- a/transport/internet/reality/reality.go
++++ b/transport/internet/reality/reality.go
+@@ -29,6 +29,7 @@
+ 	"github.com/xtls/xray-core/common/crypto"
+ 	"github.com/xtls/xray-core/common/errors"
+ 	"github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/common/session"
+ 	"github.com/xtls/xray-core/common/utils"
+ 	"github.com/xtls/xray-core/core"
+ 	"github.com/xtls/xray-core/transport/internet/tls"
+@@ -140,6 +141,15 @@
+ }
+ 
+ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destination) (net.Conn, error) {
++	// Failed handshakes never transfer connection ownership to the caller.
++	// The normal REALITY camouflage path explicitly keeps ownership below.
++	keepConn := false
++	defer func() {
++		if !keepConn {
++			c.Close()
++		}
++	}()
++
+ 	localAddr := c.LocalAddr().String()
+ 	uConn := &UConn{
+ 		Config: config,
+@@ -206,6 +216,11 @@
+ 	}
+ 	if !uConn.Verified {
+ 		errors.LogError(ctx, "REALITY: received real certificate (potential MITM or redirection)")
++		if inbound := session.InboundFromContext(ctx); inbound != nil &&
++			(strings.HasPrefix(inbound.Tag, "outbound-health-") || inbound.Tag == "resproxy-refresh-probe") {
++			return nil, errors.New("REALITY: invalid health probe authentication")
++		}
++		keepConn = true // Ordinary client camouflage owns the connection.
+ 		go func() {
+ 			client := &http.Client{
+ 				Transport: &http2.Transport{
+@@ -297,6 +312,7 @@
+ 		time.Sleep(time.Duration(crypto.RandBetween(config.SpiderY[8], config.SpiderY[9])) * time.Millisecond) // return
+ 		return nil, errors.New("REALITY: processed invalid connection")
+ 	}
++	keepConn = true
+ 	return uConn, nil
+ }
+ 
+diff --git a/transport/internet/splithttp/client.go b/transport/internet/splithttp/client.go
+--- a/transport/internet/splithttp/client.go
++++ b/transport/internet/splithttp/client.go
+@@ -16,6 +16,7 @@
+ 	"github.com/xtls/xray-core/common/errors"
+ 	"github.com/xtls/xray-core/common/net"
+ 	"github.com/xtls/xray-core/common/signal/done"
++	"github.com/xtls/xray-core/transport/internet"
+ )
+ 
+ // interface to abstract between use of browser dialer, vs net/http
+@@ -32,11 +33,13 @@
+ // implements splithttp.DialerClient in terms of direct network connections
+ type DefaultDialerClient struct {
+ 	transportConfig *Config
++	owner           *internet.MemoryStreamConfig
+ 	client          *http.Client
+ 	closed          atomic.Bool
+ 	httpVersion     string
+ 	// pool of net.Conn, created using dialUploadConn
+-	uploadRawPool  *sync.Pool
++	uploadRawMu    sync.Mutex
++	uploadRawPool  []*H1Conn
+ 	dialUploadConn func(ctxInner context.Context) (net.Conn, error)
+ }
+ 
+@@ -49,11 +52,15 @@
+ 	// and we can unblock the Dial function and print correct net addresses in
+ 	// logs
+ 	gotConn := done.New()
++	dialErr := make(chan error, 1)
++	var connOnce sync.Once
+ 	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+ 		GotConn: func(connInfo httptrace.GotConnInfo) {
+-			remoteAddr = connInfo.Conn.RemoteAddr()
+-			localAddr = connInfo.Conn.LocalAddr()
+-			gotConn.Close()
++			connOnce.Do(func() {
++				remoteAddr = connInfo.Conn.RemoteAddr()
++				localAddr = connInfo.Conn.LocalAddr()
++				gotConn.Close()
++			})
+ 		},
+ 	})
+ 
+@@ -61,24 +68,28 @@
+ 	if body != nil {
+ 		method = c.transportConfig.GetNormalizedUplinkHTTPMethod() // stream-up/one
+ 	}
+-	req, err := http.NewRequestWithContext(context.WithoutCancel(ctx), method, url, body)
++	req, err := http.NewRequestWithContext(ctx, method, url, body)
+ 	if err != nil {
+ 		errors.LogInfoInner(ctx, err, "failed to create HTTP request for "+url)
+ 		return nil, nil, nil, err
+ 	}
+ 	c.transportConfig.FillStreamRequest(req, sessionId, "")
+ 
+-	wrc = &WaitReadCloser{wait: done.New()}
++	responseBody := &WaitReadCloser{wait: done.New()}
++	wrc = responseBody
++	release := c.owner.AcquireDialer()
+ 	go func() {
++		defer release()
+ 		resp, err := c.client.Do(req)
+ 		if err != nil {
+ 			if !uploadOnly { // stream-down is enough
+ 				c.closed.Store(true)
+ 				errors.LogInfoInner(ctx, err, "failed to "+method+" "+url)
+ 			}
++			dialErr <- err
+ 			gotConn.Close()
+ 			common.Close(body)
+-			wrc.Close()
++			responseBody.Close()
+ 			return
+ 		}
+ 		if resp.StatusCode != 200 && !uploadOnly {
+@@ -88,19 +99,24 @@
+ 			io.Copy(io.Discard, resp.Body)
+ 			resp.Body.Close() // if it is called immediately, the upload will be interrupted also
+ 			common.Close(body)
+-			wrc.Close()
++			responseBody.Close()
+ 			return
+ 		}
+-		wrc.(*WaitReadCloser).Set(resp.Body)
++		responseBody.Set(resp.Body)
+ 	}()
+ 
+ 	<-gotConn.Wait()
++	select {
++	case err = <-dialErr:
++		return nil, nil, nil, err
++	default:
++	}
+ 	return
+ }
+ 
+ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) error {
+ 	method := c.transportConfig.GetNormalizedUplinkHTTPMethod()
+-	req, err := http.NewRequestWithContext(context.WithoutCancel(ctx), method, url, nil)
++	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -128,59 +144,116 @@
+ 		requestBuff.Grow(512 + int(req.ContentLength))
+ 		common.Must(req.Write(requestBuff))
+ 
+-		var uploadConn any
++		var uploadConn *H1Conn
+ 		var h1UploadConn *H1Conn
+ 
+ 		for {
+-			uploadConn = c.uploadRawPool.Get()
++			uploadConn = c.takeUploadConn()
+ 			newConnection := uploadConn == nil
+ 			if newConnection {
+-				newConn, err := c.dialUploadConn(context.WithoutCancel(ctx))
++				newConn, err := c.dialUploadConn(ctx)
+ 				if err != nil {
+ 					return err
+ 				}
+ 				h1UploadConn = NewH1Conn(newConn)
+ 				uploadConn = h1UploadConn
+ 			} else {
+-				h1UploadConn = uploadConn.(*H1Conn)
++				h1UploadConn = uploadConn
++			}
++			activeConn := h1UploadConn
++			canceled := make(chan struct{})
++			stopCancel := context.AfterFunc(ctx, func() { activeConn.Close(); close(canceled) })
++			finishCancel := func() {
++				if !stopCancel() {
++					<-canceled
++				}
++			}
++			if !newConnection {
+ 
+ 				// TODO: Replace 0 here with a config value later
+ 				// Or add some other condition for optimization purposes
+ 				if h1UploadConn.UnreadedResponsesCount > 0 {
+ 					resp, err := http.ReadResponse(h1UploadConn.RespBufReader, req)
+ 					if err != nil {
++						finishCancel()
+ 						c.closed.Store(true)
++						h1UploadConn.Close()
+ 						return fmt.Errorf("error while reading response: %s", err.Error())
+ 					}
+ 					io.Copy(io.Discard, resp.Body)
+ 					defer resp.Body.Close()
+ 					if resp.StatusCode != 200 {
++						finishCancel()
++						h1UploadConn.Close()
+ 						return fmt.Errorf("got non-200 error response code: %d", resp.StatusCode)
+ 					}
+ 				}
+ 			}
+ 
+ 			_, err := h1UploadConn.Write(requestBuff.Bytes())
++			finishCancel()
++			if ctx.Err() != nil {
++				h1UploadConn.Close()
++				return ctx.Err()
++			}
+ 			// if the write failed, we try another connection from
+ 			// the pool, until the write on a new connection fails.
+ 			// failed writes to a pooled connection are normal when
+ 			// the connection has been closed in the meantime.
+ 			if err == nil {
+ 				break
+-			} else if newConnection {
++			}
++			h1UploadConn.Close()
++			if newConnection {
+ 				return err
+ 			}
+ 		}
+ 
+-		c.uploadRawPool.Put(uploadConn)
++		c.putUploadConn(uploadConn)
+ 	}
+ 
+ 	return nil
+ }
+ 
+-// HTTP/1.1 and HTTP/2 will close itself, we only handle HTTP/3 here
++func (c *DefaultDialerClient) takeUploadConn() *H1Conn {
++	c.uploadRawMu.Lock()
++	defer c.uploadRawMu.Unlock()
++	if len(c.uploadRawPool) == 0 {
++		return nil
++	}
++	last := len(c.uploadRawPool) - 1
++	conn := c.uploadRawPool[last]
++	c.uploadRawPool[last] = nil
++	c.uploadRawPool = c.uploadRawPool[:last]
++	return conn
++}
++
++func (c *DefaultDialerClient) putUploadConn(conn *H1Conn) {
++	c.uploadRawMu.Lock()
++	// Bound idle socket retention after a burst; in-flight requests are not
++	// limited and never live in this pool.
++	if !c.closed.Load() && len(c.uploadRawPool) < 16 {
++		c.uploadRawPool = append(c.uploadRawPool, conn)
++		c.uploadRawMu.Unlock()
++		return
++	}
++	c.uploadRawMu.Unlock()
++	conn.Close()
++}
++
+ func (c *DefaultDialerClient) Close() error {
++	c.uploadRawMu.Lock()
++	c.closed.Store(true)
++	pooled := c.uploadRawPool
++	c.uploadRawPool = nil
++	c.uploadRawMu.Unlock()
++	for _, conn := range pooled {
++		conn.Close()
++	}
+ 	transport := c.client.Transport
++	if idle, ok := transport.(interface{ CloseIdleConnections() }); ok {
++		idle.CloseIdleConnections()
++	}
+ 	if h3Transport, ok := transport.(*http3.Transport); ok {
+ 		h3Transport.Close()
+ 	}
+diff --git a/transport/internet/splithttp/connection.go b/transport/internet/splithttp/connection.go
+--- a/transport/internet/splithttp/connection.go
++++ b/transport/internet/splithttp/connection.go
+@@ -24,7 +24,7 @@
+ 
+ func (c *splitConn) Close() error {
+ 	if c.onClose != nil {
+-		c.onClose()
++		defer c.onClose()
+ 	}
+ 
+ 	err := c.writer.Close()
+diff --git a/transport/internet/splithttp/dialer.go b/transport/internet/splithttp/dialer.go
+--- a/transport/internet/splithttp/dialer.go
++++ b/transport/internet/splithttp/dialer.go
+@@ -44,12 +44,26 @@
+ 	globalDialerAccess sync.Mutex
+ )
+ 
+-func getHTTPClient(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (DialerClient, *XmuxClient) {
++// Bound only connection establishment. A completed stream keeps its own
++// lifetime, so retiring a handler never terminates an established stream.
++var xhttpHandshakeTimeout = 60 * time.Second
++
++func getHTTPClient(ctx context.Context, dest net.Destination, streamSettings, owner *internet.MemoryStreamConfig) (DialerClient, *XmuxClient) {
+ 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
+ 
+ 	if browser_dialer.HasBrowserDialer() && realityConfig == nil {
+ 		return &BrowserDialerClient{transportConfig: streamSettings.ProtocolSettings.(*Config)}, nil
+ 	}
++	owner.RegisterDialerCleanup(dialerConf{dest, streamSettings}, func() {
++		globalDialerAccess.Lock()
++		key := dialerConf{dest, streamSettings}
++		manager := globalDialerMap[key]
++		delete(globalDialerMap, key)
++		globalDialerAccess.Unlock()
++		if manager != nil {
++			manager.retire()
++		}
++	})
+ 
+ 	globalDialerAccess.Lock()
+ 	defer globalDialerAccess.Unlock()
+@@ -70,7 +84,7 @@
+ 		}
+ 
+ 		xmuxManager = NewXmuxManager(xmuxConfig, func() XmuxConn {
+-			return createHTTPClient(dest, streamSettings)
++			return createHTTPClient(dest, streamSettings, owner)
+ 		})
+ 		globalDialerMap[key] = xmuxManager
+ 	}
+@@ -98,7 +112,7 @@
+ 	return "2"
+ }
+ 
+-func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStreamConfig) DialerClient {
++func createHTTPClient(dest net.Destination, streamSettings, owner *internet.MemoryStreamConfig) DialerClient {
+ 	tlsConfig := tls.ConfigFromStreamSettings(streamSettings)
+ 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
+ 
+@@ -116,29 +130,36 @@
+ 	transportConfig := streamSettings.ProtocolSettings.(*Config)
+ 
+ 	dialContext := func(ctxInner context.Context) (net.Conn, error) {
++		setupCtx, cancel := context.WithTimeout(ctxInner, xhttpHandshakeTimeout)
++		defer cancel()
+ 		var conn net.Conn
+ 		var err error
+ 		if streamSettings.FinalMask != nil {
+-			conn, err = streamSettings.FinalMask.DialTCP(ctxInner, dest)
++			conn, err = streamSettings.FinalMask.DialTCP(setupCtx, dest)
+ 		} else {
+-			conn, err = internet.DialSystem(ctxInner, dest, streamSettings.SocketSettings)
++			conn, err = internet.DialSystem(setupCtx, dest, streamSettings.SocketSettings)
+ 		}
+ 		if err != nil {
+ 			return nil, err
+ 		}
+ 
+ 		if realityConfig != nil {
+-			return reality.UClient(conn, realityConfig, ctxInner, dest)
++			return reality.UClient(conn, realityConfig, setupCtx, dest)
+ 		}
+ 
+ 		if gotlsConfig != nil {
+ 			if fingerprint := tls.GetFingerprint(tlsConfig.Fingerprint); fingerprint != nil {
+ 				conn = tls.UClient(conn, gotlsConfig, fingerprint)
+-				if err := conn.(*tls.UConn).HandshakeContext(ctxInner); err != nil {
++				if err := conn.(*tls.UConn).HandshakeContext(setupCtx); err != nil {
++					conn.Close()
+ 					return nil, err
+ 				}
+ 			} else {
+ 				conn = tls.Client(conn, gotlsConfig)
++				if err := conn.(*tls.Conn).HandshakeContext(setupCtx); err != nil {
++					conn.Close()
++					return nil, err
++				}
+ 			}
+ 		}
+ 
+@@ -227,6 +248,8 @@
+ 
+ 				conn, err := tr.DialEarly(ctx, udpAddr, tlsCfg, cfg)
+ 				if err != nil {
++					tr.Close()
++					pktConn.Close()
+ 					return nil, err
+ 				}
+ 				context.AfterFunc(conn.Context(), func() { tr.Close(); pktConn.Close() })
+@@ -275,11 +298,11 @@
+ 
+ 	client := &DefaultDialerClient{
+ 		transportConfig: transportConfig,
++		owner:           owner,
+ 		client: &http.Client{
+ 			Transport: transport,
+ 		},
+ 		httpVersion:    httpVersion,
+-		uploadRawPool:  &sync.Pool{},
+ 		dialUploadConn: dialContext,
+ 	}
+ 
+@@ -291,6 +314,17 @@
+ }
+ 
+ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (stat.Connection, error) {
++	release := streamSettings.AcquireDialer()
++	// Preserve the transport's detached request context, but cancel its own
++	// requests when this logical connection closes, not when it is retired.
++	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
++	releaseOnError := true
++	defer func() {
++		if releaseOnError {
++			cancel()
++			release()
++		}
++	}()
+ 	tlsConfig := tls.ConfigFromStreamSettings(streamSettings)
+ 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
+ 
+@@ -327,7 +361,7 @@
+ 	requestURL.Path = transportConfiguration.GetNormalizedPath()
+ 	requestURL.RawQuery = transportConfiguration.GetNormalizedQuery()
+ 
+-	httpClient, xmuxClient := getHTTPClient(ctx, dest, streamSettings)
++	httpClient, xmuxClient := getHTTPClient(ctx, dest, streamSettings, streamSettings)
+ 
+ 	mode := transportConfiguration.Mode
+ 	if mode == "" || mode == "auto" {
+@@ -391,7 +425,7 @@
+ 		}
+ 		requestURL2.Path = config2.GetNormalizedPath()
+ 		requestURL2.RawQuery = config2.GetNormalizedQuery()
+-		httpClient2, xmuxClient2 = getHTTPClient(ctx, dest2, memory2)
++		httpClient2, xmuxClient2 = getHTTPClient(ctx, dest2, memory2, streamSettings)
+ 		errors.LogInfo(ctx, fmt.Sprintf("XHTTP is downloading from %s, mode %s, HTTP version %s, host %s", dest2, "stream-down", httpVersion2, requestURL2.Host))
+ 	}
+ 
+@@ -410,6 +444,8 @@
+ 			if closed.Add(1) > 1 {
+ 				return
+ 			}
++			defer release()
++			cancel()
+ 			if xmuxClient != nil {
+ 				xmuxClient.DoneRunning()
+ 			}
+@@ -427,8 +463,10 @@
+ 		}
+ 		conn.reader, conn.remoteAddr, conn.localAddr, err = httpClient.OpenStream(ctx, requestURL.String(), sessionId, reader, false)
+ 		if err != nil { // browser dialer only
++			conn.onClose()
+ 			return nil, err
+ 		}
++		releaseOnError = false
+ 		return stat.Connection(&conn), nil
+ 	} else { // stream-down
+ 		if xmuxClient2 != nil {
+@@ -436,6 +474,7 @@
+ 		}
+ 		conn.reader, conn.remoteAddr, conn.localAddr, err = httpClient2.OpenStream(ctx, requestURL2.String(), sessionId, nil, false)
+ 		if err != nil { // browser dialer only
++			conn.onClose()
+ 			return nil, err
+ 		}
+ 	}
+@@ -445,8 +484,10 @@
+ 		}
+ 		_, _, _, err = httpClient.OpenStream(ctx, requestURL.String(), sessionId, reader, true)
+ 		if err != nil { // browser dialer only
++			conn.onClose()
+ 			return nil, err
+ 		}
++		releaseOnError = false
+ 		return stat.Connection(&conn), nil
+ 	}
+ 
+@@ -469,7 +510,9 @@
+ 		maxUploadSize,
+ 	}
+ 
++	releaseUploader := streamSettings.AcquireDialer()
+ 	go func() {
++		defer releaseUploader()
+ 		var seq int64
+ 		var lastWrite time.Time
+ 
+@@ -511,10 +554,12 @@
+ 
+ 				if dynamicXmuxClient != nil && (dynamicXmuxClient.LeftRequests.Add(-1) <= 0 ||
+ 					(dynamicXmuxClient.UnreusableAt != time.Time{} && lastWrite.After(dynamicXmuxClient.UnreusableAt))) {
+-					dynamicHTTPClient, dynamicXmuxClient = getHTTPClient(ctx, dest, streamSettings)
+-				}
+-
++					dynamicHTTPClient, dynamicXmuxClient = getHTTPClient(ctx, dest, streamSettings, streamSettings)
++				}
++
++				releasePacket := streamSettings.AcquireDialer()
+ 				go func(hClient DialerClient) {
++					defer releasePacket()
+ 					err := hClient.PostPacket(
+ 						ctx,
+ 						requestURL.String(),
+@@ -537,6 +582,7 @@
+ 		}
+ 	}()
+ 
++	releaseOnError = false
+ 	return stat.Connection(&conn), nil
+ }
+ 
+diff --git a/transport/internet/splithttp/mux.go b/transport/internet/splithttp/mux.go
+--- a/transport/internet/splithttp/mux.go
++++ b/transport/internet/splithttp/mux.go
+@@ -57,6 +57,16 @@
+ 		newConnFunc: newConnFunc,
+ 		xmuxClients: make([]*XmuxClient, 0),
+ 	}
++}
++
++// Called only after all dialer leases (including upload jobs) have drained.
++func (m *XmuxManager) retire() {
++	for _, client := range m.xmuxClients {
++		client.NotUsed.Store(true)
++		client.maybeClose()
++	}
++	m.xmuxClients = nil
++	m.newConnFunc = nil
+ }
+ 
+ func (m *XmuxManager) newXmuxClient() *XmuxClient {
+diff --git a/transport/internet/splithttp/splithttp_test.go b/transport/internet/splithttp/splithttp_test.go
+--- a/transport/internet/splithttp/splithttp_test.go
++++ b/transport/internet/splithttp/splithttp_test.go
+@@ -8,6 +8,7 @@
+ 	"io"
+ 	"net/http"
+ 	"runtime"
++	"sync/atomic"
+ 	"testing"
+ 	"time"
+ 
+@@ -248,7 +249,7 @@
+ 		},
+ 	}
+ 
+-	serverClosed := false
++	var serverClosed atomic.Bool
+ 	listen, err := ListenXH(context.Background(), net.LocalHostIP, listenPort, streamSettings, func(conn stat.Connection) {
+ 		go func() {
+ 			defer conn.Close()
+@@ -264,7 +265,7 @@
+ 				common.Must2(conn.Write(b.Bytes()))
+ 			}
+ 
+-			serverClosed = true
++			serverClosed.Store(true)
+ 		}()
+ 	})
+ 	common.Must(err)
+@@ -298,7 +299,7 @@
+ 
+ 	conn.Close()
+ 	time.Sleep(100 * time.Millisecond)
+-	if !serverClosed {
++	if !serverClosed.Load() {
+ 		t.Error("server did not get closed")
+ 	}
+ 
+diff --git a/transport/internet/tcp/dialer.go b/transport/internet/tcp/dialer.go
+--- a/transport/internet/tcp/dialer.go
++++ b/transport/internet/tcp/dialer.go
+@@ -82,6 +82,7 @@
+ 			err = conn.(*tls.Conn).HandshakeContext(ctx)
+ 		}
+ 		if err != nil {
++			conn.Close()
+ 			if isFromMitmVerify {
+ 				return nil, errors.New("MITM freedom RAW TLS: failed to verify Domain Fronting certificate from " + mitmServerName).Base(err)
+ 			}
+diff --git a/transport/internet/tls/config.go b/transport/internet/tls/config.go
+--- a/transport/internet/tls/config.go
++++ b/transport/internet/tls/config.go
+@@ -13,6 +13,8 @@
+ 	"sync"
+ 	"time"
+ 
++	"google.golang.org/protobuf/proto"
++
+ 	"github.com/xtls/xray-core/common/errors"
+ 	"github.com/xtls/xray-core/common/net"
+ 	"github.com/xtls/xray-core/common/ocsp"
+@@ -48,11 +50,41 @@
+ 
+ // BuildCertificates builds a list of TLS certificates from proto definition.
+ func (c *Config) BuildCertificates() []*tls.Certificate {
+-	certs := make([]*tls.Certificate, 0, len(c.Certificate))
+-	for _, entry := range c.Certificate {
+-		if entry.Usage != Certificate_ENCIPHERMENT {
++	return c.buildCertificateSnapshots().load()
++}
++
++type certificateSnapshots struct {
++	access sync.RWMutex
++	certs  []*tls.Certificate
++}
++
++func (s *certificateSnapshots) load() []*tls.Certificate {
++	s.access.RLock()
++	defer s.access.RUnlock()
++	return slices.Clone(s.certs)
++}
++
++func (s *certificateSnapshots) append(certificate *tls.Certificate) int {
++	s.access.Lock()
++	defer s.access.Unlock()
++	s.certs = append(s.certs, certificate)
++	return len(s.certs) - 1
++}
++
++func (s *certificateSnapshots) store(index int, certificate *tls.Certificate) {
++	s.access.Lock()
++	defer s.access.Unlock()
++	s.certs[index] = certificate
++}
++
++func (c *Config) buildCertificateSnapshots() *certificateSnapshots {
++	snapshots := &certificateSnapshots{certs: make([]*tls.Certificate, 0, len(c.Certificate))}
++	for _, configured := range c.Certificate {
++		if configured.Usage != Certificate_ENCIPHERMENT {
+ 			continue
+ 		}
++		// Each ticker owns its proto state; published TLS certificates are immutable.
++		entry := proto.Clone(configured).(*Certificate)
+ 		getX509KeyPair := func() *tls.Certificate {
+ 			keyPair, err := tls.X509KeyPair(entry.Certificate, entry.Key)
+ 			if err != nil {
+@@ -66,14 +98,16 @@
+ 			}
+ 			return &keyPair
+ 		}
+-		if keyPair := getX509KeyPair(); keyPair != nil {
+-			certs = append(certs, keyPair)
+-		} else {
++		keyPair := getX509KeyPair()
++		if keyPair == nil {
+ 			continue
+ 		}
+-		index := len(certs) - 1
++		index := snapshots.append(keyPair)
+ 		setupOcspTicker(entry, func(isReloaded, isOcspstapling bool) {
+-			cert := certs[index]
++			if !isReloaded && !isOcspstapling {
++				return
++			}
++			cert := snapshots.load()[index]
+ 			if isReloaded {
+ 				if newKeyPair := getX509KeyPair(); newKeyPair != nil {
+ 					cert = newKeyPair
+@@ -85,13 +119,15 @@
+ 				if newOCSPData, err := ocsp.GetOCSPForCert(cert.Certificate); err != nil {
+ 					errors.LogWarningInner(context.Background(), err, "ignoring invalid OCSP")
+ 				} else if string(newOCSPData) != string(cert.OCSPStaple) {
+-					cert.OCSPStaple = newOCSPData
+-				}
+-			}
+-			certs[index] = cert
++					updated := *cert
++					updated.OCSPStaple = newOCSPData
++					cert = &updated
++				}
++			}
++			snapshots.store(index, cert)
+ 		})
+ 	}
+-	return certs
++	return snapshots
+ }
+ 
+ func setupOcspTicker(entry *Certificate, callback func(isReloaded, isOcspstapling bool)) {
+@@ -244,8 +280,9 @@
+ 	}
+ }
+ 
+-func getNewGetCertificateFunc(certs []*tls.Certificate, rejectUnknownSNI bool) func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
++func getNewGetCertificateFunc(snapshots *certificateSnapshots, rejectUnknownSNI bool) func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+ 	return func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
++		certs := snapshots.load()
+ 		if len(certs) == 0 {
+ 			return nil, errNoCertificates
+ 		}
+@@ -412,7 +449,7 @@
+ 	if len(caCerts) > 0 {
+ 		config.GetCertificate = getGetCertificateFunc(config, caCerts)
+ 	} else {
+-		config.GetCertificate = getNewGetCertificateFunc(c.BuildCertificates(), c.RejectUnknownSni)
++		config.GetCertificate = getNewGetCertificateFunc(c.buildCertificateSnapshots(), c.RejectUnknownSni)
+ 	}
+ 
+ 	if sn := c.parseServerName(); len(sn) > 0 {
 diff --git a/app/proxyman/outbound/passive.go b/app/proxyman/outbound/passive.go
 new file mode 100644
-index 0000000..ad21ace
 --- /dev/null
 +++ b/app/proxyman/outbound/passive.go
 @@ -0,0 +1,48 @@
@@ -219,7 +1640,6 @@ index 0000000..ad21ace
 +}
 diff --git a/app/proxyman/outbound/retirement_switch_test.go b/app/proxyman/outbound/retirement_switch_test.go
 new file mode 100644
-index 0000000..bd8d9e5
 --- /dev/null
 +++ b/app/proxyman/outbound/retirement_switch_test.go
 @@ -0,0 +1,208 @@
@@ -433,7 +1853,6 @@ index 0000000..bd8d9e5
 +}
 diff --git a/app/proxyman/outbound/retirement_test.go b/app/proxyman/outbound/retirement_test.go
 new file mode 100644
-index 0000000..f26705a
 --- /dev/null
 +++ b/app/proxyman/outbound/retirement_test.go
 @@ -0,0 +1,38 @@
@@ -475,151 +1894,8 @@ index 0000000..f26705a
 +		t.Fatal("removed outbound's cache was not reclaimed")
 +	}
 +}
-diff --git a/app/router/balancing.go b/app/router/balancing.go
-index 5b7ef60..5a067cd 100644
---- a/app/router/balancing.go
-+++ b/app/router/balancing.go
-@@ -151,6 +151,8 @@ func (r *Router) GetPrincipleTarget(tag string) ([]string, error) {
- 
- // SetOverrideTarget implements routing.BalancerOverrider
- func (r *Router) SetOverrideTarget(tag, target string) error {
-+	r.overrideMu.Lock()
-+	defer r.overrideMu.Unlock()
- 	if b, ok := (*r.balancers.Load())[tag]; ok {
- 		b.override.Put(target)
- 		return nil
-@@ -160,6 +162,8 @@ func (r *Router) SetOverrideTarget(tag, target string) error {
- 
- // GetOverrideTarget implements routing.BalancerOverrider
- func (r *Router) GetOverrideTarget(tag string) (string, error) {
-+	r.overrideMu.RLock()
-+	defer r.overrideMu.RUnlock()
- 	if b, ok := (*r.balancers.Load())[tag]; ok {
- 		return b.override.Get(), nil
- 	}
-diff --git a/app/router/command/command.go b/app/router/command/command.go
-index 8274d3b..c184c84 100644
---- a/app/router/command/command.go
-+++ b/app/router/command/command.go
-@@ -6,6 +6,7 @@ import (
- 
- 	"github.com/xtls/xray-core/common"
- 	"github.com/xtls/xray-core/common/errors"
-+	"github.com/xtls/xray-core/common/serial"
- 	"github.com/xtls/xray-core/core"
- 	"github.com/xtls/xray-core/features/routing"
- 	"github.com/xtls/xray-core/features/stats"
-@@ -54,6 +55,14 @@ func (s *routingServer) OverrideBalancerTarget(ctx context.Context, request *Ove
- }
- 
- func (s *routingServer) AddRule(ctx context.Context, request *AddRuleRequest) (*AddRuleResponse, error) {
-+	if contextual, ok := s.router.(interface {
-+		AddRuleContext(context.Context, *serial.TypedMessage, bool) error
-+	}); ok {
-+		return &AddRuleResponse{}, contextual.AddRuleContext(ctx, request.Config, request.ShouldAppend)
-+	}
-+	if err := ctx.Err(); err != nil {
-+		return nil, err
-+	}
- 	if bo, ok := s.router.(routing.Router); ok {
- 		return &AddRuleResponse{}, bo.AddRule(request.Config, request.ShouldAppend)
- 	}
-diff --git a/app/router/router.go b/app/router/router.go
-index cd695d8..08582e7 100644
---- a/app/router/router.go
-+++ b/app/router/router.go
-@@ -28,6 +28,7 @@ type Router struct {
- 	ohm        outbound.Manager
- 	dispatcher routing.Dispatcher
- 	mu         sync.Mutex
-+	overrideMu sync.RWMutex
- }
- 
- // Route is an implementation of routing.Route.
-@@ -82,19 +83,34 @@ func (r *Router) PickRoute(ctx routing.Context) (routing.Route, error) {
- 
- // AddRule implements routing.Router.
- func (r *Router) AddRule(config *serial.TypedMessage, shouldAppend bool) error {
-+	return r.AddRuleContext(context.Background(), config, shouldAppend)
-+}
-+
-+// AddRuleContext prevents an expired API request from publishing late routing.
-+func (r *Router) AddRuleContext(ctx context.Context, config *serial.TypedMessage, shouldAppend bool) error {
-+	if err := ctx.Err(); err != nil {
-+		return err
-+	}
- 	inst, err := config.GetInstance()
- 	if err != nil {
- 		return err
- 	}
- 	if c, ok := inst.(*Config); ok {
--		return r.ReloadRules(c, shouldAppend)
-+		return r.ReloadRulesContext(ctx, c, shouldAppend)
- 	}
- 	return errors.New("AddRule: config type error")
- }
- 
- func (r *Router) ReloadRules(config *Config, shouldAppend bool) error {
-+	return r.ReloadRulesContext(context.Background(), config, shouldAppend)
-+}
-+
-+func (r *Router) ReloadRulesContext(ctx context.Context, config *Config, shouldAppend bool) error {
- 	r.mu.Lock()
- 	defer r.mu.Unlock()
-+	if err := ctx.Err(); err != nil {
-+		return err
-+	}
- 
- 	oldRules := *r.rules.Load()
- 	oldBalancers := *r.balancers.Load()
-@@ -122,7 +138,20 @@ func (r *Router) ReloadRules(config *Config, shouldAppend bool) error {
- 		newBalancers[rule.Tag] = balancer
- 	}
- 
-+	published := false
-+	cleanupStart := 0
-+	if shouldAppend {
-+		cleanupStart = len(newRules)
-+	}
-+	defer func() {
-+		if !published {
-+			closeWebhooks(newRules[cleanupStart:])
-+		}
-+	}()
- 	for _, rule := range config.Rule {
-+		if err := ctx.Err(); err != nil {
-+			return err
-+		}
- 		cond, err := rule.BuildCondition()
- 		if err != nil {
- 			return err
-@@ -153,8 +182,23 @@ func (r *Router) ReloadRules(config *Config, shouldAppend bool) error {
- 		newRules = append(newRules, rr)
- 	}
- 
-+	// Compile against the immutable old routing while selector API stays live.
-+	// Carry the latest override only at publication, including changes made
-+	// while expensive GeoIP conditions were being built.
-+	r.overrideMu.Lock()
-+	if err := ctx.Err(); err != nil {
-+		r.overrideMu.Unlock()
-+		return err
-+	}
-+	for tag, balancer := range newBalancers {
-+		if previous, found := oldBalancers[tag]; found {
-+			balancer.override.Put(previous.override.Get())
-+		}
-+	}
- 	r.balancers.Store(&newBalancers)
- 	r.rules.Store(&newRules)
-+	published = true
-+	r.overrideMu.Unlock()
- 	if !shouldAppend {
- 		closeWebhooks(oldRules)
- 	}
 diff --git a/app/router/sb_context_test.go b/app/router/sb_context_test.go
 new file mode 100644
-index 0000000..758c938
 --- /dev/null
 +++ b/app/router/sb_context_test.go
 @@ -0,0 +1,29 @@
@@ -654,7 +1930,6 @@ index 0000000..758c938
 +}
 diff --git a/app/router/sb_reload_test.go b/app/router/sb_reload_test.go
 new file mode 100644
-index 0000000..4908eaa
 --- /dev/null
 +++ b/app/router/sb_reload_test.go
 @@ -0,0 +1,90 @@
@@ -748,36 +2023,8 @@ index 0000000..4908eaa
 +		t.Fatalf("concurrent reload lost selected override: %q %v", got, err)
 +	}
 +}
-diff --git a/proxy/http/server.go b/proxy/http/server.go
-index b89c67c..99cd632 100644
---- a/proxy/http/server.go
-+++ b/proxy/http/server.go
-@@ -99,6 +99,22 @@ func (s *Server) ProcessWithFirstbyte(ctx context.Context, network net.Network,
- 	if !proxy.IsRAWTransportWithoutSecurity(conn) {
- 		inbound.CanSpliceCopy = 3
- 	}
-+	// Health probes close after a bounded response. Vision's raw splice path
-+	// extends its idle timer to 24h and can override the short EOF timeout,
-+	// retaining a closed probe and upstream socket. Keep probes on the normal
-+	// copy path; ordinary client HTTP/CONNECT still uses splice.
-+	if strings.HasPrefix(inbound.Tag, "outbound-health-") || inbound.Tag == "resproxy-refresh-probe" {
-+		inbound.CanSpliceCopy = 3
-+		// CONNECT acknowledges before the upstream dial. A client timeout does
-+		// not cancel that dial while REALITY/TLS is still waiting for its peer.
-+		// Health requests finish within five seconds; allow an eight-second
-+		// core lifetime, including cleanup, without limiting client streams.
-+		var cancel context.CancelFunc
-+		ctx, cancel = context.WithTimeout(ctx, 8*time.Second)
-+		defer cancel()
-+		stopClose := context.AfterFunc(ctx, func() { conn.Close() })
-+		defer stopClose()
-+	}
- 	var reader *bufio.Reader
- 	if len(firstbyte) > 0 {
- 		readerWithoutFirstbyte := bufio.NewReaderSize(readerOnly{conn}, buf.Size)
 diff --git a/proxy/http/server_gateway_test.go b/proxy/http/server_gateway_test.go
 new file mode 100644
-index 0000000..3384a76
 --- /dev/null
 +++ b/proxy/http/server_gateway_test.go
 @@ -0,0 +1,95 @@
@@ -876,40 +2123,8 @@ index 0000000..3384a76
 +		})
 +	}
 +}
-diff --git a/proxy/proxy.go b/proxy/proxy.go
-index 5cb9d7a..5fb63c8 100644
---- a/proxy/proxy.go
-+++ b/proxy/proxy.go
-@@ -514,10 +514,23 @@ func XtlsPadding(b *buf.Buffer, command byte, userUUID *[]byte, longPadding bool
- 		}
- 		paddingLen = int32(l.Int64())
- 	}
--	if paddingLen > buf.Size-21-contentLen {
--		paddingLen = buf.Size - 21 - contentLen
-+	maxPaddingLen := int32(buf.Size-21) - contentLen
-+	if maxPaddingLen < 0 {
-+		maxPaddingLen = 0
-+	}
-+	if paddingLen > maxPaddingLen {
-+		paddingLen = maxPaddingLen
-+	}
-+	bufferSize := contentLen + paddingLen + 5
-+	if userUUID != nil {
-+		bufferSize += int32(len(*userUUID))
-+	}
-+	var newbuffer *buf.Buffer
-+	if bufferSize > buf.Size {
-+		newbuffer = buf.NewWithSize(bufferSize)
-+	} else {
-+		newbuffer = buf.New()
- 	}
--	newbuffer := buf.New()
- 	if userUUID != nil {
- 		newbuffer.Write(*userUUID)
- 		*userUUID = nil
 diff --git a/proxy/vless/outbound/failure_signal_test.go b/proxy/vless/outbound/failure_signal_test.go
 new file mode 100644
-index 0000000..a7c4735
 --- /dev/null
 +++ b/proxy/vless/outbound/failure_signal_test.go
 @@ -0,0 +1,67 @@
@@ -980,98 +2195,8 @@ index 0000000..a7c4735
 +		t.Fatalf("missing listener delayed traffic by %s", elapsed)
 +	}
 +}
-diff --git a/proxy/vless/outbound/outbound.go b/proxy/vless/outbound/outbound.go
-index 56a2fd0..34af07e 100644
---- a/proxy/vless/outbound/outbound.go
-+++ b/proxy/vless/outbound/outbound.go
-@@ -5,6 +5,9 @@ import (
- 	"context"
- 	gotls "crypto/tls"
- 	"encoding/base64"
-+	"encoding/json"
-+	stdnet "net"
-+	"os"
- 	"reflect"
- 	"strings"
- 	"sync"
-@@ -61,6 +64,58 @@ type Handler struct {
- 	preConns chan *ConnExpire
- }
- 
-+// A fixed-size limiter keeps a broken active server from creating a socket
-+// operation for every client connection. Hash collisions only defer hints;
-+// independent periodic HTTPS checks remain the correctness fallback.
-+type sbFailureSlot struct {
-+	sync.Mutex
-+	last time.Time
-+}
-+
-+var sbFailureSlots [64]sbFailureSlot
-+
-+// This best-effort local hint never selects an outbound. The gateway confirms
-+// the active path and its underlay with independent HTTPS probes. No target
-+// address, credentials, or user data are sent across the socket.
-+func signalSBServerFailure(ctx context.Context, tag, stage string) {
-+	if inbound := session.InboundFromContext(ctx); inbound != nil && strings.HasPrefix(inbound.Tag, "outbound-health-") {
-+		return
-+	}
-+	path := os.Getenv("SB_XRAY_FAILURE_SOCKET")
-+	if path == "" || tag == "" {
-+		return
-+	}
-+	index := uint64(1469598103934665603)
-+	for i := range len(tag) {
-+		index = (index ^ uint64(tag[i])) * 1099511628211
-+	}
-+	slot := &sbFailureSlots[index%uint64(len(sbFailureSlots))]
-+	now := time.Now()
-+	slot.Lock()
-+	if now.Sub(slot.last) < 250*time.Millisecond {
-+		slot.Unlock()
-+		return
-+	}
-+	slot.last = now
-+	slot.Unlock()
-+	message, err := json.Marshal(struct {
-+		Version int    `json:"v"`
-+		PID     int    `json:"pid"`
-+		Tag     string `json:"tag"`
-+		Stage   string `json:"stage"`
-+	}{1, os.Getpid(), tag, stage})
-+	if err != nil || len(message) > 512 {
-+		return
-+	}
-+	connection, err := stdnet.DialTimeout("unixgram", path, 10*time.Millisecond)
-+	if err != nil {
-+		return
-+	}
-+	defer connection.Close()
-+	_ = connection.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
-+	_, _ = connection.Write(message)
-+}
-+
- type ConnExpire struct {
- 	Conn   stat.Connection
- 	Expire time.Time
-@@ -193,6 +248,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
- 			var err error
- 			conn, err = dialer.Dial(ctx, rec.Destination)
- 			if err != nil {
-+				signalSBServerFailure(ctx, ob.Tag, "dial")
- 				return err
- 			}
- 			return nil
-@@ -209,6 +265,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
- 	if h.encryption != nil {
- 		var err error
- 		if conn, err = h.encryption.Handshake(conn); err != nil {
-+			signalSBServerFailure(ctx, ob.Tag, "handshake")
- 			return errors.New("ML-KEM-768 handshake failed").Base(err)
- 		}
- 	}
 diff --git a/proxy/xtls_padding_test.go b/proxy/xtls_padding_test.go
 new file mode 100644
-index 0000000..c8c4462
 --- /dev/null
 +++ b/proxy/xtls_padding_test.go
 @@ -0,0 +1,49 @@
@@ -1126,7 +2251,6 @@ index 0000000..c8c4462
 +}
 diff --git a/transport/internet/dialer_lifecycle.go b/transport/internet/dialer_lifecycle.go
 new file mode 100644
-index 0000000..c596d78
 --- /dev/null
 +++ b/transport/internet/dialer_lifecycle.go
 @@ -0,0 +1,79 @@
@@ -1211,7 +2335,6 @@ index 0000000..c596d78
 +}
 diff --git a/transport/internet/dialer_lifecycle_test.go b/transport/internet/dialer_lifecycle_test.go
 new file mode 100644
-index 0000000..6e824ae
 --- /dev/null
 +++ b/transport/internet/dialer_lifecycle_test.go
 @@ -0,0 +1,111 @@
@@ -1326,93 +2449,8 @@ index 0000000..6e824ae
 +		}
 +	}
 +}
-diff --git a/transport/internet/grpc/dial.go b/transport/internet/grpc/dial.go
-index bb65041..aceaba4 100644
---- a/transport/internet/grpc/dial.go
-+++ b/transport/internet/grpc/dial.go
-@@ -27,8 +27,10 @@ import (
- func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (stat.Connection, error) {
- 	errors.LogInfo(ctx, "creating connection to ", dest)
- 
--	conn, err := dialgRPC(ctx, dest, streamSettings)
-+	release := streamSettings.AcquireDialer()
-+	conn, err := dialgRPC(ctx, dest, streamSettings, release)
- 	if err != nil {
-+		release()
- 		return nil, errors.New("failed to dial gRPC").Base(err)
- 	}
- 	return stat.Connection(conn), nil
-@@ -48,7 +50,7 @@ var (
- 	globalDialerAccess sync.Mutex
- )
- 
--func dialgRPC(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (net.Conn, error) {
-+func dialgRPC(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig, release func()) (net.Conn, error) {
- 	grpcSettings := streamSettings.ProtocolSettings.(*Config)
- 
- 	conn, err := getGrpcClient(ctx, dest, streamSettings)
-@@ -56,25 +58,45 @@ func dialgRPC(ctx context.Context, dest net.Destination, streamSettings *interne
- 		return nil, errors.New("Cannot dial gRPC").Base(err)
- 	}
- 	client := encoding.NewGRPCServiceClient(conn)
-+	ctx, cancel := context.WithCancel(ctx)
-+	closeStream := func() { cancel(); release() }
- 	if grpcSettings.MultiMode {
- 		errors.LogDebug(ctx, "using gRPC multi mode service name: `"+grpcSettings.getServiceName()+"` stream name: `"+grpcSettings.getTunMultiStreamName()+"`")
- 		grpcService, err := client.(encoding.GRPCServiceClientX).TunMultiCustomName(ctx, grpcSettings.getServiceName(), grpcSettings.getTunMultiStreamName())
- 		if err != nil {
-+			cancel()
- 			return nil, errors.New("Cannot dial gRPC").Base(err)
- 		}
--		return encoding.NewMultiHunkConn(grpcService, nil, nil), nil
-+		return encoding.NewMultiHunkConn(grpcService, closeStream, nil), nil
- 	}
- 
- 	errors.LogDebug(ctx, "using gRPC tun mode service name: `"+grpcSettings.getServiceName()+"` stream name: `"+grpcSettings.getTunStreamName()+"`")
- 	grpcService, err := client.(encoding.GRPCServiceClientX).TunCustomName(ctx, grpcSettings.getServiceName(), grpcSettings.getTunStreamName())
- 	if err != nil {
-+		cancel()
- 		return nil, errors.New("Cannot dial gRPC").Base(err)
- 	}
- 
--	return encoding.NewHunkConn(grpcService, nil, nil), nil
-+	return encoding.NewHunkConn(grpcService, closeStream, nil), nil
- }
- 
- func getGrpcClient(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (*grpc.ClientConn, error) {
-+	streamSettings.RegisterDialerCleanup("grpc", func() {
-+		globalDialerAccess.Lock()
-+		var clients []*grpc.ClientConn
-+		for key, client := range globalDialerMap {
-+			if key.MemoryStreamConfig == streamSettings {
-+				delete(globalDialerMap, key)
-+				clients = append(clients, client)
-+			}
-+		}
-+		globalDialerAccess.Unlock()
-+		for _, client := range clients {
-+			if client != nil {
-+				client.Close()
-+			}
-+		}
-+	})
- 	globalDialerAccess.Lock()
- 	defer globalDialerAccess.Unlock()
- 
-@@ -197,7 +219,9 @@ func getGrpcClient(ctx context.Context, dest net.Destination, streamSettings *in
- 		setUserAgent(conn, userAgent)
- 		conn.Connect()
- 	}
--	globalDialerMap[dialerConf{dest, streamSettings}] = conn
-+	if err == nil {
-+		globalDialerMap[dialerConf{dest, streamSettings}] = conn
-+	}
- 	return conn, err
- }
- 
 diff --git a/transport/internet/grpc/retirement_test.go b/transport/internet/grpc/retirement_test.go
 new file mode 100644
-index 0000000..db27823
 --- /dev/null
 +++ b/transport/internet/grpc/retirement_test.go
 @@ -0,0 +1,119 @@
@@ -1535,231 +2573,8 @@ index 0000000..db27823
 +	}
 +	assertGRPCCacheRetired(t, dest, settings)
 +}
-diff --git a/transport/internet/hysteria/conn.go b/transport/internet/hysteria/conn.go
-index 07b8f6d..6077f96 100644
---- a/transport/internet/hysteria/conn.go
-+++ b/transport/internet/hysteria/conn.go
-@@ -5,6 +5,7 @@ import (
- 	"encoding/binary"
- 	"io"
- 	"sync"
-+	"sync/atomic"
- 	"time"
- 
- 	"github.com/apernet/quic-go"
-@@ -20,8 +21,9 @@ type interConn struct {
- 	local  net.Addr
- 	remote net.Addr
- 
--	client bool
--	user   *protocol.MemoryUser
-+	client  bool
-+	user    *protocol.MemoryUser
-+	onClose func()
- }
- 
- func (c *interConn) User() *protocol.MemoryUser {
-@@ -45,6 +47,9 @@ func (c *interConn) Write(b []byte) (int, error) {
- }
- 
- func (c *interConn) Close() error {
-+	if c.onClose != nil {
-+		defer c.onClose()
-+	}
- 	c.stream.CancelRead(0)
- 	return c.stream.Close()
- }
-@@ -77,11 +82,12 @@ type InterConn struct {
- 	ch     chan []byte
- 	time   time.Time
- 	mutex  sync.Mutex
--	closed bool
-+	closed atomic.Bool
- 
--	write func(p []byte) error
--	close func()
--	user  *protocol.MemoryUser
-+	write   func(p []byte) error
-+	close   func()
-+	user    *protocol.MemoryUser
-+	onClose func()
- }
- 
- func (i *InterConn) User() *protocol.MemoryUser {
-@@ -111,7 +117,7 @@ func (c *InterConn) Read(p []byte) (int, error) {
- }
- 
- func (c *InterConn) Write(p []byte) (int, error) {
--	if c.closed {
-+	if c.closed.Load() {
- 		return 0, io.ErrClosedPipe
- 	}
- 	binary.BigEndian.PutUint32(p, c.id)
-@@ -123,6 +129,9 @@ func (c *InterConn) Write(p []byte) (int, error) {
- }
- 
- func (c *InterConn) Close() error {
-+	if c.onClose != nil {
-+		defer c.onClose()
-+	}
- 	c.close()
- 	return nil
- }
-@@ -161,8 +170,7 @@ type udpSessionManager struct {
- }
- 
- func (m *udpSessionManager) close(udpConn *InterConn) {
--	if !udpConn.closed {
--		udpConn.closed = true
-+	if udpConn.closed.CompareAndSwap(false, true) {
- 		close(udpConn.ch)
- 		delete(m.m, udpConn.id)
- 	}
-@@ -172,12 +180,17 @@ func (m *udpSessionManager) clean() {
- 	ticker := time.NewTicker(idleCleanupInterval)
- 	defer ticker.Stop()
- 
--	for range ticker.C {
--		if m.closed {
-+	for {
-+		select {
-+		case <-m.conn.Context().Done():
- 			return
-+		case <-ticker.C:
- 		}
--
- 		m.RLock()
-+		if m.closed {
-+			m.RUnlock()
-+			return
-+		}
- 		now := time.Now()
- 		timeoutConn := make([]*InterConn, 0, len(m.m))
- 		for _, udpConn := range m.m {
-@@ -220,7 +233,7 @@ func (m *udpSessionManager) run() {
- 	}
- }
- 
--func (m *udpSessionManager) udp() (*InterConn, error) {
-+func (m *udpSessionManager) udp(release func()) (*InterConn, error) {
- 	m.Lock()
- 	defer m.Unlock()
- 
-@@ -232,8 +245,9 @@ func (m *udpSessionManager) udp() (*InterConn, error) {
- 		local:  m.conn.LocalAddr(),
- 		remote: m.conn.RemoteAddr(),
- 
--		id: m.next,
--		ch: make(chan []byte, udpMessageChanSize),
-+		id:      m.next,
-+		ch:      make(chan []byte, udpMessageChanSize),
-+		onClose: release,
- 	}
- 	udpConn.write = m.conn.SendDatagram
- 	udpConn.close = func() {
-diff --git a/transport/internet/hysteria/dialer.go b/transport/internet/hysteria/dialer.go
-index 1d7b8a9..be4b13b 100644
---- a/transport/internet/hysteria/dialer.go
-+++ b/transport/internet/hysteria/dialer.go
-@@ -233,7 +233,7 @@ func (c *client) unlock() {
- 	<-c.lock
- }
- 
--func (c *client) tcp(ctx context.Context) (stat.Connection, error) {
-+func (c *client) tcp(ctx context.Context, release func()) (stat.Connection, error) {
- 	select {
- 	case <-ctx.Done():
- 		return nil, ctx.Err()
-@@ -241,6 +241,7 @@ func (c *client) tcp(ctx context.Context) (stat.Connection, error) {
- 		defer c.unlock()
- 	}
- 
-+
- 	err := c.dial(ctx)
- 	if err != nil {
- 		return nil, err
-@@ -256,11 +257,12 @@ func (c *client) tcp(ctx context.Context) (stat.Connection, error) {
- 		local:  c.conn.LocalAddr(),
- 		remote: c.conn.RemoteAddr(),
- 
--		client: true,
-+		client:  true,
-+		onClose: release,
- 	}, nil
- }
- 
--func (c *client) udp(ctx context.Context) (stat.Connection, error) {
-+func (c *client) udp(ctx context.Context, release func()) (stat.Connection, error) {
- 	select {
- 	case <-ctx.Done():
- 		return nil, ctx.Err()
-@@ -268,12 +270,13 @@ func (c *client) udp(ctx context.Context) (stat.Connection, error) {
- 		defer c.unlock()
- 	}
- 
-+
- 	err := c.dial(ctx)
- 	if err != nil {
- 		return nil, err
- 	}
- 
--	return c.udpSM.udp()
-+	return c.udpSM.udp(release)
- }
- 
- func (c *client) clean(force bool) {
-@@ -328,6 +331,7 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 	if tlsConfig == nil {
- 		return nil, errors.New("tls config is nil")
- 	}
-+	release := streamSettings.AcquireDialer()
- 
- 	datagram := DatagramFromContext(ctx)
- 	dest.Network = net.Network_UDP
-@@ -338,6 +342,20 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 		}
- 		go manager.clean()
- 	})
-+	streamSettings.RegisterDialerCleanup("hysteria", func() {
-+		manager.Lock()
-+		var clients []*client
-+		for key, client := range manager.m {
-+			if key.MemoryStreamConfig == streamSettings {
-+				delete(manager.m, key)
-+				clients = append(clients, client)
-+			}
-+		}
-+		manager.Unlock()
-+		for _, client := range clients {
-+			client.clean(true)
-+		}
-+	})
- 
- 	dialerConfKey := dialerConf{dest, streamSettings}
- 
-@@ -364,10 +382,17 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 		manager.Unlock()
- 	}
- 
-+	var conn stat.Connection
-+	var err error
- 	if datagram {
--		return c.udp(ctx)
-+		conn, err = c.udp(ctx, release)
-+	} else {
-+		conn, err = c.tcp(ctx, release)
-+	}
-+	if err != nil {
-+		release()
- 	}
--	return c.tcp(ctx)
-+	return conn, err
- }
- 
- func init() {
 diff --git a/transport/internet/hysteria/retirement_test.go b/transport/internet/hysteria/retirement_test.go
 new file mode 100644
-index 0000000..45575d8
 --- /dev/null
 +++ b/transport/internet/hysteria/retirement_test.go
 @@ -0,0 +1,126 @@
@@ -1889,553 +2704,8 @@ index 0000000..45575d8
 +		t.Fatal("live Hysteria stream stopped after retirement")
 +	}
 +}
-diff --git a/transport/internet/memory_settings.go b/transport/internet/memory_settings.go
-index 6277151..bc81a27 100644
---- a/transport/internet/memory_settings.go
-+++ b/transport/internet/memory_settings.go
-@@ -21,6 +21,7 @@ type MemoryStreamConfig struct {
- 	QuicParams       *QuicParams
- 	SocketSettings   *SocketConfig
- 	DownloadSettings *MemoryStreamConfig
-+	dialers          dialerLifetime
- }
- 
- // ToMemoryStreamConfig converts a StreamConfig to MemoryStreamConfig. It returns a default non-nil MemoryStreamConfig for nil input.
-diff --git a/transport/internet/reality/reality.go b/transport/internet/reality/reality.go
-index 4431a17..47f068e 100644
---- a/transport/internet/reality/reality.go
-+++ b/transport/internet/reality/reality.go
-@@ -29,6 +29,7 @@ import (
- 	"github.com/xtls/xray-core/common/crypto"
- 	"github.com/xtls/xray-core/common/errors"
- 	"github.com/xtls/xray-core/common/net"
-+	"github.com/xtls/xray-core/common/session"
- 	"github.com/xtls/xray-core/common/utils"
- 	"github.com/xtls/xray-core/core"
- 	"github.com/xtls/xray-core/transport/internet/tls"
-@@ -140,6 +141,15 @@ func (c *UConn) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x50
- }
- 
- func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destination) (net.Conn, error) {
-+	// Failed handshakes never transfer connection ownership to the caller.
-+	// The normal REALITY camouflage path explicitly keeps ownership below.
-+	keepConn := false
-+	defer func() {
-+		if !keepConn {
-+			c.Close()
-+		}
-+	}()
-+
- 	localAddr := c.LocalAddr().String()
- 	uConn := &UConn{
- 		Config: config,
-@@ -206,6 +216,11 @@ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destinati
- 	}
- 	if !uConn.Verified {
- 		errors.LogError(ctx, "REALITY: received real certificate (potential MITM or redirection)")
-+		if inbound := session.InboundFromContext(ctx); inbound != nil &&
-+			(strings.HasPrefix(inbound.Tag, "outbound-health-") || inbound.Tag == "resproxy-refresh-probe") {
-+			return nil, errors.New("REALITY: invalid health probe authentication")
-+		}
-+		keepConn = true // Ordinary client camouflage owns the connection.
- 		go func() {
- 			client := &http.Client{
- 				Transport: &http2.Transport{
-@@ -297,6 +312,7 @@ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destinati
- 		time.Sleep(time.Duration(crypto.RandBetween(config.SpiderY[8], config.SpiderY[9])) * time.Millisecond) // return
- 		return nil, errors.New("REALITY: processed invalid connection")
- 	}
-+	keepConn = true
- 	return uConn, nil
- }
- 
-diff --git a/transport/internet/splithttp/client.go b/transport/internet/splithttp/client.go
-index a2b5f75..7aee0d4 100644
---- a/transport/internet/splithttp/client.go
-+++ b/transport/internet/splithttp/client.go
-@@ -16,6 +16,7 @@ import (
- 	"github.com/xtls/xray-core/common/errors"
- 	"github.com/xtls/xray-core/common/net"
- 	"github.com/xtls/xray-core/common/signal/done"
-+	"github.com/xtls/xray-core/transport/internet"
- )
- 
- // interface to abstract between use of browser dialer, vs net/http
-@@ -32,11 +33,13 @@ type DialerClient interface {
- // implements splithttp.DialerClient in terms of direct network connections
- type DefaultDialerClient struct {
- 	transportConfig *Config
-+	owner           *internet.MemoryStreamConfig
- 	client          *http.Client
- 	closed          atomic.Bool
- 	httpVersion     string
- 	// pool of net.Conn, created using dialUploadConn
--	uploadRawPool  *sync.Pool
-+	uploadRawMu    sync.Mutex
-+	uploadRawPool  []*H1Conn
- 	dialUploadConn func(ctxInner context.Context) (net.Conn, error)
- }
- 
-@@ -49,11 +52,15 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
- 	// and we can unblock the Dial function and print correct net addresses in
- 	// logs
- 	gotConn := done.New()
-+	dialErr := make(chan error, 1)
-+	var connOnce sync.Once
- 	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
- 		GotConn: func(connInfo httptrace.GotConnInfo) {
--			remoteAddr = connInfo.Conn.RemoteAddr()
--			localAddr = connInfo.Conn.LocalAddr()
--			gotConn.Close()
-+			connOnce.Do(func() {
-+				remoteAddr = connInfo.Conn.RemoteAddr()
-+				localAddr = connInfo.Conn.LocalAddr()
-+				gotConn.Close()
-+			})
- 		},
- 	})
- 
-@@ -61,24 +68,28 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
- 	if body != nil {
- 		method = c.transportConfig.GetNormalizedUplinkHTTPMethod() // stream-up/one
- 	}
--	req, err := http.NewRequestWithContext(context.WithoutCancel(ctx), method, url, body)
-+	req, err := http.NewRequestWithContext(ctx, method, url, body)
- 	if err != nil {
- 		errors.LogInfoInner(ctx, err, "failed to create HTTP request for "+url)
- 		return nil, nil, nil, err
- 	}
- 	c.transportConfig.FillStreamRequest(req, sessionId, "")
- 
--	wrc = &WaitReadCloser{wait: done.New()}
-+	responseBody := &WaitReadCloser{wait: done.New()}
-+	wrc = responseBody
-+	release := c.owner.AcquireDialer()
- 	go func() {
-+		defer release()
- 		resp, err := c.client.Do(req)
- 		if err != nil {
- 			if !uploadOnly { // stream-down is enough
- 				c.closed.Store(true)
- 				errors.LogInfoInner(ctx, err, "failed to "+method+" "+url)
- 			}
-+			dialErr <- err
- 			gotConn.Close()
- 			common.Close(body)
--			wrc.Close()
-+			responseBody.Close()
- 			return
- 		}
- 		if resp.StatusCode != 200 && !uploadOnly {
-@@ -88,19 +99,24 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
- 			io.Copy(io.Discard, resp.Body)
- 			resp.Body.Close() // if it is called immediately, the upload will be interrupted also
- 			common.Close(body)
--			wrc.Close()
-+			responseBody.Close()
- 			return
- 		}
--		wrc.(*WaitReadCloser).Set(resp.Body)
-+		responseBody.Set(resp.Body)
- 	}()
- 
- 	<-gotConn.Wait()
-+	select {
-+	case err = <-dialErr:
-+		return nil, nil, nil, err
-+	default:
-+	}
- 	return
- }
- 
- func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) error {
- 	method := c.transportConfig.GetNormalizedUplinkHTTPMethod()
--	req, err := http.NewRequestWithContext(context.WithoutCancel(ctx), method, url, nil)
-+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
- 	if err != nil {
- 		return err
- 	}
-@@ -128,59 +144,116 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
- 		requestBuff.Grow(512 + int(req.ContentLength))
- 		common.Must(req.Write(requestBuff))
- 
--		var uploadConn any
-+		var uploadConn *H1Conn
- 		var h1UploadConn *H1Conn
- 
- 		for {
--			uploadConn = c.uploadRawPool.Get()
-+			uploadConn = c.takeUploadConn()
- 			newConnection := uploadConn == nil
- 			if newConnection {
--				newConn, err := c.dialUploadConn(context.WithoutCancel(ctx))
-+				newConn, err := c.dialUploadConn(ctx)
- 				if err != nil {
- 					return err
- 				}
- 				h1UploadConn = NewH1Conn(newConn)
- 				uploadConn = h1UploadConn
- 			} else {
--				h1UploadConn = uploadConn.(*H1Conn)
-+				h1UploadConn = uploadConn
-+			}
-+			activeConn := h1UploadConn
-+			canceled := make(chan struct{})
-+			stopCancel := context.AfterFunc(ctx, func() { activeConn.Close(); close(canceled) })
-+			finishCancel := func() {
-+				if !stopCancel() {
-+					<-canceled
-+				}
-+			}
-+			if !newConnection {
- 
- 				// TODO: Replace 0 here with a config value later
- 				// Or add some other condition for optimization purposes
- 				if h1UploadConn.UnreadedResponsesCount > 0 {
- 					resp, err := http.ReadResponse(h1UploadConn.RespBufReader, req)
- 					if err != nil {
-+						finishCancel()
- 						c.closed.Store(true)
-+						h1UploadConn.Close()
- 						return fmt.Errorf("error while reading response: %s", err.Error())
- 					}
- 					io.Copy(io.Discard, resp.Body)
- 					defer resp.Body.Close()
- 					if resp.StatusCode != 200 {
-+						finishCancel()
-+						h1UploadConn.Close()
- 						return fmt.Errorf("got non-200 error response code: %d", resp.StatusCode)
- 					}
- 				}
- 			}
- 
- 			_, err := h1UploadConn.Write(requestBuff.Bytes())
-+			finishCancel()
-+			if ctx.Err() != nil {
-+				h1UploadConn.Close()
-+				return ctx.Err()
-+			}
- 			// if the write failed, we try another connection from
- 			// the pool, until the write on a new connection fails.
- 			// failed writes to a pooled connection are normal when
- 			// the connection has been closed in the meantime.
- 			if err == nil {
- 				break
--			} else if newConnection {
-+			}
-+			h1UploadConn.Close()
-+			if newConnection {
- 				return err
- 			}
- 		}
- 
--		c.uploadRawPool.Put(uploadConn)
-+		c.putUploadConn(uploadConn)
- 	}
- 
- 	return nil
- }
- 
--// HTTP/1.1 and HTTP/2 will close itself, we only handle HTTP/3 here
-+func (c *DefaultDialerClient) takeUploadConn() *H1Conn {
-+	c.uploadRawMu.Lock()
-+	defer c.uploadRawMu.Unlock()
-+	if len(c.uploadRawPool) == 0 {
-+		return nil
-+	}
-+	last := len(c.uploadRawPool) - 1
-+	conn := c.uploadRawPool[last]
-+	c.uploadRawPool[last] = nil
-+	c.uploadRawPool = c.uploadRawPool[:last]
-+	return conn
-+}
-+
-+func (c *DefaultDialerClient) putUploadConn(conn *H1Conn) {
-+	c.uploadRawMu.Lock()
-+	// Bound idle socket retention after a burst; in-flight requests are not
-+	// limited and never live in this pool.
-+	if !c.closed.Load() && len(c.uploadRawPool) < 16 {
-+		c.uploadRawPool = append(c.uploadRawPool, conn)
-+		c.uploadRawMu.Unlock()
-+		return
-+	}
-+	c.uploadRawMu.Unlock()
-+	conn.Close()
-+}
-+
- func (c *DefaultDialerClient) Close() error {
-+	c.uploadRawMu.Lock()
-+	c.closed.Store(true)
-+	pooled := c.uploadRawPool
-+	c.uploadRawPool = nil
-+	c.uploadRawMu.Unlock()
-+	for _, conn := range pooled {
-+		conn.Close()
-+	}
- 	transport := c.client.Transport
-+	if idle, ok := transport.(interface{ CloseIdleConnections() }); ok {
-+		idle.CloseIdleConnections()
-+	}
- 	if h3Transport, ok := transport.(*http3.Transport); ok {
- 		h3Transport.Close()
- 	}
-diff --git a/transport/internet/splithttp/connection.go b/transport/internet/splithttp/connection.go
-index 613e1f3..275f4a0 100644
---- a/transport/internet/splithttp/connection.go
-+++ b/transport/internet/splithttp/connection.go
-@@ -24,7 +24,7 @@ func (c *splitConn) Read(b []byte) (int, error) {
- 
- func (c *splitConn) Close() error {
- 	if c.onClose != nil {
--		c.onClose()
-+		defer c.onClose()
- 	}
- 
- 	err := c.writer.Close()
-diff --git a/transport/internet/splithttp/dialer.go b/transport/internet/splithttp/dialer.go
-index b52f5a7..1572742 100644
---- a/transport/internet/splithttp/dialer.go
-+++ b/transport/internet/splithttp/dialer.go
-@@ -44,12 +44,26 @@ var (
- 	globalDialerAccess sync.Mutex
- )
- 
--func getHTTPClient(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (DialerClient, *XmuxClient) {
-+// Bound only connection establishment. A completed stream keeps its own
-+// lifetime, so retiring a handler never terminates an established stream.
-+var xhttpHandshakeTimeout = 60 * time.Second
-+
-+func getHTTPClient(ctx context.Context, dest net.Destination, streamSettings, owner *internet.MemoryStreamConfig) (DialerClient, *XmuxClient) {
- 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
- 
- 	if browser_dialer.HasBrowserDialer() && realityConfig == nil {
- 		return &BrowserDialerClient{transportConfig: streamSettings.ProtocolSettings.(*Config)}, nil
- 	}
-+	owner.RegisterDialerCleanup(dialerConf{dest, streamSettings}, func() {
-+		globalDialerAccess.Lock()
-+		key := dialerConf{dest, streamSettings}
-+		manager := globalDialerMap[key]
-+		delete(globalDialerMap, key)
-+		globalDialerAccess.Unlock()
-+		if manager != nil {
-+			manager.retire()
-+		}
-+	})
- 
- 	globalDialerAccess.Lock()
- 	defer globalDialerAccess.Unlock()
-@@ -70,7 +84,7 @@ func getHTTPClient(ctx context.Context, dest net.Destination, streamSettings *in
- 		}
- 
- 		xmuxManager = NewXmuxManager(xmuxConfig, func() XmuxConn {
--			return createHTTPClient(dest, streamSettings)
-+			return createHTTPClient(dest, streamSettings, owner)
- 		})
- 		globalDialerMap[key] = xmuxManager
- 	}
-@@ -98,7 +112,7 @@ func decideHTTPVersion(tlsConfig *tls.Config, realityConfig *reality.Config) str
- 	return "2"
- }
- 
--func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStreamConfig) DialerClient {
-+func createHTTPClient(dest net.Destination, streamSettings, owner *internet.MemoryStreamConfig) DialerClient {
- 	tlsConfig := tls.ConfigFromStreamSettings(streamSettings)
- 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
- 
-@@ -116,29 +130,36 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
- 	transportConfig := streamSettings.ProtocolSettings.(*Config)
- 
- 	dialContext := func(ctxInner context.Context) (net.Conn, error) {
-+		setupCtx, cancel := context.WithTimeout(ctxInner, xhttpHandshakeTimeout)
-+		defer cancel()
- 		var conn net.Conn
- 		var err error
- 		if streamSettings.FinalMask != nil {
--			conn, err = streamSettings.FinalMask.DialTCP(ctxInner, dest)
-+			conn, err = streamSettings.FinalMask.DialTCP(setupCtx, dest)
- 		} else {
--			conn, err = internet.DialSystem(ctxInner, dest, streamSettings.SocketSettings)
-+			conn, err = internet.DialSystem(setupCtx, dest, streamSettings.SocketSettings)
- 		}
- 		if err != nil {
- 			return nil, err
- 		}
- 
- 		if realityConfig != nil {
--			return reality.UClient(conn, realityConfig, ctxInner, dest)
-+			return reality.UClient(conn, realityConfig, setupCtx, dest)
- 		}
- 
- 		if gotlsConfig != nil {
- 			if fingerprint := tls.GetFingerprint(tlsConfig.Fingerprint); fingerprint != nil {
- 				conn = tls.UClient(conn, gotlsConfig, fingerprint)
--				if err := conn.(*tls.UConn).HandshakeContext(ctxInner); err != nil {
-+				if err := conn.(*tls.UConn).HandshakeContext(setupCtx); err != nil {
-+					conn.Close()
- 					return nil, err
- 				}
- 			} else {
- 				conn = tls.Client(conn, gotlsConfig)
-+				if err := conn.(*tls.Conn).HandshakeContext(setupCtx); err != nil {
-+					conn.Close()
-+					return nil, err
-+				}
- 			}
- 		}
- 
-@@ -227,6 +248,8 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
- 
- 				conn, err := tr.DialEarly(ctx, udpAddr, tlsCfg, cfg)
- 				if err != nil {
-+					tr.Close()
-+					pktConn.Close()
- 					return nil, err
- 				}
- 				context.AfterFunc(conn.Context(), func() { tr.Close(); pktConn.Close() })
-@@ -275,11 +298,11 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
- 
- 	client := &DefaultDialerClient{
- 		transportConfig: transportConfig,
-+		owner:           owner,
- 		client: &http.Client{
- 			Transport: transport,
- 		},
- 		httpVersion:    httpVersion,
--		uploadRawPool:  &sync.Pool{},
- 		dialUploadConn: dialContext,
- 	}
- 
-@@ -291,6 +314,17 @@ func init() {
- }
- 
- func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (stat.Connection, error) {
-+	release := streamSettings.AcquireDialer()
-+	// Preserve the transport's detached request context, but cancel its own
-+	// requests when this logical connection closes, not when it is retired.
-+	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-+	releaseOnError := true
-+	defer func() {
-+		if releaseOnError {
-+			cancel()
-+			release()
-+		}
-+	}()
- 	tlsConfig := tls.ConfigFromStreamSettings(streamSettings)
- 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
- 
-@@ -327,7 +361,7 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 	requestURL.Path = transportConfiguration.GetNormalizedPath()
- 	requestURL.RawQuery = transportConfiguration.GetNormalizedQuery()
- 
--	httpClient, xmuxClient := getHTTPClient(ctx, dest, streamSettings)
-+	httpClient, xmuxClient := getHTTPClient(ctx, dest, streamSettings, streamSettings)
- 
- 	mode := transportConfiguration.Mode
- 	if mode == "" || mode == "auto" {
-@@ -391,7 +425,7 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 		}
- 		requestURL2.Path = config2.GetNormalizedPath()
- 		requestURL2.RawQuery = config2.GetNormalizedQuery()
--		httpClient2, xmuxClient2 = getHTTPClient(ctx, dest2, memory2)
-+		httpClient2, xmuxClient2 = getHTTPClient(ctx, dest2, memory2, streamSettings)
- 		errors.LogInfo(ctx, fmt.Sprintf("XHTTP is downloading from %s, mode %s, HTTP version %s, host %s", dest2, "stream-down", httpVersion2, requestURL2.Host))
- 	}
- 
-@@ -410,6 +444,8 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 			if closed.Add(1) > 1 {
- 				return
- 			}
-+			defer release()
-+			cancel()
- 			if xmuxClient != nil {
- 				xmuxClient.DoneRunning()
- 			}
-@@ -427,8 +463,10 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 		}
- 		conn.reader, conn.remoteAddr, conn.localAddr, err = httpClient.OpenStream(ctx, requestURL.String(), sessionId, reader, false)
- 		if err != nil { // browser dialer only
-+			conn.onClose()
- 			return nil, err
- 		}
-+		releaseOnError = false
- 		return stat.Connection(&conn), nil
- 	} else { // stream-down
- 		if xmuxClient2 != nil {
-@@ -436,6 +474,7 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 		}
- 		conn.reader, conn.remoteAddr, conn.localAddr, err = httpClient2.OpenStream(ctx, requestURL2.String(), sessionId, nil, false)
- 		if err != nil { // browser dialer only
-+			conn.onClose()
- 			return nil, err
- 		}
- 	}
-@@ -445,8 +484,10 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 		}
- 		_, _, _, err = httpClient.OpenStream(ctx, requestURL.String(), sessionId, reader, true)
- 		if err != nil { // browser dialer only
-+			conn.onClose()
- 			return nil, err
- 		}
-+		releaseOnError = false
- 		return stat.Connection(&conn), nil
- 	}
- 
-@@ -469,7 +510,9 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 		maxUploadSize,
- 	}
- 
-+	releaseUploader := streamSettings.AcquireDialer()
- 	go func() {
-+		defer releaseUploader()
- 		var seq int64
- 		var lastWrite time.Time
- 
-@@ -511,10 +554,12 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 
- 				if dynamicXmuxClient != nil && (dynamicXmuxClient.LeftRequests.Add(-1) <= 0 ||
- 					(dynamicXmuxClient.UnreusableAt != time.Time{} && lastWrite.After(dynamicXmuxClient.UnreusableAt))) {
--					dynamicHTTPClient, dynamicXmuxClient = getHTTPClient(ctx, dest, streamSettings)
-+					dynamicHTTPClient, dynamicXmuxClient = getHTTPClient(ctx, dest, streamSettings, streamSettings)
- 				}
- 
-+				releasePacket := streamSettings.AcquireDialer()
- 				go func(hClient DialerClient) {
-+					defer releasePacket()
- 					err := hClient.PostPacket(
- 						ctx,
- 						requestURL.String(),
-@@ -537,6 +582,7 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 		}
- 	}()
- 
-+	releaseOnError = false
- 	return stat.Connection(&conn), nil
- }
- 
-diff --git a/transport/internet/splithttp/mux.go b/transport/internet/splithttp/mux.go
-index 1945224..6f5b54a 100644
---- a/transport/internet/splithttp/mux.go
-+++ b/transport/internet/splithttp/mux.go
-@@ -59,6 +59,16 @@ func NewXmuxManager(xmuxConfig XmuxConfig, newConnFunc func() XmuxConn) *XmuxMan
- 	}
- }
- 
-+// Called only after all dialer leases (including upload jobs) have drained.
-+func (m *XmuxManager) retire() {
-+	for _, client := range m.xmuxClients {
-+		client.NotUsed.Store(true)
-+		client.maybeClose()
-+	}
-+	m.xmuxClients = nil
-+	m.newConnFunc = nil
-+}
-+
- func (m *XmuxManager) newXmuxClient() *XmuxClient {
- 	xmuxClient := &XmuxClient{
- 		XmuxConn:  m.newConnFunc(),
 diff --git a/transport/internet/splithttp/retirement_test.go b/transport/internet/splithttp/retirement_test.go
 new file mode 100644
-index 0000000..cf8ce8e
 --- /dev/null
 +++ b/transport/internet/splithttp/retirement_test.go
 @@ -0,0 +1,330 @@
@@ -2771,7 +3041,6 @@ index 0000000..cf8ce8e
 +}
 diff --git a/transport/internet/splithttp/sb_open_stream_failure_test.go b/transport/internet/splithttp/sb_open_stream_failure_test.go
 new file mode 100644
-index 0000000..6ec6b27
 --- /dev/null
 +++ b/transport/internet/splithttp/sb_open_stream_failure_test.go
 @@ -0,0 +1,36 @@
@@ -2811,179 +3080,8 @@ index 0000000..6ec6b27
 +	}
 +	workers.Wait()
 +}
-diff --git a/transport/internet/splithttp/splithttp_test.go b/transport/internet/splithttp/splithttp_test.go
-index 62ca858..9c5b2dd 100644
---- a/transport/internet/splithttp/splithttp_test.go
-+++ b/transport/internet/splithttp/splithttp_test.go
-@@ -8,6 +8,7 @@ import (
- 	"io"
- 	"net/http"
- 	"runtime"
-+	"sync/atomic"
- 	"testing"
- 	"time"
- 
-@@ -248,7 +249,7 @@ func Test_ListenXHAndDial_QUIC(t *testing.T) {
- 		},
- 	}
- 
--	serverClosed := false
-+	var serverClosed atomic.Bool
- 	listen, err := ListenXH(context.Background(), net.LocalHostIP, listenPort, streamSettings, func(conn stat.Connection) {
- 		go func() {
- 			defer conn.Close()
-@@ -264,7 +265,7 @@ func Test_ListenXHAndDial_QUIC(t *testing.T) {
- 				common.Must2(conn.Write(b.Bytes()))
- 			}
- 
--			serverClosed = true
-+			serverClosed.Store(true)
- 		}()
- 	})
- 	common.Must(err)
-@@ -298,7 +299,7 @@ func Test_ListenXHAndDial_QUIC(t *testing.T) {
- 
- 	conn.Close()
- 	time.Sleep(100 * time.Millisecond)
--	if !serverClosed {
-+	if !serverClosed.Load() {
- 		t.Error("server did not get closed")
- 	}
- 
-diff --git a/transport/internet/tcp/dialer.go b/transport/internet/tcp/dialer.go
-index 47779c7..8d7bcb2 100644
---- a/transport/internet/tcp/dialer.go
-+++ b/transport/internet/tcp/dialer.go
-@@ -82,6 +82,7 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
- 			err = conn.(*tls.Conn).HandshakeContext(ctx)
- 		}
- 		if err != nil {
-+			conn.Close()
- 			if isFromMitmVerify {
- 				return nil, errors.New("MITM freedom RAW TLS: failed to verify Domain Fronting certificate from " + mitmServerName).Base(err)
- 			}
-diff --git a/transport/internet/tls/config.go b/transport/internet/tls/config.go
-index 6fbe593..d395ae5 100644
---- a/transport/internet/tls/config.go
-+++ b/transport/internet/tls/config.go
-@@ -13,6 +13,8 @@ import (
- 	"sync"
- 	"time"
- 
-+	"google.golang.org/protobuf/proto"
-+
- 	"github.com/xtls/xray-core/common/errors"
- 	"github.com/xtls/xray-core/common/net"
- 	"github.com/xtls/xray-core/common/ocsp"
-@@ -48,11 +50,41 @@ func (c *Config) loadSelfCertPool() (*x509.CertPool, error) {
- 
- // BuildCertificates builds a list of TLS certificates from proto definition.
- func (c *Config) BuildCertificates() []*tls.Certificate {
--	certs := make([]*tls.Certificate, 0, len(c.Certificate))
--	for _, entry := range c.Certificate {
--		if entry.Usage != Certificate_ENCIPHERMENT {
-+	return c.buildCertificateSnapshots().load()
-+}
-+
-+type certificateSnapshots struct {
-+	access sync.RWMutex
-+	certs  []*tls.Certificate
-+}
-+
-+func (s *certificateSnapshots) load() []*tls.Certificate {
-+	s.access.RLock()
-+	defer s.access.RUnlock()
-+	return slices.Clone(s.certs)
-+}
-+
-+func (s *certificateSnapshots) append(certificate *tls.Certificate) int {
-+	s.access.Lock()
-+	defer s.access.Unlock()
-+	s.certs = append(s.certs, certificate)
-+	return len(s.certs) - 1
-+}
-+
-+func (s *certificateSnapshots) store(index int, certificate *tls.Certificate) {
-+	s.access.Lock()
-+	defer s.access.Unlock()
-+	s.certs[index] = certificate
-+}
-+
-+func (c *Config) buildCertificateSnapshots() *certificateSnapshots {
-+	snapshots := &certificateSnapshots{certs: make([]*tls.Certificate, 0, len(c.Certificate))}
-+	for _, configured := range c.Certificate {
-+		if configured.Usage != Certificate_ENCIPHERMENT {
- 			continue
- 		}
-+		// Each ticker owns its proto state; published TLS certificates are immutable.
-+		entry := proto.Clone(configured).(*Certificate)
- 		getX509KeyPair := func() *tls.Certificate {
- 			keyPair, err := tls.X509KeyPair(entry.Certificate, entry.Key)
- 			if err != nil {
-@@ -66,14 +98,16 @@ func (c *Config) BuildCertificates() []*tls.Certificate {
- 			}
- 			return &keyPair
- 		}
--		if keyPair := getX509KeyPair(); keyPair != nil {
--			certs = append(certs, keyPair)
--		} else {
-+		keyPair := getX509KeyPair()
-+		if keyPair == nil {
- 			continue
- 		}
--		index := len(certs) - 1
-+		index := snapshots.append(keyPair)
- 		setupOcspTicker(entry, func(isReloaded, isOcspstapling bool) {
--			cert := certs[index]
-+			if !isReloaded && !isOcspstapling {
-+				return
-+			}
-+			cert := snapshots.load()[index]
- 			if isReloaded {
- 				if newKeyPair := getX509KeyPair(); newKeyPair != nil {
- 					cert = newKeyPair
-@@ -85,13 +119,15 @@ func (c *Config) BuildCertificates() []*tls.Certificate {
- 				if newOCSPData, err := ocsp.GetOCSPForCert(cert.Certificate); err != nil {
- 					errors.LogWarningInner(context.Background(), err, "ignoring invalid OCSP")
- 				} else if string(newOCSPData) != string(cert.OCSPStaple) {
--					cert.OCSPStaple = newOCSPData
-+					updated := *cert
-+					updated.OCSPStaple = newOCSPData
-+					cert = &updated
- 				}
- 			}
--			certs[index] = cert
-+			snapshots.store(index, cert)
- 		})
- 	}
--	return certs
-+	return snapshots
- }
- 
- func setupOcspTicker(entry *Certificate, callback func(isReloaded, isOcspstapling bool)) {
-@@ -244,8 +280,9 @@ func getGetCertificateFunc(c *tls.Config, ca []*Certificate) func(hello *tls.Cli
- 	}
- }
- 
--func getNewGetCertificateFunc(certs []*tls.Certificate, rejectUnknownSNI bool) func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-+func getNewGetCertificateFunc(snapshots *certificateSnapshots, rejectUnknownSNI bool) func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
- 	return func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-+		certs := snapshots.load()
- 		if len(certs) == 0 {
- 			return nil, errNoCertificates
- 		}
-@@ -412,7 +449,7 @@ func (c *Config) GetTLSConfig(opts ...Option) *tls.Config {
- 	if len(caCerts) > 0 {
- 		config.GetCertificate = getGetCertificateFunc(config, caCerts)
- 	} else {
--		config.GetCertificate = getNewGetCertificateFunc(c.BuildCertificates(), c.RejectUnknownSni)
-+		config.GetCertificate = getNewGetCertificateFunc(c.buildCertificateSnapshots(), c.RejectUnknownSni)
- 	}
- 
- 	if sn := c.parseServerName(); len(sn) > 0 {
 diff --git a/transport/internet/tls/sb_certificate_snapshot_test.go b/transport/internet/tls/sb_certificate_snapshot_test.go
 new file mode 100644
-index 0000000..dd56495
 --- /dev/null
 +++ b/transport/internet/tls/sb_certificate_snapshot_test.go
 @@ -0,0 +1,96 @@

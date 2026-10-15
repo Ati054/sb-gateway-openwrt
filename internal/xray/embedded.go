@@ -176,6 +176,12 @@ func (e *APIClient) Command(parent context.Context, _ string, args ...string) ([
 		}
 		_, err = routing.AddRule(ctx, &router.AddRuleRequest{Config: serial.ToTypedMessage(rules), ShouldAppend: *appendRules})
 		return nil, err
+	case "statsquery":
+		result, err := stats.NewStatsServiceClient(e.conn).QueryStats(ctx, &stats.QueryStatsRequest{Pattern: "sb-gateway>>>active>>>"})
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result.GetStat())
 	case "statsonline":
 		result, err := stats.NewStatsServiceClient(e.conn).GetStatsOnline(ctx, &stats.GetStatsRequest{Name: "user>>>" + *email + ">>>online"})
 		if err != nil {

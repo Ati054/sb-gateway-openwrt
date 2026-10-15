@@ -235,3 +235,70 @@ func TestDNSMasqInvalidMarkerDoesNotChangeConfiguration(t *testing.T) {
 		}
 	}
 }
+
+func TestDNSMasqLostMarkerDoesNotPreserveOwnForwarder(t *testing.T) {
+	for _, server := range []string{"127.0.0.1#1053", "127.0.0.1#1053 8.8.8.8 /office/192.0.2.53"} {
+		values := map[string]string{"server": server, "noresolv": "1"}
+		ops, _ := fakeDNSMasqOps(values, nil)
+		path := filepath.Join(t.TempDir(), "handoff.json")
+		if err := acquireDNSMasqHandoff(path, 1053, ops); err != nil {
+			t.Fatal(err)
+		}
+		if err := restoreDNSMasqHandoff(path, ops); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(values["server"], "127.0.0.1#1053") || values["noresolv"] == "1" {
+			t.Fatalf("dead forwarder preserved: %v", values)
+		}
+		if strings.Contains(server, "/office/") && !strings.Contains(values["server"], "/office/192.0.2.53") {
+			t.Fatal("conditional server lost")
+		}
+	}
+}
+
+func TestDNSMasqOrphanRepairRetriesFailedRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handoff.json")
+	values := map[string]string{"server": "127.0.0.1#1153 /office/192.0.2.53", "noresolv": "1"}
+	ops, _ := fakeDNSMasqOps(values, nil)
+	ops.OwnPort = 1153
+	attempts := 0
+	ops.restart = func() error {
+		attempts++
+		if attempts == 1 {
+			return errors.New("restart unavailable")
+		}
+		return nil
+	}
+	if err := restoreDNSMasqHandoff(path, ops); err == nil {
+		t.Fatal("failure hidden")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("repair marker lost", err)
+	}
+	if err := restoreDNSMasqHandoff(path, ops); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 2 || values["server"] != "/office/192.0.2.53" || values["noresolv"] != "" {
+		t.Fatal("orphan runtime not repaired")
+	}
+}
+func TestDNSMasqRecoveryIsArmedBeforeMutation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handoff.json")
+	values := map[string]string{"server": "127.0.0.1#1053", "noresolv": "1"}
+	ops, _ := fakeDNSMasqOps(values, nil)
+	ops.OwnPort = 1053
+	ops.ensureRecovery = func() error { return errors.New("cannot persist boot recovery") }
+	if err := restoreDNSMasqHandoff(path, ops); err == nil {
+		t.Fatal("missing recovery ignored")
+	}
+	if values["server"] != "127.0.0.1#1053" {
+		t.Fatal("changed DNS before recovery was saved")
+	}
+}
+
+func TestDNSMasqMissingMarkerDoesNotInspectUnownedDNS(t *testing.T) {
+	ops := dnsmasqHandoffOps{sections: func() ([]string, error) { t.Fatal("inspected unowned DNS"); return nil, nil }}
+	if err := restoreDNSMasqHandoff(filepath.Join(t.TempDir(), "absent.json"), ops); err != nil {
+		t.Fatal(err)
+	}
+}

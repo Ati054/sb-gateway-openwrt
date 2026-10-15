@@ -24,7 +24,7 @@ start_service() {
 	fi
 	# Repeating Start must not replace a healthy live policy with a guard.
 	if ! pgrep -f '^/usr/bin/resproxyd run$' >/dev/null 2>&1; then
-		/usr/bin/resproxyd capture-protect || return 1
+		/usr/bin/resproxyd capture-protect || logger -t resproxy 'early LAN protection failed; starting supervised daemon to retry'
 	fi
 	procd_open_instance gateway
 	procd_set_param command /usr/bin/resproxyd run

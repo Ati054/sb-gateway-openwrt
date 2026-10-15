@@ -587,10 +587,11 @@ func (controller *healthController) Tick(now time.Time) error {
 		confirmedReconciliation := hasReconciliation && item.RuntimeConfirmed && item.RuntimeSelected == item.Selected &&
 			reconciled == (policyReconciliation{controller.processedGeneration, strings.Join(uniqueCandidates(contract.Candidates), "\n"), contract.Mode, item.Selected})
 		warmWork := !controller.warmStarted[policyID] && !(confirmingFailure && confirmedReconciliation)
+		deferQuality := controller.opts.BackgroundBusy != nil && controller.opts.BackgroundBusy() && activeFailures == 0 && item.RuntimeConfirmed
 		// Finish a pending fast proof before due quality work. A confirmed outage
 		// still enters tickPolicy immediately to probe reserves, not the active.
 		if controller.transitions[policyID] != nil || warmWork ||
-			(!controller.forceLiveness[policyID] && !confirmingFailure && !now.Before(controller.regularNext[policyID])) || item.Selected == "block" {
+			(!deferQuality && !controller.forceLiveness[policyID] && !confirmingFailure && !now.Before(controller.regularNext[policyID])) || item.Selected == "block" {
 			delete(controller.forceLiveness, policyID)
 			delete(controller.probeBudget.DeferredPolicies, policyID)
 			err = controller.tickPolicy(now, policyID, contract, item)

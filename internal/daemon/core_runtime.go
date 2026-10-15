@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
@@ -19,6 +20,7 @@ import (
 var CoreExecutionMode = "process"
 
 type runningCore struct {
+	startedBoot float64
 	command     func(context.Context, string, ...string) ([]byte, error)
 	close       func() error
 	exited      <-chan error
@@ -46,8 +48,10 @@ func startCore(mode string, config []byte, configPath, binary, server string) (*
 		return &runningCore{command: engine.Command, close: engine.Close, pid: os.Getpid(), processName: name}, nil
 	case "process":
 		child := exec.Command(binary, "run", "-c", configPath)
+		child.Env = resources.CoreEnvironment(os.Environ(), resources.CurrentBudget())
 		child.Stdout, child.Stderr = os.Stdout, os.Stderr
 		setCoreParentDeath(child)
+		startedBoot := resources.BootSeconds()
 		started, done := make(chan error, 1), make(chan error, 1)
 		go func() {
 			// Linux Pdeathsig tracks the creating thread, not just the process.
@@ -89,7 +93,7 @@ func startCore(mode string, config []byte, configPath, binary, server string) (*
 			stop()
 			return nil, err
 		}
-		return &runningCore{command: client.Command, close: func() error { err := client.Close(); stop(); return err }, exited: done, pid: child.Process.Pid, processName: name}, nil
+		return &runningCore{command: client.Command, close: func() error { err := client.Close(); stop(); return err }, exited: done, startedBoot: startedBoot, pid: child.Process.Pid, processName: name}, nil
 	default:
 		return nil, fmt.Errorf("unknown Xray execution mode %q", mode)
 	}

@@ -3,6 +3,9 @@
 'require view';
 'require fs';
 'require ui';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 function readLog(kind, lines) {
 	return fs.exec('/usr/libexec/resproxy-log', [kind, lines]).then(function(result) {

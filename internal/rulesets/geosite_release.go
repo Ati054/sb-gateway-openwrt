@@ -17,7 +17,7 @@ import (
 const geoSiteReleaseURL = "https://raw.githubusercontent.com/v2fly/domain-list-community/release/dlc.dat_plain.yml"
 const maxGeoSiteReleaseSize = 16 << 20
 
-type ReleaseFetch func(context.Context) (string, error)
+type ReleaseFetch func(context.Context) (io.ReadCloser, error)
 
 // One bounded download replaces hundreds of per-include HTTP requests. The
 // full release is never persisted; only selected country rules enter Snapshot.
@@ -25,25 +25,21 @@ func GeoSiteReleaseHTTPFetch(timeout time.Duration) ReleaseFetch {
 	client := &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return errors.New("GeoSite redirect is not allowed")
 	}}
-	return func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (io.ReadCloser, error) {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, geoSiteReleaseURL, nil)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		request.Header.Set("User-Agent", "sb-gateway-openwrt/1")
 		response, err := client.Do(request)
 		if err != nil {
-			return "", fmt.Errorf("download GeoSite release: %w", err)
+			return nil, fmt.Errorf("download GeoSite release: %w", err)
 		}
-		defer response.Body.Close()
 		if response.StatusCode != http.StatusOK || response.ContentLength > maxGeoSiteReleaseSize {
-			return "", errors.New("GeoSite release is unavailable or oversized")
+			response.Body.Close()
+			return nil, errors.New("GeoSite release is unavailable or oversized")
 		}
-		body, err := io.ReadAll(io.LimitReader(response.Body, maxGeoSiteReleaseSize+1))
-		if err != nil || len(body) > maxGeoSiteReleaseSize || !utf8.Valid(body) {
-			return "", errors.New("GeoSite release is invalid or oversized")
-		}
-		return string(body), nil
+		return response.Body, nil
 	}
 }
 
@@ -51,9 +47,19 @@ func GeoSiteReleaseHTTPFetch(timeout time.Duration) ReleaseFetch {
 // upstream's plain release. Its strict shape check fails closed on format
 // changes instead of silently publishing an incomplete routing table.
 func CompileGeoSiteRelease(body string, selected map[string]bool) (map[string]Rules, error) {
-	if len(body) > maxGeoSiteReleaseSize || !utf8.ValidString(body) || !strings.HasPrefix(body, "lists:\n") {
+	return CompileGeoSiteReader(strings.NewReader(body), selected)
+}
+
+// CompileGeoSiteReader retains only selected country entries, never the full
+// download or a second byte-to-string copy. Validate UTF-8 even in skipped lists.
+func CompileGeoSiteReader(source io.Reader, selected map[string]bool) (map[string]Rules, error) {
+	limited := &io.LimitedReader{R: source, N: maxGeoSiteReleaseSize + 1}
+	reader := bufio.NewReader(limited)
+	header, err := reader.ReadSlice('\n')
+	if err != nil || string(header) != "lists:\n" {
 		return nil, errors.New("invalid GeoSite release")
 	}
+
 	wanted := make(map[string]string, len(selected))
 	for country := range selected {
 		root := countryGeositeRoot[country]
@@ -81,9 +87,12 @@ func CompileGeoSiteRelease(body string, selected map[string]bool) (map[string]Ru
 		result[target] = rules
 		return nil
 	}
-	scanner := bufio.NewScanner(strings.NewReader(body))
+	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64<<10), 256<<10)
 	for scanner.Scan() {
+		if !utf8.Valid(scanner.Bytes()) {
+			return nil, errors.New("invalid GeoSite UTF-8")
+		}
 		line := scanner.Text()
 		if strings.HasPrefix(line, "  - name: ") {
 			if err := finish(); err != nil {
@@ -151,6 +160,9 @@ func CompileGeoSiteRelease(body string, selected map[string]bool) (map[string]Ru
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
+	}
+	if limited.N == 0 {
+		return nil, errors.New("GeoSite release is oversized")
 	}
 	if err := finish(); err != nil {
 		return nil, err

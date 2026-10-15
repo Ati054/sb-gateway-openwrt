@@ -29,10 +29,12 @@ var upstreamName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,79}$`)
 // It is built off to the side; callers must publish it only after the complete
 // routing transaction has passed validation.
 type Rules struct {
-	Exact   []string `json:"exact,omitempty"`
-	Suffix  []string `json:"suffix,omitempty"`
-	Keyword []string `json:"keyword,omitempty"`
-	Regex   []string `json:"regex,omitempty"`
+	Reference string   `json:"reference,omitempty"`
+	Entries   int      `json:"entries,omitempty"`
+	Exact     []string `json:"exact,omitempty"`
+	Suffix    []string `json:"suffix,omitempty"`
+	Keyword   []string `json:"keyword,omitempty"`
+	Regex     []string `json:"regex,omitempty"`
 }
 
 type Fetch func(context.Context, string) (string, error)
@@ -171,6 +173,9 @@ func Compile(ctx context.Context, root string, fetch Fetch) (Rules, error) {
 }
 
 func (r Rules) Count() int {
+	if r.Reference != "" {
+		return r.Entries
+	}
 	return len(r.Exact) + len(r.Suffix) + len(r.Keyword) + len(r.Regex)
 }
 

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -42,20 +43,41 @@ func freePort(t *testing.T) int {
 	t.Helper()
 	integrationPorts.Lock()
 	defer integrationPorts.Unlock()
-	for {
-		// Core inbounds can bind all interfaces; exclude ports already occupied
-		// by a private-interface test origin, not only loopback listeners.
-		listener, err := net.Listen("tcp", "0.0.0.0:0")
-		if err != nil {
-			t.Fatal(err)
+	// Keep test listeners outside the kernel's ephemeral client range and
+	// reserve IPv6, probe and refresh neighbours used by the fixture too.
+	for port := 2000; port < 9000; port += 4 {
+		if integrationPorts.used[port] || integrationPorts.used[port+1] {
+			continue
 		}
-		port := listener.Addr().(*net.TCPAddr).Port
-		listener.Close()
-		if !integrationPorts.used[port] {
+		var sockets []io.Closer
+		ok := true
+		for _, candidate := range []int{port, port + 1, port + 2, port + 3} {
+			listener, err := net.Listen("tcp4", net.JoinHostPort("0.0.0.0", strconv.Itoa(candidate)))
+			if err != nil {
+				ok = false
+				break
+			}
+			sockets = append(sockets, listener)
+			packet, err := net.ListenPacket("udp4", net.JoinHostPort("0.0.0.0", strconv.Itoa(candidate)))
+			if err != nil {
+				ok = false
+				break
+			}
+			sockets = append(sockets, packet)
+		}
+		for _, socket := range sockets {
+			socket.Close()
+		}
+		if ok {
 			integrationPorts.used[port] = true
+			integrationPorts.used[port+1] = true
+			integrationPorts.used[port+2] = true
+			integrationPorts.used[port+3] = true
 			return port
 		}
 	}
+	t.Fatal("no available non-ephemeral test listener pair")
+	return 0
 }
 
 func testBase(t *testing.T) []byte {

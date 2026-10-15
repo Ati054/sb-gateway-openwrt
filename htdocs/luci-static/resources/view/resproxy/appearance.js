@@ -2,6 +2,9 @@
 'require baseclass';
 'require session';
 'require ui';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 function decorate(node) {
  // LuCI keeps its menu in browser-session storage across package upgrades.

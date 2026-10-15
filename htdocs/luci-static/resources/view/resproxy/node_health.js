@@ -1,5 +1,8 @@
 'use strict';
 'require baseclass';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 var preferenceKey = 'sb-gateway.node-health.v1';
 function preferences() {

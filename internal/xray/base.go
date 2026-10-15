@@ -3,8 +3,8 @@ package xray
 import (
 	"encoding/json"
 	"errors"
-	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
 	"fmt"
+	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
 	"net/netip"
 	"net/url"
 	"regexp"
@@ -245,6 +245,10 @@ func validRuleDomain(value string) bool {
 }
 
 func validCountryDomain(value string) bool {
+	if _, ok := geoipasset.DomainReferenceName(value); ok {
+		return true
+	}
+
 	if validRuleDomain(value) {
 		return true
 	}
@@ -355,13 +359,15 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 		"inboundTag":  []string{"resproxy-transparent", "resproxy-transparent6", "resproxy-socks"},
 		"balancerTag": c.defaultProxyTrafficTag()})
 	config := map[string]any{
+		"policy":   map[string]any{"levels": map[string]any{"0": map[string]any{"connIdle": 120, "uplinkOnly": 2, "downlinkOnly": 5}}},
 		"log":      map[string]any{"access": "none", "loglevel": "warning"},
-		"api":      map[string]any{"tag": apiTag, "services": []string{"RoutingService", "HandlerService"}},
+		"api":      map[string]any{"tag": apiTag, "services": []string{"RoutingService", "HandlerService", "StatsService"}},
 		"inbounds": inbounds,
 		"outbounds": []any{
 			map[string]any{"tag": "block", "protocol": "blackhole", "settings": map[string]any{}},
 			map[string]any{"tag": "direct-wan", "protocol": "freedom", "settings": map[string]any{}},
 		},
+		"stats":   map[string]any{},
 		"routing": map[string]any{"domainStrategy": c.DomainStrategy, "rules": rules, "balancers": balancers},
 	}
 	if c.DomainStrategy == "IPOnDemand" {

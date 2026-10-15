@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
 	"io"
 	"net/netip"
 	"os"
@@ -17,7 +18,7 @@ import (
 )
 
 const maxSnapshotSize = 32 << 20
-const SnapshotVersion = 2
+const SnapshotVersion = 3
 
 // Snapshot is a complete, validated candidate. The caller applies it to Xray
 // before committing it to flash, so download failures never replace live rules.
@@ -60,7 +61,7 @@ func Load(path string) (Snapshot, error) {
 }
 
 func (s Snapshot) Validate() error {
-	if s.Version != SnapshotVersion || len(s.Countries) > len(countryGeositeRoot) {
+	if (s.Version != 2 && s.Version != SnapshotVersion) || len(s.Countries) > len(countryGeositeRoot) {
 		return errors.New("ruleset snapshot has an invalid version or pack count")
 	}
 	known, err := index()
@@ -71,6 +72,9 @@ func (s Snapshot) Validate() error {
 		return errors.New("ruleset snapshot exceeds the catalog pack count")
 	}
 	for id, rules := range s.Packs {
+		if err := validateReference(rules); err != nil {
+			return err
+		}
 		if known[id].ID == "" || rules.Count() == 0 || rules.Count() > maxEntries {
 			return fmt.Errorf("invalid snapshot pack %q", id)
 		}
@@ -94,6 +98,12 @@ func (s Snapshot) Validate() error {
 		}
 	}
 	for country, rules := range s.Countries {
+		if rules.Geosite.Count() > maxEntries || (rules.Geosite.Reference != "" && !strings.HasSuffix(rules.Geosite.Reference, ":"+country)) {
+			return errors.New("invalid country domain asset")
+		}
+		if err := validateReference(rules.Geosite); err != nil {
+			return err
+		}
 		if countryGeositeRoot[country] == "" || len(rules.GeoIP) > maxGeoIPEntries {
 			return fmt.Errorf("invalid country snapshot %q", country)
 		}
@@ -224,9 +234,31 @@ func Expressions(selected []string, snapshot Snapshot) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return packExpressions(ids, known, snapshot)
+}
+
+// PackExpressions compiles one stored catalog component, including components
+// which are only reachable through a selectable card. Dependencies are compiled
+// separately so their immutable assets can be shared across card combinations.
+func PackExpressions(id string, snapshot Snapshot) ([]string, error) {
+	known, err := index()
+	if err != nil {
+		return nil, err
+	}
+	if known[id].ID == "" {
+		return nil, fmt.Errorf("unknown service pack %q", id)
+	}
+	return packExpressions([]string{id}, known, snapshot)
+}
+
+func packExpressions(ids []string, known map[string]pack, snapshot Snapshot) ([]string, error) {
 	values := map[string]bool{}
 	for _, id := range ids {
 		rules := snapshot.Packs[id]
+		if rules.Reference != "" {
+			values[rules.Reference] = true
+			continue
+		}
 		for _, domain := range known[id].FallbackDomains {
 			if !validDomain(domain) {
 				return nil, fmt.Errorf("invalid reviewed domain in %s", id)
@@ -338,4 +370,20 @@ func ServiceCIDRs(selected []string) ([]string, error) {
 	}
 	sort.Strings(result)
 	return result, nil
+}
+
+func validateReference(rules Rules) error {
+	if rules.Reference == "" {
+		if rules.Entries != 0 {
+			return errors.New("unexpected cached rule count")
+		}
+		return nil
+	}
+	if _, ok := geoipasset.DomainReferenceName(rules.Reference); !ok {
+		return errors.New("invalid cached domain asset reference")
+	}
+	if rules.Entries < 1 || rules.Entries > maxEntries || len(rules.Exact)+len(rules.Suffix)+len(rules.Keyword)+len(rules.Regex) != 0 {
+		return errors.New("invalid cached domain asset metadata")
+	}
+	return nil
 }

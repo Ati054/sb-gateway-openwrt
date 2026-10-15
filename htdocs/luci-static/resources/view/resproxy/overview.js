@@ -6,6 +6,9 @@
 'require fs';
 'require uci';
 'require poll';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 var helpers = { status: '/usr/libexec/resproxy-status', health: '/usr/libexec/resproxy-health', rules: '/usr/libexec/resproxy-rulesets' };
 function snapshot(keys) {
@@ -38,6 +41,7 @@ return view.extend({
   var values={}, failed={}, refreshing=false, nextRules=0;
   var health=healthUI.create([]);
   var info=E('dl', { 'class':'sbg-overview-info' }), routes=E('tbody'), dns=E('dl', { 'class':'sbg-overview-counters' });
+  var memoryWarning=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
   var dnsWarning=E('p', { 'class':'alert-message warning', hidden:'' });
   var errors=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
   var checked=E('span', { 'class':'sbg-muted', 'aria-live':'off' });
@@ -58,6 +62,22 @@ return view.extend({
    addPair(info,_('Service'),status ? status.running ? _('Running') : _('Stopped') : _('No data'));
    addPair(info,_('Active catalog'),status ? _('%d nodes').format(status.nodes) : '—');
    addPair(info,_('DNS mode'),dnsMode(status));
+   var resources=status && status.resources;
+   var resourceFresh=status && status.running && resources && Date.now()-Date.parse(resources.updated_at)<30000;
+   function ram(process) {
+    if (!resourceFresh || !process) return '—';
+    return E('span', { title:_('RssAnon: %s · Files: %s / %s').format((process.anon_kib/1024).toFixed(1)+' MiB',process.fds,process.fd_limit || '—') },(process.rss_kib/1024).toFixed(1)+' MiB');
+   }
+   addPair(info,_('Controller RAM'),ram(resources && resources.controller));
+   addPair(info,_('Xray RAM'),ram(resources && resources.core));
+   var sessions=resourceFresh && resources.tcp_sessions != null && resources.udp_sessions != null;
+   addPair(info,_('Xray sessions'),sessions ? _('%s TCP · %s UDP').format(resources.tcp_sessions,resources.udp_sessions) : '—');
+   addPair(info,_('Available RAM'),resourceFresh ? (resources.available_kib/1024).toFixed(1)+' MiB' : '—');
+   var memoryMessages=[];
+   if (resourceFresh && resources.low_memory) memoryMessages.push(_('Low available router memory. Reduce connection load or selected rule sets.'));
+   if (resourceFresh && resources.core && resources.core.fd_limit>0 && resources.core.fds>=resources.core.fd_limit*0.8) memoryMessages.push(_('Xray is near its open-file limit.'));
+   if (resources && resources.last_oom && Date.now()-Date.parse(resources.last_oom)<600000) memoryMessages.push(_('Xray was stopped by the kernel for lack of memory. See the journal.'));
+   memoryWarning.hidden=!memoryMessages.length; memoryWarning.textContent=memoryMessages.join(' ');
    var routeLists=uci.sections('resproxy','policy');
    // Saved lists remain selectable before the controller's first measurement.
    policies=routeLists.map(function(config) {
@@ -127,7 +147,7 @@ return view.extend({
   }
   var dashboard=E('div', { 'class':'sbg-overview' },[
    E('div', { 'class':'sbg-overview-toolbar' },[refresh,checked]),errors,
-   info,E('h3',{},_('Route lists')),
+   info,memoryWarning,E('h3',{},_('Route lists')),
    displayTable([_('Route list'),_('Selected node'),_('Status'),_('Latency'),_('Healthy reserves')],routes),
    health.node,
    E('h3',{},_('DNS requests')),E('small', { 'class':'sbg-muted' },_('Since service start')),dns,dnsWarning,

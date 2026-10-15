@@ -2,10 +2,13 @@ package geodata
 
 import (
 	"net"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 
 	"github.com/xtls/xray-core/common"
 	xnet "github.com/xtls/xray-core/common/net"
@@ -400,13 +403,39 @@ func TestIPMatcher4CN(t *testing.T) {
 	}
 }
 
+// Country ownership of a public anycast address changes with external data.
+// A local binary GeoIP fixture tests IPv6 loading and prefix boundaries without
+// asserting that a particular resolver must always belong to the US dataset.
+func ipv6USFixture(t testing.TB) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("xray.location.asset", dir)
+	data, err := proto.Marshal(&GeoIPList{Entry: []*GeoIP{{Code: "US", Cidr: []*CIDR{
+		{Ip: net.ParseIP("2001:db8:1234::").To16(), Prefix: 48},
+		{Ip: net.IP{203, 0, 113, 0}, Prefix: 24},
+	}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "geoip.dat"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestIPMatcher6US(t *testing.T) {
-	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
-
+	ipv6USFixture(t)
 	matcher := buildIPMatcher("geoip:us")
-
-	if !matcher.Match(xnet.ParseAddress("2001:4860:4860::8888").IP()) {
-		t.Error("expect US geoip contain 2001:4860:4860::8888, but actually not")
+	for raw, want := range map[string]bool{
+		"2001:db8:1234::1":                       true,
+		"2001:db8:1234:ffff:ffff:ffff:ffff:ffff": true,
+		"2001:db8:1233:ffff:ffff:ffff:ffff:ffff": false,
+		"2001:db8:1235::1":                       false,
+		"203.0.113.5":                            true,
+		"203.0.114.5":                            false,
+	} {
+		if got := matcher.Match(xnet.ParseAddress(raw).IP()); got != want {
+			t.Errorf("GeoIP US match %s = %v, want %v", raw, got, want)
+		}
 	}
 }
 
@@ -424,10 +453,10 @@ func BenchmarkIPMatcher4CN(b *testing.B) {
 }
 
 func BenchmarkIPMatcher6US(b *testing.B) {
-	b.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
+	ipv6USFixture(b)
 
 	matcher := buildIPMatcher("geoip:us")
-	ip := xnet.ParseAddress("2001:4860:4860::8888").IP()
+	ip := xnet.ParseAddress("2001:db8:1234::1").IP()
 
 	b.ResetTimer()
 

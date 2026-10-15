@@ -35,6 +35,7 @@ type worker interface {
 }
 
 type tcpWorker struct {
+	activeCounter   stats.Counter
 	address         net.Address
 	port            net.Port
 	proxy           proxy.Inbound
@@ -59,6 +60,10 @@ func getTProxyType(s *internet.MemoryStreamConfig) internet.SocketConfig_TProxyM
 }
 
 func (w *tcpWorker) callback(conn stat.Connection) {
+	if w.activeCounter != nil {
+		w.activeCounter.Add(1)
+		defer w.activeCounter.Add(-1)
+	}
 	ctx, cancel := context.WithCancel(w.ctx)
 	sid := session.NewID()
 	ctx = c.ContextWithID(ctx, sid)
@@ -257,6 +262,7 @@ type connID struct {
 }
 
 type udpWorker struct {
+	activeCounter stats.Counter
 	sync.RWMutex
 
 	proxy           proxy.Inbound
@@ -330,6 +336,10 @@ func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest
 		common.Must(w.checker.Start())
 
 		go func() {
+			if w.activeCounter != nil {
+				w.activeCounter.Add(1)
+				defer w.activeCounter.Add(-1)
+			}
 			ctx, cancel := context.WithCancel(w.ctx)
 			conn.cancel = cancel
 			sid := session.NewID()

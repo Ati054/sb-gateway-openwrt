@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
 	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
@@ -262,5 +264,43 @@ func TestInvalidCoreSettingsDoNotRejectOtherNodes(t *testing.T) {
 	_, nodes, err := store.Current()
 	if err != nil || len(nodes) != 1 || nodes[0].Server != "ca.example.test" {
 		t.Fatal("valid entry missing", err)
+	}
+}
+
+func TestInformationalLabelRefreshUpdatesRAMWithoutFlash(t *testing.T) {
+	store := generation.Store{Root: t.TempDir(), MetadataRoot: t.TempDir()}
+	service := Service{Store: store, Runtime: &fakeRuntime{previousTag: "block"}}
+	feed := func(label string) []byte { return []byte(strings.Split(linkCA, "#")[0] + "#" + url.PathEscape(label)) }
+	first, err := service.Apply(context.Background(), "provider", feed("CA Toronto | Remaining 50 GB"), 10, "main", firstNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pointer := filepath.Join(store.Root, "CURRENT")
+	stamp := time.Unix(1234, 0)
+	if err := os.Chtimes(pointer, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.Apply(context.Background(), "provider", feed("CA Toronto | Remaining 49 GB"), 10, "main", firstNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.GenerationID != first.GenerationID {
+		t.Fatal("quota label created flash generation")
+	}
+	info, err := os.Stat(pointer)
+	if err != nil || !info.ModTime().Equal(stamp) {
+		t.Fatal("quota label rewrote flash pointer", err)
+	}
+	_, nodes, err := store.Current()
+	if err != nil || len(nodes) != 1 || nodes[0].Label != "CA Toronto | Remaining 49 GB" {
+		t.Fatal("RAM label not visible", nodes, err)
+	}
+	persistent, err := store.Load(first.GenerationID)
+	if err != nil || persistent[0].Label != "CA Toronto | Remaining 50 GB" {
+		t.Fatal("quota label wrote persistent catalog", err)
+	}
+	third, err := service.Apply(context.Background(), "provider", feed("CA Vancouver | Remaining 48 GB"), 10, "main", firstNode)
+	if err != nil || third.GenerationID == first.GenerationID {
+		t.Fatal("real rename was not persisted", err)
 	}
 }

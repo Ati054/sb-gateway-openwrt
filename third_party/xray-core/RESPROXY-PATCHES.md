@@ -11,7 +11,9 @@ routing compilation and checks it before publishing the replacement table.
 `resproxy-upstream.patch` records the initial changes against the previous upstream commit
 b26a91de4f3294e26a0ad0a970b81a386a41f789. `resproxy-current.patch`
 records the complete gateway delta against the current pinned commit.
-`resproxy-route-only-sniff.patch` applies the TCP sniffing correction after it.
+The full delta includes the TCP sniffing correction, health-probe cleanup,
+client-session counters and shared Linux domain matchers. The smaller patches
+are retained as historical change records; do not apply them again on top.
 
 The command entry points in internal/xraycli are adapted from upstream main,
 run and version. Their original copyright/license remain MPL-2.0. The gateway

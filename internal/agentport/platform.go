@@ -16,6 +16,7 @@ import (
 // RouterOS/container telemetry and service supervision are intentionally
 // outside this OpenWrt port.
 type Options struct {
+	BackgroundBusy      func() bool
 	OnProgress          func()
 	XrayProcessName     string
 	RunXrayCommand      func(context.Context, string, ...string) ([]byte, error)

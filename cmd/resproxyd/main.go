@@ -19,6 +19,7 @@ import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/daemon"
 	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
 	"github.com/Ati054/sb-gateway-openwrt/internal/releaseupdate"
+	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
 	"github.com/Ati054/sb-gateway-openwrt/internal/selection"
 	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
@@ -198,12 +199,18 @@ func execute(arguments []string) error {
 	case "health":
 		return printHealth(paths)
 	case "capture-restore":
-		if !running(paths) {
+		protected := daemon.ProtectionActive(paths)
+		if !protected && !daemon.CrashFallbackActive(paths) && !running(paths) {
 			return nil
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
-		config, err := settings.ReadSystemUCI(ctx)
+		readConfig := settings.ReadSystemUCI
+		if protected {
+			// Boot protection precedes rpcd/netifd and the daemon PID file.
+			readConfig = settings.ReadProtectionSystemUCI
+		}
+		config, err := readConfig(ctx)
 		if err != nil {
 			return err
 		}
@@ -211,6 +218,9 @@ func execute(arguments []string) error {
 	case "locations":
 		return printLocations(paths)
 	case "run", "render-base":
+		if arguments[0] == "run" {
+			resources.ConfigureDaemon()
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		config, err := settings.ReadSystemUCI(ctx)
 		cancel()
@@ -234,7 +244,7 @@ func execute(arguments []string) error {
 }
 
 func printLocations(paths daemon.Paths) error {
-	_, nodes, err := (generation.Store{Root: paths.DataRoot}).Current()
+	_, nodes, err := (generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}).Current()
 	if errors.Is(err, os.ErrNotExist) {
 		nodes = nil
 	} else if err != nil {
@@ -244,7 +254,7 @@ func printLocations(paths daemon.Paths) error {
 }
 
 func printStatus(paths daemon.Paths) error {
-	_, nodes, err := (generation.Store{Root: paths.DataRoot}).Current()
+	_, nodes, err := (generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}).Current()
 	if errors.Is(err, os.ErrNotExist) {
 		nodes = nil
 	} else if err != nil {
@@ -270,8 +280,12 @@ func printStatus(paths daemon.Paths) error {
 	if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "dns-interop.json")); err == nil {
 		_ = json.Unmarshal(body, &dnsInterop)
 	}
+	var resourceStatus any
+	if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "resources.json")); err == nil {
+		_ = json.Unmarshal(body, &resourceStatus)
+	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
-		"running": running(paths), "nodes": len(nodes), "policies": states,
+		"resources": resourceStatus, "running": running(paths), "nodes": len(nodes), "policies": states,
 		"dns": dnsStatus, "dns_interop": dnsInterop,
 		"emergency_mode":       daemon.CrashFallbackActive(paths),
 		"subscriptions":        daemon.SubscriptionUpdates(paths, nodes),

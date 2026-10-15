@@ -50,7 +50,7 @@ func (s *Service) Apply(ctx context.Context, providerID string, feed []byte, max
 		return Result{}, errors.New("refresh runtime, selector and choice are required")
 	}
 	previous := []catalog.Node{}
-	_, current, err := s.Store.Current()
+	previousID, current, err := s.Store.Current()
 	if err == nil {
 		previous = current
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -98,10 +98,15 @@ func (s *Service) Apply(ctx context.Context, providerID string, feed []byte, max
 			return Result{}, err
 		}
 	}
-	id, err := s.Store.Stage(next)
-	if err != nil {
-		return Result{}, err
+	metadataOnly := s.Store.MetadataRoot != "" && catalog.InformationalChangesOnly(previous, next)
+	id := previousID
+	if !metadataOnly {
+		id, err = s.Store.Stage(next)
+		if err != nil {
+			return Result{}, err
+		}
 	}
+
 	var switched xray.SwitchResult
 	if selectedID != "" {
 		switched, err = s.Runtime.Switch(ctx, selector, selectedID, definition)
@@ -124,7 +129,13 @@ func (s *Service) Apply(ctx context.Context, providerID string, feed []byte, max
 			return Result{}, fmt.Errorf("runtime pool update failed: %w", err)
 		}
 	}
-	if err := s.Store.Publish(id); err != nil {
+	var publishErr error
+	if metadataOnly {
+		publishErr = s.Store.PublishMetadata(id, next)
+	} else {
+		publishErr = s.Store.Publish(id)
+	}
+	if err := publishErr; err != nil {
 		if rollbackRuntime != nil {
 			if rollbackErr := rollbackRuntime(); rollbackErr != nil {
 				return Result{}, fmt.Errorf("generation publication failed and runtime pool rollback is uncertain: %w; rollback: %v", err, rollbackErr)

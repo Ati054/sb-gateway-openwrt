@@ -93,6 +93,9 @@ func CompileGeoIP(body string) ([]string, error) {
 }
 
 func GeoSiteExpressions(rules Rules) []string {
+	if rules.Reference != "" {
+		return []string{rules.Reference}
+	}
 	if rules.Count() == 0 {
 		return nil
 	}
@@ -140,10 +143,17 @@ func BuildSelected(ctx context.Context, packs []string, countries map[string]Cou
 		if releaseFetch == nil {
 			releaseErr = errors.New("GeoSite release fetcher is unavailable")
 		} else {
-			var body string
+			var body io.ReadCloser
 			body, releaseErr = releaseFetch(ctx)
 			if releaseErr == nil {
-				geoSiteRules, releaseErr = CompileGeoSiteRelease(body, selectedGeoSite)
+				if body == nil {
+					releaseErr = errors.New("GeoSite body is missing")
+				} else {
+					geoSiteRules, releaseErr = CompileGeoSiteReader(body, selectedGeoSite)
+					if closeErr := body.Close(); releaseErr == nil {
+						releaseErr = closeErr
+					}
+				}
 			}
 		}
 	}

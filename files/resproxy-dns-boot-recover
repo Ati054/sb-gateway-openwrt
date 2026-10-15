@@ -1,0 +1,84 @@
+#!/bin/sh
+# Kept with the backup so DNS can recover even if the new firmware has no
+# SB Gateway binary. OpenWrt runs uci-defaults before starting dnsmasq.
+_sbg_dns_restore="$(ucode - <<'UCODE'
+import { readfile, unlink } from 'fs';
+import { cursor } from 'uci';
+const root = '/etc/resproxy/';
+function marker(name) {
+ let raw = readfile(root + name);
+ if (raw == null) return null;
+ if (length(raw) > 65536) die('DNS recovery marker too large');
+ return json(raw);
+}
+function own(server) {
+ return type(server) == 'string' && match(server, /^127\.0\.0\.1#([0-9]{4,5})$/) && +split(server, '#')[1] >= 1024 && +split(server, '#')[1] <= 65535;
+}
+function values(value) { return type(value) == 'array' ? value : value == null ? [] : split(value, /[ \t]+/); }
+let c = cursor();
+c.load('dhcp');
+let state = marker('dnsmasq-handoff.json');
+let sections = [];
+c.foreach('dhcp', 'dnsmasq', s => push(sections, s['.name']));
+if (length(sections) > 32) die('Too many dnsmasq sections');
+let saved = state?.sections;
+if (state && !length(saved)) {
+ if (!own(state.server)) die('Invalid legacy DNS recovery marker');
+ let owners = filter(sections, name => index(values(c.get('dhcp', name, 'server')), state.server) >= 0);
+ if (length(owners) != 1) die('Ambiguous legacy DNS recovery marker');
+ saved = [{ section: owners[0], server: state.server, had_noresolv: state.had_noresolv, noresolv: state.noresolv }];
+}
+if (length(saved) > 32) die('Too many DNS recovery sections');
+// Validate the whole marker before touching UCI.
+for (let item in saved ?? []) {
+ if (!match(item.section ?? '', /^[A-Za-z0-9_]{1,64}$/) || !own(item.server)) die('Invalid DNS recovery reference');
+ for (let server in item.removed_defaults ?? [])
+  if (type(server) != 'string' || length(server) > 2048 || match(server, /[[:cntrl:][:space:]]/)) die('Invalid DNS recovery server');
+}
+let changed = false;
+for (let name in sections) {
+ let item = null;
+ for (let candidate in saved ?? []) if (candidate.section == name) item = candidate;
+ let servers = values(c.get('dhcp', name, 'server'));
+ let target = item?.server;
+ if (!state) {
+  c.load('resproxy');
+  if (c.get('resproxy', 'main', 'dns_handoff_confirmed') != '1') continue;
+  let port = +(c.get('resproxy', 'main', 'dns_port') ?? '1053');
+  if (port < 1024 || port > 65535) die('Invalid DNS recovery port');
+  target = '127.0.0.1#' + port;
+ }
+ if (!target || (!item && index(servers, target) < 0)) continue;
+ let restored = filter(servers, server => server != target);
+ for (let server in item?.removed_defaults ?? []) if (server != target && index(restored, server) < 0) push(restored, server);
+ if (length(restored)) c.set('dhcp', name, 'server', restored); else c.delete('dhcp', name, 'server');
+ if (c.get('dhcp', name, 'noresolv') == '1') {
+  let badBaseline = index(item?.removed_defaults ?? [], target) >= 0;
+  if (item?.had_noresolv && !badBaseline) c.set('dhcp', name, 'noresolv', item.noresolv ?? '');
+  else c.delete('dhcp', name, 'noresolv');
+ }
+ changed = true;
+}
+if (changed && !c.commit('dhcp')) die('Cannot commit DNS recovery');
+if (state) unlink(root + 'dnsmasq-handoff.json');
+let previous = marker('dns-handoff.json');
+if (previous) print((previous.was_enabled ? 'enabled' : 'disabled') + ' ' + (previous.was_running ? 'running' : 'stopped'));
+UCODE
+)" || return 1
+if [ -n "$_sbg_dns_restore" ]; then
+ if [ -x /etc/init.d/https-dns-proxy ]; then
+  case "$_sbg_dns_restore" in
+   'enabled '*) /etc/init.d/https-dns-proxy enable || return 1 ;;
+   'disabled '*) /etc/init.d/https-dns-proxy disable || return 1 ;;
+   *) return 1 ;;
+  esac
+  case "$_sbg_dns_restore" in
+   *' running') /etc/init.d/https-dns-proxy start || return 1 ;;
+   *' stopped') /etc/init.d/https-dns-proxy stop || return 1 ;;
+   *) return 1 ;;
+  esac
+ fi
+ rm -f /etc/resproxy/dns-handoff.json || return 1
+fi
+unset _sbg_dns_restore
+return 0

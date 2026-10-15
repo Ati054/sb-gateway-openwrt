@@ -89,7 +89,7 @@ func Prune(root string, configs, candidateRoots []string, live []byte, now time.
 	}
 	removed := 0
 	for _, entry := range entries {
-		if !namePattern.MatchString(entry.Name()) || keep[entry.Name()] {
+		if !IsManagedName(entry.Name()) || keep[entry.Name()] {
 			continue
 		}
 		info, err := entry.Info()
@@ -139,7 +139,7 @@ func collectReferences(reader io.Reader, keep map[string]bool) error {
 			}
 		}
 		if reference, ok := token.(string); ok {
-			if name, valid := ReferenceName(reference); valid {
+			if name, valid := managedReferenceName(reference); valid {
 				keep[name] = true
 			}
 		}

@@ -112,8 +112,8 @@ func catalogNode(providerID string, raw map[string]any) catalog.Node {
 	}
 	port, _ := raw["server_port"].(int)
 	return catalog.Node{
-		ProviderID: providerID, Label: subscriptionText(raw["label"]),
-		Country: subscriptionText(raw["country"]), City: subscriptionText(raw["city"]),
+		ProviderID: providerID, Label: cleanLabel(subscriptionText(raw["label"])),
+		Country: subscriptionText(raw["country"]), City: cleanLabel(subscriptionText(raw["city"])),
 		Protocol: subscriptionText(raw["protocol"]), Transport: subscriptionTransport(raw),
 		Server: subscriptionText(raw["server"]), Port: port, Settings: settings, Credentials: credentials,
 	}

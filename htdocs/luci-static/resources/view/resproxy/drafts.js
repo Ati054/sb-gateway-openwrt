@@ -1,6 +1,9 @@
 'use strict';
 'require baseclass';
 'require ui';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 var lifetime = 6 * 60 * 60 * 1000;
 function storageKey(page) { return 'resproxy.draft.' + L.env.sessionid + '.' + page; }

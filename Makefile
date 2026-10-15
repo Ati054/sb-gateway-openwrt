@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sb-gateway-openwrt
-PKG_VERSION:=0.1.4
+PKG_VERSION:=0.1.8
 PKG_RELEASE:=
 PKG_LICENSE:=AGPL-3.0-only AND MPL-2.0 AND MIT AND Apache-2.0 AND BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE XRAY-LICENSE DOMAIN-LIST-LICENSE
@@ -64,6 +64,10 @@ define Package/sb-gateway-openwrt/install
 	$(INSTALL_DATA) ./files/update-key.pub $(1)/etc/apk/keys/ati054-sb-gateway.rsa.pub
 	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/init.d $(1)/etc/resproxy
 	$(INSTALL_DIR) $(1)/usr/libexec
+	$(INSTALL_DIR) $(1)/usr/share/resproxy $(1)/etc/uci-defaults
+	$(INSTALL_DATA) ./files/resproxy-dns-boot-recover $(1)/usr/share/resproxy/dns-boot-recover
+	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
+	$(INSTALL_DATA) ./files/resproxy-upgrade-keep $(1)/lib/upgrade/keep.d/sb-gateway-openwrt
 	$(INSTALL_CONF) ./files/resproxy.config $(1)/etc/config/resproxy
 	$(INSTALL_BIN) ./files/resproxy.init $(1)/etc/init.d/resproxy
 	$(INSTALL_BIN) ./files/resproxy-guard.init $(1)/etc/init.d/resproxy-guard

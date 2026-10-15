@@ -2,6 +2,9 @@
 'require baseclass';
 'require form';
 'require uci';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 function list(value) { return Array.isArray(value) ? value.slice() : (value ? String(value).trim().split(/\s+/) : []); }
 function name(value) { return String(value || '').toLowerCase().trim().replace(/[\uFE0E\uFE0F]/g, ''); }

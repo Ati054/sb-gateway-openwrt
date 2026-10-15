@@ -1,6 +1,9 @@
 'use strict';
 'require form';
 'require baseclass';
+'require view.resproxy.safe_dom as safeDOM';
+
+var E = safeDOM.create;
 
 // Display convenient units while retaining seconds in the existing UCI option.
 var IntervalValue = form.Value.extend({

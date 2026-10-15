@@ -22,11 +22,12 @@ type dnsHandoffState struct {
 }
 
 type dnsHandoffOps struct {
-	installed func() bool
-	running   func() bool
-	enabled   func() bool
-	action    func(string) error
-	err       func() error
+	installed      func() bool
+	running        func() bool
+	enabled        func() bool
+	action         func(string) error
+	err            func() error
+	ensureRecovery func() error
 }
 
 func dnsHandoffFile(paths Paths) string {
@@ -55,6 +56,7 @@ func httpsDNSProxyOpsWithContext(parent context.Context) dnsHandoffOps {
 		return nil
 	}
 	return dnsHandoffOps{
+		ensureRecovery: ensureDNSBootRecovery,
 		installed: func() bool {
 			_, err := os.Stat(httpsDNSProxyInit)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -88,6 +90,11 @@ func acquireDNSHandoff(path string, authorized bool, ops dnsHandoffOps) (bool, e
 	if !exists {
 		if !ops.running() || !authorized {
 			return false, dnsHandoffError(ops)
+		}
+		if ops.ensureRecovery != nil {
+			if err := ops.ensureRecovery(); err != nil {
+				return false, err
+			}
 		}
 		state = dnsHandoffState{WasEnabled: ops.enabled(), WasRunning: true}
 		if err := dnsHandoffError(ops); err != nil {
@@ -255,4 +262,18 @@ func readDNSMarker(path string) ([]byte, error) {
 		return nil, errors.New("DNS handoff marker exceeds the limit")
 	}
 	return body, nil
+}
+
+// The recovery helper is independent of the package binary and is kept by
+// sysupgrade. Avoid rewriting its identical contents on every service start.
+func ensureDNSBootRecovery() error {
+	body, err := readDNSMarker("/usr/share/resproxy/dns-boot-recover")
+	if err != nil {
+		return err
+	}
+	const destination = "/etc/uci-defaults/90-sb-gateway-dns-recover"
+	if old, err := readDNSMarker(destination); err == nil && string(old) == string(body) {
+		return nil
+	}
+	return writeDurableDNSMarker(destination, body)
 }

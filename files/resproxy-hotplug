@@ -8,9 +8,14 @@ config_load resproxy
 config_get_bool enabled main enabled 0
 config_get_bool route_enabled main route_enabled 0
 [ "$enabled" = 1 ] && [ "$route_enabled" = 1 ] || exit 0
-pgrep -f '^/usr/bin/resproxyd run$' >/dev/null 2>&1 || exit 0
+# A boot/transition guard must follow VPN interfaces before the daemon is ready.
+# Explicit stop removes both markers; an interface event must not enable capture.
+if ! pgrep -f '^/usr/bin/resproxyd run$' >/dev/null 2>&1; then
+	[ -e /var/run/resproxy/capture-protected.active ] ||
+		[ -e /var/run/resproxy/crash-fallback.active ] || exit 0
+fi
 
 if ! /usr/bin/resproxyd capture-restore; then
-	logger -t resproxy-hotplug 'failed to restore TProxy policy routing after interface change'
+	logger -t resproxy-hotplug 'failed to restore capture protection or policy routing after interface change'
 	exit 1
 fi

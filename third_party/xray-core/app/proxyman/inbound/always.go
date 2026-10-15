@@ -92,6 +92,15 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 
 	uplinkCounter, downlinkCounter := getStatCounter(core.MustFromContext(ctx), tag)
 
+	var activeTCP, activeUDP stats.Counter
+	switch tag {
+	case "resproxy-transparent", "resproxy-transparent6", "resproxy-socks", "resproxy-http":
+		if manager, ok := core.MustFromContext(ctx).GetFeature(stats.ManagerType()).(stats.Manager); ok {
+			activeTCP, _ = manager.GetOrRegisterCounter("sb-gateway>>>active>>>tcp")
+			activeUDP, _ = manager.GetOrRegisterCounter("sb-gateway>>>active>>>udp")
+		}
+	}
+
 	nl := p.Network()
 	pl := receiverConfig.PortList
 	address := receiverConfig.Listen.AsAddress()
@@ -133,6 +142,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 					errors.LogDebug(ctx, "creating stream worker on ", address, ":", port)
 
 					worker := &tcpWorker{
+						activeCounter:   activeTCP,
 						address:         address,
 						port:            net.Port(port),
 						proxy:           p,
@@ -150,6 +160,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 
 				if net.HasNetwork(nl, net.Network_UDP) {
 					worker := &udpWorker{
+						activeCounter:   activeUDP,
 						tag:             tag,
 						proxy:           p,
 						address:         address,

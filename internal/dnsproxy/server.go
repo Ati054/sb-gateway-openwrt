@@ -24,6 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
+	"github.com/xtls/xray-core/common/geodata"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -106,6 +108,7 @@ type policyPrefix struct {
 }
 
 type domainMatcher struct {
+	assets   []geodata.DomainMatcher
 	proxyWAN bool
 	ordered  []domainActionRule
 	exact    map[string]bool
@@ -326,6 +329,23 @@ func compileMatcher(policy Policy) (domainMatcher, error) {
 			return domainMatcher{}, errors.New("invalid service expression")
 		}
 		switch kind {
+		case "ext":
+			root := os.Getenv("XRAY_LOCATION_ASSET")
+			if root == "" {
+				root = "/etc/resproxy/geoip-assets"
+			}
+			if err := geoipasset.VerifyDomain(root, expression); err != nil {
+				return domainMatcher{}, err
+			}
+			rules, err := geodata.ParseDomainRules([]string{expression}, geodata.Domain_Domain)
+			if err != nil {
+				return domainMatcher{}, err
+			}
+			matcher, err := geodata.DomainReg.BuildDomainMatcher(rules)
+			if err != nil {
+				return domainMatcher{}, err
+			}
+			result.assets = append(result.assets, matcher)
 		case "full":
 			result.exact[strings.ToLower(value)] = true
 		case "domain":
@@ -349,6 +369,11 @@ func (m domainMatcher) matches(name string) bool {
 	for _, rule := range m.ordered {
 		if rule.matcher.matches(name) {
 			return rule.action == "direct"
+		}
+	}
+	for _, asset := range m.assets {
+		if asset.MatchAny(name) {
+			return true
 		}
 	}
 	if m.exact[name] {
