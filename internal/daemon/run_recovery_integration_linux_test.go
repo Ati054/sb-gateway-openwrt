@@ -5,6 +5,8 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"io"
+	"math/rand/v2"
 	"net"
 	"os"
 	"path/filepath"
@@ -26,14 +28,8 @@ func TestRunKeepsControllerAliveAcrossRealCoreFailure(t *testing.T) {
 	}
 	base := xray.DefaultBaseConfig()
 	base.ProbeBudget = 1
-	for _, port := range []*int{&base.APIPort, &base.HTTPPort, &base.SocksPort, &base.TransparentPort, &base.ProbeBasePort, &base.DNSPolicyBasePort} {
-		socket, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatal(err)
-		}
-		*port = socket.Addr().(*net.TCPAddr).Port
-		socket.Close()
-	}
+	releasePorts := reserveCoreRecoveryPorts(t, &base)
+	t.Cleanup(releasePorts)
 	root := t.TempDir()
 	paths := Paths{RunRoot: filepath.Join(root, "run"), DataRoot: filepath.Join(root, "data"), Binary: binary}
 	cfg := reloadFixture()
@@ -41,6 +37,7 @@ func TestRunKeepsControllerAliveAcrossRealCoreFailure(t *testing.T) {
 	cfg.RouteEnabled = false
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
+	releasePorts()
 	go func() { done <- Run(ctx, cfg, paths) }()
 	defer func() {
 		cancel()
@@ -85,5 +82,98 @@ func TestRunKeepsControllerAliveAcrossRealCoreFailure(t *testing.T) {
 			t.Fatal("previous child survived recovery")
 		}
 		pid = next
+	}
+}
+
+// Keep the complete TCP/UDP block leased until handoff. Listen(:0) chooses
+// ephemeral ports which the fixture's own API clients can claim after release.
+func reserveCoreRecoveryPorts(t *testing.T, base *xray.BaseConfig) func() {
+	t.Helper()
+	raw, err := os.ReadFile("/proc/sys/net/ipv4/ip_local_port_range")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var low, high int
+	if n, err := fmt.Sscanf(string(raw), "%d %d", &low, &high); err != nil || n != 2 || low < 1 || high > 65535 || low > high {
+		t.Fatal("invalid ephemeral port range")
+	}
+	count := 4 + base.ProbeLaneCount() + 1 + len(base.Policies)
+	for attempt := 0; attempt < 500; attempt++ {
+		first := 1024 + rand.IntN(65536-1024-count)
+		if first <= high && first+count-1 >= low {
+			continue
+		}
+		var leases []io.Closer
+		release := func() {
+			for _, socket := range leases {
+				socket.Close()
+			}
+		}
+		failed := false
+		for offset := 0; offset < count && !failed; offset++ {
+			port := first + offset
+			for _, network := range []string{"tcp4", "udp4", "tcp6", "udp6"} {
+				host := "127.0.0.1"
+				if strings.HasSuffix(network, "6") {
+					host = "::1"
+				}
+				address := net.JoinHostPort(host, strconv.Itoa(port))
+				var socket io.Closer
+				var err error
+				if strings.HasPrefix(network, "tcp") {
+					socket, err = net.Listen(network, address)
+				} else {
+					socket, err = net.ListenPacket(network, address)
+				}
+				if err != nil {
+					failed = true
+					break
+				}
+				leases = append(leases, socket)
+			}
+		}
+		if failed {
+			release()
+			continue
+		}
+		base.APIPort = first
+		base.HTTPPort = first + 1
+		base.SocksPort = first + 2
+		base.TransparentPort = first + 3
+		base.ProbeBasePort = first + 4
+		base.DNSPolicyBasePort = base.ProbeBasePort + base.ProbeLaneCount() + 1
+		return release
+	}
+	t.Fatal("could not reserve a complete recovery fixture port block outside ephemeral ports")
+	return nil
+}
+
+func TestCoreRecoveryPortLeaseCoversRefreshAndBothProtocols(t *testing.T) {
+	base := xray.DefaultBaseConfig()
+	base.ProbeBudget = 1
+	release := reserveCoreRecoveryPorts(t, &base)
+	defer release()
+	if err := base.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for port := base.APIPort; port < base.DNSPolicyBasePort+len(base.Policies); port++ {
+		for _, network := range []string{"tcp4", "udp4", "tcp6", "udp6"} {
+			host := "127.0.0.1"
+			if strings.HasSuffix(network, "6") {
+				host = "::1"
+			}
+			address := net.JoinHostPort(host, strconv.Itoa(port))
+			var socket io.Closer
+			var err error
+			if strings.HasPrefix(network, "tcp") {
+				socket, err = net.Listen(network, address)
+			} else {
+				socket, err = net.ListenPacket(network, address)
+			}
+			if err == nil {
+				socket.Close()
+				t.Fatalf("fixture port %d/%s was not leased", port, network)
+			}
+		}
 	}
 }
