@@ -23,7 +23,7 @@ Route devices and services through proxies with automatic node selection. Config
 
 The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Applying settings preserves history and the selected node if it remains eligible for the route list. If no working proxy node is available, the behavior selected in the rule database applies: blocking or WAN fallback. Direct WAN rules remain active. DNS follows the same rule when the proxy fails. Strict route lists stay protected during router boot, service restarts and package updates. Direct IP exceptions and VPN routes remain available, including for DNS. Explicitly stopping the service removes interception.
 
-Keep the router powered during an update. When flash space is low, compact installation keeps the recovery copy in RAM; a power interruption at that point may require reinstalling the APK. Configuration is retained. To recover, transfer the APK using the instructions below and run `apk --no-cache add --force-reinstall --allow-untrusted /tmp/sb-gateway.apk`.
+Keep the router powered during an update. When flash space is low, compact installation keeps the recovery copy in RAM; a power interruption at that point may require reinstalling the APK. Configuration is retained. To recover, transfer the APK using the instructions below and run `apk --no-cache add --force-reinstall /tmp/sb-gateway.apk`.
 
 ## Installation
 

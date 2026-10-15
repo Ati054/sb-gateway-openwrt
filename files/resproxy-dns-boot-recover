@@ -1,6 +1,28 @@
 #!/bin/sh
 # Kept with the backup so DNS can recover even if the new firmware has no
 # SB Gateway binary. OpenWrt runs uci-defaults before starting dnsmasq.
+# A ready gateway owns its handoff until it stops. Keep this uci-defaults
+# file pending (return 1), so a later boot/sysupgrade can still restore DNS.
+# An executable or an enabled service alone is not proof of readiness.
+if [ -x /usr/bin/resproxyd ] && [ -s /var/run/resproxy/daemon.pid ] &&
+   [ -s /var/run/resproxy/xray-ready ] && [ -s /var/run/resproxy/hot-ready.json ] &&
+   ucode -e '
+import { readfile } from "fs";
+function pid(path) {
+ let raw = trim(readfile(path) ?? "");
+ return match(raw, /^[1-9][0-9]{0,9}$/) && +raw > 1 ? +raw : 0;
+}
+let daemon = pid("/var/run/resproxy/daemon.pid"), core = pid("/var/run/resproxy/xray-ready");
+let raw = readfile("/var/run/resproxy/hot-ready.json") ?? "";
+if (!daemon || !core || length(raw) > 65536) exit(1);
+let ready = json(raw);
+let daemonArgs = split(readfile("/proc/" + daemon + "/cmdline") ?? "", "\u0000");
+let coreArgs = split(readfile("/proc/" + core + "/cmdline") ?? "", "\u0000");
+exit(ready?.xray_pid == core && daemonArgs[0] == "/usr/bin/resproxyd" && daemonArgs[1] == "run" &&
+     coreArgs[0] == "/usr/libexec/resproxy/xray" && coreArgs[1] == "run" ? 0 : 1);
+' >/dev/null 2>&1; then
+ return 1
+fi
 _sbg_dns_restore="$(ucode - <<'UCODE'
 import { readfile, unlink } from 'fs';
 import { cursor } from 'uci';
