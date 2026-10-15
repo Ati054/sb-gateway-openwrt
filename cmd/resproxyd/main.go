@@ -44,7 +44,7 @@ func main() {
 }
 
 func execute(arguments []string) error {
-	if len(arguments) > 0 && arguments[0] == "capture-rules" {
+	if len(arguments) > 0 && (arguments[0] == "capture-rules" || arguments[0] == "capture-emergency-rules") {
 		if len(arguments) < 5 || len(arguments) > 262 {
 			return errors.New("usage: capture-rules IFNAME PORT DNSPORT IPV6MODE [--block-ping] [IP...]")
 		}
@@ -67,7 +67,28 @@ func execute(arguments []string) error {
 		if !policy.Automatic.Complete {
 			return errors.New("VPN interface discovery unavailable; previous capture rules retained")
 		}
-		body, err := capture.Render(arguments[1], port, dnsPort, policy)
+		var body string
+		if arguments[0] == "capture-emergency-rules" {
+			readCtx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+			config, readErr := settings.ReadSystemUCI(readCtx)
+			stop()
+			if readErr != nil {
+				return readErr
+			}
+			if !config.Enabled || !config.RouteEnabled || config.LANInterface != arguments[1] || config.Base.TransparentPort != port {
+				return errors.New("emergency capture configuration mismatch")
+			}
+			scopes, scopeErr := daemon.EmergencyPolicies(config)
+			if scopeErr != nil {
+				return scopeErr
+			}
+			// Recovery may follow a live capture edit; use the same current UCI
+			// snapshot for source authorization and destination/ping exceptions.
+			config.Capture.Automatic = policy.Automatic
+			body, err = capture.RenderEmergency(arguments[1], port, config.Capture, scopes)
+		} else {
+			body, err = capture.Render(arguments[1], port, dnsPort, policy)
+		}
 		if err != nil {
 			return err
 		}
@@ -194,7 +215,7 @@ func execute(arguments []string) error {
 		}
 		runCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		return daemon.Run(runCtx, config, paths)
+		return daemon.RunSupervised(runCtx, config, paths)
 	default:
 		return errors.New("unknown subcommand")
 	}
@@ -240,6 +261,7 @@ func printStatus(paths daemon.Paths) error {
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
 		"running": running(paths), "nodes": len(nodes), "policies": states,
 		"dns": dnsStatus, "dns_interop": dnsInterop,
+		"emergency_mode":       daemon.CrashFallbackActive(paths),
 		"subscriptions":        daemon.SubscriptionUpdates(paths, nodes),
 		"external_dns_service": daemon.ActiveExternalDNSService(),
 	})

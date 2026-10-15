@@ -47,9 +47,9 @@ func TestModesAndPrecedence(t *testing.T) {
 				t.Fatal("direct mode intercepts IPv6")
 			}
 		case "block":
-			if strings.Contains(v6, "tproxy") || strings.Contains(v6, "redirect") || strings.Contains(v6, "2001:db8::4") ||
+			if strings.Contains(v6, "tproxy") || strings.Contains(v6, "redirect") || !strings.Contains(v6, "2001:db8::4") ||
 				!strings.Contains(v6, "fc00::/7") || !strings.Contains(v6, "fib daddr oifname") || !strings.Contains(v6, "counter drop") {
-				t.Fatal("IPv6 block does not preserve LAN or bypasses block")
+				t.Fatal("IPv6 block does not preserve direct exceptions")
 			}
 		}
 	}
@@ -99,11 +99,12 @@ func TestEditableDirectListAndRouterDNS(t *testing.T) {
 	}
 }
 
-func TestControlTrafficAndStrictPingBeforeExceptions(t *testing.T) {
+func TestWANProtocolRestrictionsFollowAllDirectExceptions(t *testing.T) {
 	for _, mode := range []string{"proxy", "direct", "block"} {
 		for _, strict := range []bool{false, true} {
 			p, _ := New(mode, []string{"203.0.113.0/24", "2001:db8::/64"})
 			p.BlockPing = strict
+			p.Automatic.Interfaces = []string{"wg0"}
 			body, err := Render("br-lan", 12345, 1053, p)
 			if err != nil {
 				t.Fatal(err)
@@ -119,6 +120,27 @@ func TestControlTrafficAndStrictPingBeforeExceptions(t *testing.T) {
 					t.Fatalf("%s mode=%s", match, mode)
 				}
 			}
+			for _, family := range []string{"ip", "ip6"} {
+				_, chain, _ := strings.Cut(body, "table "+family+" resproxy")
+				_, chain, _ = strings.Cut(chain, "chain prerouting {")
+				chain, _, _ = strings.Cut(chain, "chain input {")
+				ping := strings.Index(chain, "type { echo-request, echo-reply }")
+				for _, exception := range []string{"ct state related return", "fib daddr type local return", `fib daddr oifname "br-lan" return`, `fib daddr . mark oifname { "wg0" } return`, family + " daddr { "} {
+					index := strings.Index(chain, exception)
+					if index < 0 || index >= ping {
+						t.Fatalf("%s/%s strict=%v: exception %s must precede WAN ping", family, mode, strict, exception)
+					}
+				}
+				unsupported := strings.Index(chain, "meta l4proto != { tcp, udp } counter drop")
+				if family == "ip6" && mode == "direct" {
+					if unsupported >= 0 {
+						t.Fatal("IPv6 direct filters GRE/ESP")
+					}
+				} else if unsupported <= ping {
+					t.Fatal("WAN protocol drop must follow ping and direct exceptions")
+				}
+			}
+
 			action := "return"
 			if strict {
 				action = "counter drop"

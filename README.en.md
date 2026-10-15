@@ -16,7 +16,7 @@ Route devices and services through proxies with automatic node selection. Config
 - **Presets:** country rules for Russia, China, and Iran; service cards for YouTube, Discord, Telegram, WhatsApp, social networks, AI services, games, exchanges, and smart homes. Each exchange card includes its website and API.
 - **Custom rules:** domains, IP networks, ports, TCP/UDP, and detected protocols. Send traffic through the route list's proxy or directly through WAN; the first matching rule determines the route.
 - **All proxies unavailable:** an independent rule-database setting blocks proxy traffic or temporarily sends it through WAN. Available for preset variants and custom rules; selected cards keep their separate routing action. Traffic returns to the proxy when a node recovers.
-- **System protocols:** multicast, broadcast, and related ICMP errors are preserved. WAN ping can be blocked; GRE, ESP, and other unsupported protocols are blocked from WAN.
+- **System protocols:** local addresses, VPN routes, and direct IP exceptions take precedence over WAN restrictions. Multicast, broadcast, and related ICMP errors are preserved. WAN ping can be blocked; GRE/ESP are blocked outside exceptions. IPv6 direct mode does not restrict other protocols.
 - **DNS:** proxy and WAN resolvers, DoH/DoT, and device queries handled according to their route list and rules. DNS WAN fallback follows the rule’s proxy failure setting. An active external DNS service keeps OpenWrt DNS; handing over https-dns-proxy requires separate confirmation.
 - **Monitoring:** active nodes and backups, availability, HTTPS errors, latency, and differences between fresh measurements. Data refreshes without reloading the page; the active node appears first, with up to 10 nodes in the table.
 - **Updates:** check GitHub and install with a button while preserving settings; manual APK upload is also available. Packages are verified against the project signing key. Compact updates keep the APK and backup in RAM.
@@ -61,6 +61,8 @@ The installer detects the architecture, checks available space, downloads the la
 
 `-O` uses SCP with Dropbear; `--allow-untrusted` allows this APK to be installed without an OpenWrt signature. Dependencies are installed from OpenWrt repositories.
 
+The project key is installed in `/etc/apk/keys`: APK trusts any package signed by that key.
+
 ### Setup
 
 The service is disabled after the first installation. Open **Services → SB Gateway for OpenWrt** in LuCI:
@@ -68,6 +70,8 @@ The service is disabled after the first installation. Open **Services → SB Gat
 1. Add subscriptions and download nodes.
 2. Create rules and route lists, then select devices and nodes.
 3. Configure DNS, enable SB Gateway, save, and apply settings.
+
+After three repeated service failures, emergency WAN with the restored OpenWrt DNS resolver is available only to lists that permit WAN for all proxy traffic. Strict lists and their DNS remain blocked. If settings cannot be read or validated, proxy traffic remains blocked. Domain-based rules require a working core; service recovery continues automatically.
 
 To update, open **Package update → Check for updates → Update from GitHub**. Checking only fetches version information; download and installation start after a separate click on **Update from GitHub**. You can skip intermediate versions. Settings and the service's enabled or disabled state are preserved; a running service restarts during the update.
 

@@ -62,5 +62,6 @@ service_stopped() {
   [ "$alive" = 1 ] || break
   waited=$((waited+1)); sleep 1
  done
+ rm -f /var/run/resproxy/crash-attempt.json /var/run/resproxy/crash-fallback.active
  /usr/bin/resproxyd dns-restore || logger -t resproxy 'DNS handoff restore failed after stop'
 }

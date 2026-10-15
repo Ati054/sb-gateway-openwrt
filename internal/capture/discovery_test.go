@@ -22,7 +22,7 @@ func TestVPNDiscoveryOnlyUsesActiveTunnelRoutesAndLiteralPeers(t *testing.T) {
 		}
 	}
 }
-func TestVPNRoutesKeepKernelPolicyAndIPv6Block(t *testing.T) {
+func TestVPNRoutesKeepKernelPolicyBeforeIPv6Block(t *testing.T) {
 	p, _ := New("proxy", []string{"10.0.0.0/8"})
 	p.Automatic = Inventory{Interfaces: []string{"wg0", "tun0"}, Addresses: []AutomaticIP{{"192.0.2.20", "WireGuard", "endpoint"}, {"203.0.113.0/24", "VPN", "route"}}}
 	body, err := Render("br-lan", 12345, 1053, p)
@@ -44,8 +44,8 @@ func TestVPNRoutesKeepKernelPolicyAndIPv6Block(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, v6, _ := strings.Cut(body, "table ip6")
-	if strings.Contains(v6, `iifname "br-lan" fib daddr . mark oifname {`) {
-		t.Fatal("VPN overrides explicit IPv6 block")
+	if !strings.Contains(v6, `iifname "br-lan" fib daddr . mark oifname {`) {
+		t.Fatal("IPv6 WAN block breaks explicit VPN routes")
 	}
 	p.Automatic.Interfaces = []string{"wg0;drop"}
 	if _, err = Render("br-lan", 12345, 1053, p); err == nil {
@@ -62,12 +62,16 @@ func TestStrictWANPingPreservesVPNRoutePing(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, proto := range []string{"icmp", "ipv6-icmp"} {
-		exception := strings.Index(body, "meta l4proto "+proto+" fib daddr . mark oifname")
+		_, chain, _ := strings.Cut(body, "chain prerouting {")
+		if proto == "ipv6-icmp" {
+			_, chain, _ = strings.Cut(chain, "chain prerouting {")
+		}
+		exception := strings.Index(chain, `fib daddr . mark oifname { "wg0" } return`)
 		header := "icmp"
 		if proto == "ipv6-icmp" {
 			header = "icmpv6"
 		}
-		drop := strings.Index(body, header+" type { echo-request, echo-reply } counter drop")
+		drop := strings.Index(chain, header+" type { echo-request, echo-reply } counter drop")
 		if exception < 0 || drop < 0 || exception > drop {
 			t.Fatal("strict WAN ping breaks tunnel ICMP")
 		}

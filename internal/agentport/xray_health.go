@@ -1016,7 +1016,8 @@ func (runtime *xraySelectorRuntime) probeAvailabilityTargetsWithTimeout(evidence
 	defer cancel()
 	results := make(chan targetResult, count)
 	started, received := 0, 0
-	deadline := time.Now().Add(availabilityProbeTimeout + availabilityFallbackTimeout)
+	roundStarted := time.Now()
+	deadline := roundStarted.Add(availabilityProbeTimeout + availabilityFallbackTimeout)
 	launch := func(index int) {
 		started++
 		timeout := availabilityFallbackTimeout
@@ -1026,13 +1027,15 @@ func (runtime *xraySelectorRuntime) probeAvailabilityTargetsWithTimeout(evidence
 		if parallelPrimary && confirmationTimeout > 0 {
 			timeout = confirmationTimeout
 		}
+		targetDeadline := roundStarted.Add(timeout)
+		if !parallelPrimary {
+			targetDeadline = deadline
+		}
 		go func() {
-			if !parallelPrimary {
-				// Calculate after this worker is scheduled, so delayed dispatch
-				// cannot extend the shared deadline. Per-request timers retain
-				// local scheduling-delay classification without a timed parent.
-				timeout = time.Until(deadline)
-			}
+			// Anchor every origin to this round, including emergency/confirmation.
+			// Delayed scheduling cannot buy a new full request timeout.
+			// Keep per-request timers for local scheduling-delay classification.
+			timeout = time.Until(targetDeadline)
 			if timeout <= 0 {
 				results <- targetResult{label: healthTargets[index].label, err: context.DeadlineExceeded}
 				return

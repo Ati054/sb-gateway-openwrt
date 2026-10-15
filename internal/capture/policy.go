@@ -66,6 +66,10 @@ func New(mode string, values []string) (Policy, error) {
 var interfaceName = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,15}$`)
 
 func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
+	return render(iface, port, dnsPort, policy, nil)
+}
+
+func render(iface string, port, dnsPort int, policy Policy, emergency []EmergencyPolicy) (string, error) {
 	if !interfaceName.MatchString(iface) || port < 1024 || port > 65535 ||
 		dnsPort != 0 && (dnsPort < 1024 || dnsPort > 65535 || dnsPort == port) {
 		return "", errors.New("invalid capture interface or ports")
@@ -128,7 +132,9 @@ func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
 			fmt.Fprintf(&b, "\t\tiifname %q ip daddr 224.0.0.0/4 return\n", iface)
 			fmt.Fprintf(&b, "\t\tiifname %q fib daddr type broadcast return\n", iface)
 		}
-		if !v6 || normalized.IPv6Mode == "proxy" {
+		if emergency != nil && (!v6 || normalized.IPv6Mode == "proxy") {
+			emergencyRules(&b, iface, addr, emergency, true)
+		} else if !v6 || normalized.IPv6Mode == "proxy" {
 			// The router's DNS listener remains managed even when a private range
 			// is direct. Otherwise the default private ranges disable LAN DNS.
 			if dnsPort != 0 {
@@ -161,28 +167,35 @@ func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
 		}
 		// Preserve related errors (including Packet Too Big) before any blocking.
 		fmt.Fprintf(&b, "\t\tiifname %q meta l4proto %s ct state related return\n", iface, icmpProtocol)
-		fmt.Fprintf(&b, "\t\tiifname %q meta l4proto != { tcp, udp, %s } counter drop\n", iface, icmpProtocol)
+		if emergency != nil && (!v6 || normalized.IPv6Mode != "direct") {
+			// A strict source must not use the restored router DNS listener.
+			fmt.Fprintf(&b, "\t\tiifname %q meta l4proto { tcp, udp } th dport 53 jump emergency_dns\n", iface)
+		}
 		fmt.Fprintf(&b, "\t\tiifname %q fib daddr type local return\n", iface)
 		fmt.Fprintf(&b, "\t\tiifname %q fib daddr oifname %q return\n", iface, iface)
 
-		if len(tunnelNames) > 0 {
-			fmt.Fprintf(&b, "\t\tiifname %q meta l4proto %s fib daddr . mark oifname { %s } return\n", iface, icmpProtocol, strings.Join(tunnelNames, ", "))
+		// Explicit routes bypass capture for every protocol, including GRE/ESP
+		// and echo replies crossing VLANs. WAN restrictions apply only after them.
+		tunnelBypass(&b)
+		if len(custom) > 0 {
+			fmt.Fprintf(&b, "\t\tiifname %q %s daddr { %s } return\n", iface, addr, strings.Join(custom, ", "))
 		}
+		if v6 && normalized.IPv6Mode == "block" {
+			fmt.Fprintf(&b, "\t\tiifname %q ip6 daddr { ::/127, fc00::/7, fe80::/10 } return\n", iface)
+		}
+
 		pingAction := "return"
 		if normalized.BlockPing {
 			pingAction = "counter drop"
 		}
 		fmt.Fprintf(&b, "\t\tiifname %q %s type { echo-request, echo-reply } %s\n", iface, icmpHeader, pingAction)
-		fmt.Fprintf(&b, "\t\tiifname %q meta l4proto %s counter drop\n", iface, icmpProtocol)
 		if !v6 || normalized.IPv6Mode != "direct" {
+			fmt.Fprintf(&b, "\t\tiifname %q meta l4proto != { tcp, udp } counter drop\n", iface)
 			if v6 && normalized.IPv6Mode == "block" {
-				fmt.Fprintf(&b, "\t\tiifname %q ip6 daddr { ::/127, fc00::/7, fe80::/10 } return\n", iface)
 				fmt.Fprintf(&b, "\t\tiifname %q counter drop\n", iface)
+			} else if emergency != nil {
+				emergencyRules(&b, iface, addr, emergency, false)
 			} else {
-				tunnelBypass(&b)
-				if len(custom) > 0 {
-					fmt.Fprintf(&b, "\t\tiifname %q %s daddr { %s } return\n", iface, addr, strings.Join(custom, ", "))
-				}
 				if dnsPort != 0 {
 					for _, proto := range []string{"udp", "tcp"} {
 						fmt.Fprintf(&b, "\t\tiifname %q %s dport 53 return\n", iface, proto)
@@ -197,7 +210,13 @@ func Render(iface string, port, dnsPort int, policy Policy) (string, error) {
 			}
 		}
 
-		b.WriteString("\t}\n\tchain input {\n\t\ttype filter hook input priority filter - 1; policy accept;\n")
+		b.WriteString("\t}\n")
+		if emergency != nil && (!v6 || normalized.IPv6Mode != "direct") {
+			b.WriteString("\tchain emergency_dns {\n")
+			emergencyDNSGuard(&b, iface, addr, emergency)
+			b.WriteString("\t}\n")
+		}
+		b.WriteString("\tchain input {\n\t\ttype filter hook input priority filter - 1; policy accept;\n")
 		fmt.Fprintf(&b, "\t\tmeta mark != 0x5253 meta l4proto { tcp, udp } th dport %d counter drop\n", port)
 		b.WriteString("\t}\n}\n")
 	}

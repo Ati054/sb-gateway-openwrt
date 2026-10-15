@@ -95,18 +95,16 @@ func TestEmergencyAvailabilityRecoversOnNextProbeAfterLateRecovery(t *testing.T)
 		healthTargets[i].url = "http://probe.invalid/" + healthTargets[i].label
 	}
 	availabilityProbeTimeout, availabilityFallbackTimeout = 60*time.Millisecond, 150*time.Millisecond
-	readyAt := time.Now().Add(220 * time.Millisecond)
+	var recovered atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		timer := time.NewTimer(max(time.Until(readyAt), time.Duration(0)))
-		defer timer.Stop()
-		select {
-		case <-timer.C:
-			if r.URL.Path == "/gstatic-204" {
-				w.WriteHeader(http.StatusNoContent)
-			} else {
-				w.WriteHeader(http.StatusOK)
-			}
-		case <-r.Context().Done():
+		if !recovered.Load() {
+			<-r.Context().Done()
+			return
+		}
+		if r.URL.Path == "/gstatic-204" {
+			w.WriteHeader(http.StatusNoContent)
+		} else {
+			w.WriteHeader(http.StatusOK)
 		}
 	}))
 	defer server.Close()
@@ -115,6 +113,10 @@ func TestEmergencyAvailabilityRecoversOnNextProbeAfterLateRecovery(t *testing.T)
 	if first := runtime.ProbeEmergencyAvailability("direct-wan"); first.OK || first.Failure != probeFailureTimeout {
 		t.Fatalf("node recovered after the first batch's deadlines, not during it: %+v", first)
 	}
+	// Recover only after the first round has finished. An absolute wall-clock
+	// delay also counted fixture/API scheduling and could recover before that
+	// round started on a saturated CPU.
+	recovered.Store(true)
 	if next := runtime.ProbeEmergencyAvailability("direct-wan"); !next.OK {
 		t.Fatalf("late recovery did not pass the next independent probe: %+v", next)
 	}
