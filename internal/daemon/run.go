@@ -41,6 +41,11 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	if !config.Enabled {
 		return errors.New("service is disabled in UCI")
 	}
+	if config.RouteEnabled && !ProtectionActive(paths) {
+		if err := ProtectCapture(ctx, config, paths); err != nil {
+			return fmt.Errorf("protect LAN before startup: %w", err)
+		}
+	}
 	if err := config.Base.Validate(); err != nil {
 		return err
 	}
@@ -140,7 +145,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		log.Printf("resproxy: subscription storage pruning skipped: %v", err)
 	}
 	var updateDNS func([]dnsproxy.Policy) error
-	recoveringCapture := CrashFallbackActive(paths)
+	recoveringCapture := CrashFallbackActive(paths) || ProtectionActive(paths)
 	captureDNSPort := 0
 	dnsInterop := DNSInterop{RequestedMode: config.DNSMode, EffectiveMode: "off"}
 	if config.RouteEnabled {
@@ -247,19 +252,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				return fmt.Errorf("enable LAN capture: %w", err)
 			}
 		}
-		defer func() {
-			// Only an intentional stop opens the normal LAN path. Keep the
-			// last capture policy during an unexpected exit until procd retries.
-			if parentCtx.Err() == nil {
-				log.Printf("resproxy: retaining LAN capture until service recovery")
-				return
-			}
-			cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			if err := setFirewall(cleanup, "remove", "", 0, 0, capture.Policy{}); err != nil {
-				log.Printf("resproxy: remove LAN capture: %v", err)
-			}
-		}()
+		// The init lifecycle owns removal after the daemon has fully exited.
+		// A late startup/cancellation must never remove a newer restart guard.
+		defer log.Printf("resproxy: retaining LAN policy until init completes the transition")
 	}
 	if !config.RouteEnabled {
 		if err := publishDNSInterop(paths, dnsInterop); err != nil {
@@ -400,7 +395,10 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			return err
 		}
 	}
-	if err := markCrashReady(paths, time.Now().Unix()); err != nil {
+	if err := ClearProtection(paths); err != nil {
+		return err
+	}
+	if err := markCrashReadyNow(paths); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(paths.RunRoot, "daemon.pid"), []byte(strconv.Itoa(os.Getpid())+"\n"), 0o600); err != nil {
@@ -617,7 +615,7 @@ func sourceRefreshDue(source settings.Subscription, now, next time.Time, request
 
 func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, policy capture.Policy) error {
 	arguments := []string{action}
-	if action == "apply" || action == "emergency" {
+	if action == "apply" || action == "emergency" || action == "guard" {
 		arguments = append(arguments, iface, strconv.Itoa(port), strconv.Itoa(dnsPort), policy.IPv6Mode)
 		if policy.BlockPing {
 			arguments = append(arguments, "--block-ping")
@@ -771,6 +769,9 @@ func rejectOtherXray() error {
 func RestoreFirewall(ctx context.Context, config settings.Config, paths Paths) error {
 	if !config.Enabled || !config.RouteEnabled {
 		return nil
+	}
+	if ProtectionActive(paths) {
+		return setFirewall(ctx, "guard", config.LANInterface, config.Base.TransparentPort, 0, config.Capture)
 	}
 	if CrashFallbackActive(paths) {
 		return setFirewall(ctx, "emergency", config.LANInterface, config.Base.TransparentPort, 0, config.Capture)

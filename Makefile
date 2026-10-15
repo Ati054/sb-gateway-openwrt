@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sb-gateway-openwrt
-PKG_VERSION:=0.1.3
+PKG_VERSION:=0.1.4
 PKG_RELEASE:=
 PKG_LICENSE:=AGPL-3.0-only AND MPL-2.0 AND MIT AND Apache-2.0 AND BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE XRAY-LICENSE DOMAIN-LIST-LICENSE
@@ -66,6 +66,7 @@ define Package/sb-gateway-openwrt/install
 	$(INSTALL_DIR) $(1)/usr/libexec
 	$(INSTALL_CONF) ./files/resproxy.config $(1)/etc/config/resproxy
 	$(INSTALL_BIN) ./files/resproxy.init $(1)/etc/init.d/resproxy
+	$(INSTALL_BIN) ./files/resproxy-guard.init $(1)/etc/init.d/resproxy-guard
 	$(INSTALL_BIN) ./files/resproxy-firewall $(1)/usr/libexec/resproxy-firewall
 	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
 	$(INSTALL_BIN) ./files/resproxy-hotplug $(1)/etc/hotplug.d/iface/95-resproxy
@@ -94,6 +95,7 @@ endef
 define Package/sb-gateway-openwrt/postinst
 #!/bin/sh
 [ -n "$$IPKG_INSTROOT" ] && exit 0
+/etc/init.d/resproxy-guard enable
 # Remove LuCI's hashed page-tree cache when package menu entries change.
 rm -f /tmp/luci-indexcache /tmp/luci-indexcache.*.json
 # An r11 guarded update leaves its supervisor running. Wait for that one

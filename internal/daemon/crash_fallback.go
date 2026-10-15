@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
@@ -17,11 +19,48 @@ import (
 const crashFailureLimit = 3
 const crashStableSeconds = 300
 
+type crashStamp struct {
+	Seconds int64
+	BootID  string
+}
+
+func crashNow() (crashStamp, error) {
+	body, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return crashStamp{}, err
+	}
+	boot, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return crashStamp{}, err
+	}
+	return parseCrashStamp(string(body), string(boot))
+}
+func parseCrashStamp(uptime, boot string) (crashStamp, error) {
+	fields := strings.Fields(uptime)
+	if len(fields) != 2 {
+		return crashStamp{}, errors.New("invalid boot uptime")
+	}
+	seconds, err := strconv.ParseFloat(fields[0], 64)
+	boot = strings.TrimSpace(boot)
+	if err != nil || !(seconds >= 0 && seconds < 1e12) || len(boot) != 36 {
+		return crashStamp{}, errors.New("invalid boot clock")
+	}
+	return crashStamp{Seconds: int64(seconds), BootID: boot}, nil
+}
+func markCrashReadyNow(paths Paths) error {
+	now, err := crashNow()
+	if err != nil {
+		return err
+	}
+	return markCrashReady(paths, now)
+}
+
 type crashAttempt struct {
-	Attempts  int   `json:"attempts"`
-	StartedAt int64 `json:"started_at"`
-	ReadyAt   int64 `json:"ready_at,omitempty"`
-	PID       int   `json:"pid"`
+	BootID    string `json:"boot_id,omitempty"`
+	Attempts  int    `json:"attempts"`
+	StartedAt int64  `json:"started_at"`
+	ReadyAt   int64  `json:"ready_at,omitempty"`
+	PID       int    `json:"pid"`
 }
 
 func crashFile(paths Paths) string { return filepath.Join(paths.RunRoot, "crash-attempt.json") }
@@ -33,7 +72,7 @@ func CrashFallbackActive(paths Paths) bool {
 	return err == nil
 }
 
-func beginCrashAttempt(paths Paths, now int64) (int, error) {
+func beginCrashAttempt(paths Paths, now crashStamp) (int, error) {
 	if err := os.MkdirAll(paths.RunRoot, 0700); err != nil {
 		return 0, err
 	}
@@ -51,16 +90,16 @@ func beginCrashAttempt(paths Paths, now int64) (int, error) {
 	attempts := old.Attempts
 	// Use readiness, not lifetime since the last launch: a slow failing startup
 	// must not continually reset its own failure allowance.
-	if old.StartedAt > now || (old.ReadyAt > 0 && now-old.ReadyAt >= crashStableSeconds) {
+	if (old.BootID != "" && old.BootID != now.BootID) || (old.BootID == now.BootID && old.ReadyAt > 0 && now.Seconds-old.ReadyAt >= crashStableSeconds) {
 		attempts = 0
 	}
 	attempts = min(max(attempts, 0)+1, crashFailureLimit+1)
-	next := crashAttempt{Attempts: attempts, StartedAt: now, PID: os.Getpid()}
+	next := crashAttempt{Attempts: attempts, StartedAt: now.Seconds, PID: os.Getpid(), BootID: now.BootID}
 	encoded, _ := json.Marshal(next)
 	return attempts, writeDurableDNSMarker(crashFile(paths), encoded)
 }
 
-func markCrashReady(paths Paths, now int64) error {
+func markCrashReady(paths Paths, now crashStamp) error {
 	body, err := os.ReadFile(crashFile(paths))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -75,7 +114,10 @@ func markCrashReady(paths Paths, now int64) error {
 	if state.PID != os.Getpid() {
 		return nil
 	}
-	state.ReadyAt = now
+	if state.BootID != now.BootID {
+		return errors.New("crash clock boot changed")
+	}
+	state.ReadyAt = now.Seconds
 	body, _ = json.Marshal(state)
 	return writeDurableDNSMarker(crashFile(paths), body)
 }
@@ -136,7 +178,11 @@ func RunSupervised(ctx context.Context, config settings.Config, paths Paths) err
 	if os.Getenv("RESPROXY_PROCD_INSTANCE") != "gateway" {
 		return Run(ctx, config, paths)
 	}
-	attempts, err := beginCrashAttempt(paths, time.Now().Unix())
+	now, err := crashNow()
+	if err != nil {
+		return err
+	}
+	attempts, err := beginCrashAttempt(paths, now)
 	if err != nil {
 		return err
 	}

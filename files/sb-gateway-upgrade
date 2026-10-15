@@ -107,7 +107,7 @@ prepare_compact() {
  write_phase preparing
  compact_stopped=yes
  old_pids="$(cat /var/run/resproxy/daemon.pid /var/run/resproxy/xray-ready 2>/dev/null || :)"
- /etc/init.d/resproxy stop || die "Cannot stop service for compact update"
+ /etc/init.d/resproxy stop_for_update || die "Cannot stop service for compact update"
  # Unlink releases executable blocks only after both old processes exit.
  waits=0
  while :; do
@@ -205,6 +205,7 @@ install() {
  inspected_hash=$(cat "$state/inspected-sha256")
  [ "$(sha256sum "$staged" | cut -d ' ' -f 1)" = "$inspected_hash" ] || die "APK changed since inspection"
  printf '%s\n' "$archive_version" > "$state/version"
+ /usr/bin/resproxyd capture-protect || die "Cannot protect LAN before update"
  if [ "$compact" = yes ]; then prepare_compact; fi
  write_phase installing
  if ! apk add "$staged"; then

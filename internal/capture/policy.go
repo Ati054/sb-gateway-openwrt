@@ -133,7 +133,13 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 			fmt.Fprintf(&b, "\t\tiifname %q fib daddr type broadcast return\n", iface)
 		}
 		if emergency != nil && (!v6 || normalized.IPv6Mode == "proxy") {
-			emergencyRules(&b, iface, addr, emergency, true)
+			// Router DNS remains source-protected even inside a private IP exception.
+			emergencyRules(&b, iface, addr, emergency, true, true)
+			tunnelBypass(&b)
+			if len(custom) > 0 {
+				fmt.Fprintf(&b, "\t\tiifname %q %s daddr { %s } return\n", iface, addr, strings.Join(custom, ", "))
+			}
+			emergencyRules(&b, iface, addr, emergency, true, false)
 		} else if !v6 || normalized.IPv6Mode == "proxy" {
 			// The router's DNS listener remains managed even when a private range
 			// is direct. Otherwise the default private ranges disable LAN DNS.
@@ -194,7 +200,7 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 			if v6 && normalized.IPv6Mode == "block" {
 				fmt.Fprintf(&b, "\t\tiifname %q counter drop\n", iface)
 			} else if emergency != nil {
-				emergencyRules(&b, iface, addr, emergency, false)
+				emergencyRules(&b, iface, addr, emergency, false, false)
 			} else {
 				if dnsPort != 0 {
 					for _, proto := range []string{"udp", "tcp"} {
@@ -213,6 +219,14 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 		b.WriteString("\t}\n")
 		if emergency != nil && (!v6 || normalized.IPv6Mode != "direct") {
 			b.WriteString("\tchain emergency_dns {\n")
+			// Exempt only external destinations: the router resolver must stay
+			// protected even when its address belongs to an editable exception.
+			if len(tunnelNames) > 0 {
+				fmt.Fprintf(&b, "\t\tiifname %q fib daddr type != local fib daddr . mark oifname { %s } return\n", iface, strings.Join(tunnelNames, ", "))
+			}
+			if len(custom) > 0 {
+				fmt.Fprintf(&b, "\t\tiifname %q fib daddr type != local %s daddr { %s } return\n", iface, addr, strings.Join(custom, ", "))
+			}
 			emergencyDNSGuard(&b, iface, addr, emergency)
 			b.WriteString("\t}\n")
 		}

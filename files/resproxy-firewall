@@ -15,7 +15,7 @@ exec 9>/var/run/resproxy-firewall.lock
 flock -x 9
 
 case "$action" in
-	apply|emergency)
+	apply|emergency|guard)
 		case "$interface" in
 			''|*[!A-Za-z0-9_.:-]*) echo 'invalid LAN interface' >&2; exit 1 ;;
 		esac
@@ -30,7 +30,7 @@ case "$action" in
 		[ "$dns_port" -eq 0 ] || { [ "$dns_port" -ge 1024 ] && [ "$dns_port" -le 65535 ] && [ "$dns_port" -ne "$port" ]; } || exit 1
 		;;
 	remove) ;;
-	*) echo 'usage: resproxy-firewall {apply|emergency IFNAME PORT DNSPORT IPV6MODE [IP...]|remove}' >&2; exit 1 ;;
+	*) echo 'usage: resproxy-firewall {apply|emergency|guard IFNAME PORT DNSPORT IPV6MODE [IP...]|remove}' >&2; exit 1 ;;
 esac
 
 temporary="$(mktemp /var/run/resproxy/.firewall-new.XXXXXX)"
@@ -40,7 +40,7 @@ trap 'rm -f "$temporary" "$backup" "$batch"' EXIT
 cp -p "$rules" "$backup"
 
 if [ "$action" != remove ]; then
-	[ -d "/sys/class/net/$interface/bridge" ] || {
+	[ "$action" = guard ] || [ -d "/sys/class/net/$interface/bridge" ] || {
 		echo 'capture interface must be an existing LAN bridge' >&2
 		exit 1
 	}
@@ -49,12 +49,13 @@ if [ "$action" != remove ]; then
 	shift
 	renderer=capture-rules
 	[ "$action" != emergency ] || renderer=capture-emergency-rules
+	[ "$action" != guard ] || renderer=capture-guard-rules
 	/usr/bin/resproxyd "$renderer" "$@" > "$temporary"
 
 fi
 
 mv "$temporary" "$rules"
-if [ "$action" != remove ] && ! fw4 check; then
+if [ "$action" != remove ] && [ "$action" != guard ] && ! fw4 check; then
 	mv "$backup" "$rules"
 	exit 1
 fi
@@ -69,7 +70,7 @@ rollback_policy_routes() {
 	[ "$rule_added" = 0 ] || ip -4 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
 	[ "$route_added" = 0 ] || ip -4 route del local 0.0.0.0/0 dev lo table 20253 2>/dev/null || :
 }
-if [ "$action" != remove ]; then
+if [ "$action" = apply ]; then
 	if ! ip -4 route show table 20253 2>/dev/null | grep -q '^local default dev lo'; then
 		if ! ip -4 route replace local 0.0.0.0/0 dev lo table 20253; then
 			mv "$backup" "$rules"

@@ -44,7 +44,7 @@ func main() {
 }
 
 func execute(arguments []string) error {
-	if len(arguments) > 0 && (arguments[0] == "capture-rules" || arguments[0] == "capture-emergency-rules") {
+	if len(arguments) > 0 && (arguments[0] == "capture-rules" || arguments[0] == "capture-emergency-rules" || arguments[0] == "capture-guard-rules") {
 		if len(arguments) < 5 || len(arguments) > 262 {
 			return errors.New("usage: capture-rules IFNAME PORT DNSPORT IPV6MODE [--block-ping] [IP...]")
 		}
@@ -68,9 +68,13 @@ func execute(arguments []string) error {
 			return errors.New("VPN interface discovery unavailable; previous capture rules retained")
 		}
 		var body string
-		if arguments[0] == "capture-emergency-rules" {
+		if arguments[0] == "capture-emergency-rules" || arguments[0] == "capture-guard-rules" {
 			readCtx, stop := context.WithTimeout(context.Background(), 10*time.Second)
-			config, readErr := settings.ReadSystemUCI(readCtx)
+			reader := settings.ReadSystemUCI
+			if arguments[0] == "capture-guard-rules" {
+				reader = settings.ReadProtectionSystemUCI
+			}
+			config, readErr := reader(readCtx)
 			stop()
 			if readErr != nil {
 				return readErr
@@ -141,6 +145,14 @@ func execute(arguments []string) error {
 	case "version":
 		fmt.Println(version)
 		return nil
+	case "capture-protect":
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		defer cancel()
+		config, err := settings.ReadProtectionSystemUCI(ctx)
+		if err != nil {
+			return err
+		}
+		return daemon.ProtectCapture(ctx, config, paths)
 	case "dns-restore":
 		return daemon.RestoreManagedDNS(paths)
 	case "refresh":

@@ -8,13 +8,24 @@ STOP=05
 
 start_service() {
 	config_load resproxy
-	local enabled
+	local enabled route_enabled
 	config_get_bool enabled main enabled 0
+	config_get_bool route_enabled main route_enabled 0
 	if [ "$enabled" != "1" ]; then
+		/usr/libexec/resproxy-firewall remove || return 1
+		rm -f /var/run/resproxy/capture-protected.active
 		/usr/bin/resproxyd dns-restore || logger -t resproxy 'DNS handoff restore failed'
 		return 0
 	fi
 
+	if [ "$route_enabled" != 1 ]; then
+		/usr/libexec/resproxy-firewall remove || return 1
+		rm -f /var/run/resproxy/capture-protected.active
+	fi
+	# Repeating Start must not replace a healthy live policy with a guard.
+	if ! pgrep -f '^/usr/bin/resproxyd run$' >/dev/null 2>&1; then
+		/usr/bin/resproxyd capture-protect || return 1
+	fi
 	procd_open_instance gateway
 	procd_set_param command /usr/bin/resproxyd run
 	procd_set_param respawn 3600 15 0
@@ -45,9 +56,34 @@ reload_service() {
     esac
 }
 
+extra_command "stop_for_update" "Stop the daemon while preserving source-policy protection"
+
+restart() {
+ config_load resproxy
+ local enabled route_enabled
+ config_get_bool enabled main enabled 0
+ config_get_bool route_enabled main route_enabled 0
+ if [ "$enabled" != 1 ] || [ "$route_enabled" != 1 ]; then
+  stop "$@" || return 1
+  start "$@"
+  return $?
+ fi
+ /usr/bin/resproxyd capture-protect || return 1
+ RESPROXY_KEEP_CAPTURE=1 stop "$@" || return 1
+ start "$@"
+}
+
+shutdown() {
+ stop_for_update "$@"
+}
+
+stop_for_update() {
+ /usr/bin/resproxyd capture-protect || return 1
+ RESPROXY_KEEP_CAPTURE=1 stop "$@"
+}
+
 stop_service() {
 	resproxy_stopping_pid="$(pgrep -f '^/usr/bin/resproxyd run$' 2>/dev/null || :)"
-	/usr/libexec/resproxy-firewall remove >/dev/null 2>&1 || true
 }
 
 # rc.common calls this after requesting termination from procd. Wait until the
@@ -64,4 +100,11 @@ service_stopped() {
  done
  rm -f /var/run/resproxy/crash-attempt.json /var/run/resproxy/crash-fallback.active
  /usr/bin/resproxyd dns-restore || logger -t resproxy 'DNS handoff restore failed after stop'
+ if [ "${RESPROXY_KEEP_CAPTURE:-0}" = 1 ]; then
+  # Reassert after all old startup/cleanup work has finished.
+  /usr/bin/resproxyd capture-protect || return 1
+ else
+  /usr/libexec/resproxy-firewall remove || return 1
+  rm -f /var/run/resproxy/capture-protected.active
+ fi
 }

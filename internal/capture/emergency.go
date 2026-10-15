@@ -83,11 +83,14 @@ func emergencyDNSGuard(b *strings.Builder, iface, family string, policies []Emer
 	}
 }
 
-func emergencyRules(b *strings.Builder, iface, family string, policies []EmergencyPolicy, dns bool) {
+func emergencyRules(b *strings.Builder, iface, family string, policies []EmergencyPolicy, dns bool, localOnly bool) {
 	for _, p := range policies {
 		match, ok := emergencySource(iface, family, p)
 		if !ok {
 			continue
+		}
+		if localOnly {
+			match += " fib daddr type local"
 		}
 		action := "counter drop"
 		if p.AllowWAN {

@@ -49,3 +49,33 @@ func TestEmergencyMissingDefaultClosesUnmatchedSources(t *testing.T) {
 		}
 	}
 }
+
+func TestEmergencyDNSPreservesExternalExceptionsWithoutOpeningRouterDNS(t *testing.T) {
+	p, _ := New("proxy", []string{"10.0.0.0/8", "2001:db8:99::/64"})
+	p.Automatic = Inventory{Complete: true, Interfaces: []string{"wg-office"}}
+	body, err := RenderEmergency("br-lan", 12345, p, []EmergencyPolicy{{SourceCIDRs: []string{"192.0.2.9/32", "2001:db8::9/128"}}, {AllowWAN: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range strings.Split(body, "table ")[1:] {
+		if !strings.Contains(table, "chain emergency_dns") {
+			continue
+		}
+		_, guard, _ := strings.Cut(table, "chain emergency_dns {")
+		guard, _, _ = strings.Cut(guard, "\n\t}")
+		vpn := strings.Index(guard, `fib daddr type != local fib daddr . mark oifname { "wg-office" } return`)
+		direct := strings.Index(guard, "fib daddr type != local ")
+		drop := strings.Index(guard, "th dport 53 counter drop")
+		if vpn < 0 || direct < 0 || vpn >= drop || direct >= drop {
+			t.Fatal("external DNS exceptions lost", guard)
+		}
+		_, nat, _ := strings.Cut(table, "chain dns_prerouting {")
+		nat, _, _ = strings.Cut(nat, "\n\t}")
+		local := strings.Index(nat, "fib daddr type local")
+		bypass := strings.Index(nat, "oifname")
+		redirect := strings.LastIndex(nat, "redirect to :53")
+		if local < 0 || bypass <= local || redirect <= bypass {
+			t.Fatal("router and external DNS precedence lost", nat)
+		}
+	}
+}

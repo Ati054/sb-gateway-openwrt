@@ -1,0 +1,10 @@
+#!/bin/sh /etc/rc.common
+# Install source-policy protection before firewall and network boot services.
+START=18
+STOP=89
+start() {
+ /etc/init.d/resproxy enabled || return 0
+ pgrep -f '^/usr/bin/resproxyd run$' >/dev/null 2>&1 && return 0
+ /usr/bin/resproxyd capture-protect
+}
+stop() { :; }
