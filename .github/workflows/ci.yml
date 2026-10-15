@@ -28,7 +28,7 @@ jobs:
           echo 'RESPROXY_TEST_XRAY=/tmp/sb-gateway/xray' >> "$GITHUB_ENV"
           echo 'RESPROXY_RECOVERY_BINARY=/tmp/sb-gateway/xray' >> "$GITHUB_ENV"
       - name: Unit tests
-        run: sudo -E env "PATH=$PATH" go test -mod=vendor ./...
+        run: sudo -E env "PATH=$PATH" go test -p=1 -mod=vendor ./...
       - name: Gateway Xray regressions
         run: |
           mkdir -p third_party/xray-core/resources
@@ -39,7 +39,7 @@ jobs:
       - name: Vet
         run: go vet -mod=vendor ./...
       - name: Race checks
-        run: sudo -E env "PATH=$PATH" go test -race -mod=vendor ./internal/...
+        run: sudo -E env "PATH=$PATH" go test -p=1 -race -mod=vendor ./internal/...
       - name: ARM64 compile
         env:
           GOOS: linux
