@@ -102,3 +102,44 @@ func TestFreshLatencyDisplayAfterActiveSwitchAndExpiry(t *testing.T) {
 		}
 	}
 }
+
+func TestHealthUsesPreparedViewWithoutParsingRetainedHistory(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "health-state")
+	if err := os.Mkdir(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	// An unreadable legacy payload proves the normal monitoring path bypasses it.
+	if err := os.WriteFile(filepath.Join(directory, "selector-health.json"), []byte("not JSON"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Unix()
+	view := map[string]any{"health": []any{map[string]any{"id": "main", "probe_limits": map[string]int{"active_seconds": 60, "backup_seconds": 180}, "nodes": []any{
+		map[string]any{"id": "a", "selected": true, "available": true, "latest_delay_ms": 400, "latest_quality_at": at},
+		map[string]any{"id": "b", "available": true, "latest_delay_ms": 300, "latest_quality_at": at},
+	}}}}
+	body, _ := json.Marshal(view)
+	if err := os.WriteFile(filepath.Join(directory, "monitor.json"), body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := os.Stdout
+	os.Stdout = w
+	err = printHealth(daemon.Paths{RunRoot: root})
+	os.Stdout = previous
+	w.Close()
+	defer r.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var policies []policyHealth
+	if err := json.NewDecoder(r).Decode(&policies); err != nil {
+		t.Fatal(err)
+	}
+	if len(policies) != 1 || policies[0].Nodes[1].LatencyDelta == nil || *policies[0].Nodes[1].LatencyDelta != 25 {
+		t.Fatal(policies)
+	}
+}

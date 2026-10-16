@@ -249,6 +249,8 @@ type healthController struct {
 	reconciled          map[string]policyReconciliation
 	state               healthState
 	stateLoaded         bool
+	monitorDay          string
+	monitorRuntimeAt    time.Time
 	historyLimitBytes   int
 	regularNext         map[string]time.Time
 	livenessAt          map[string]time.Time
@@ -672,6 +674,11 @@ func (controller *healthController) Tick(now time.Time) error {
 	}
 	if dirty {
 		if err := controller.publishState(stateFile, managed, now); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	if !dirty && len(failures) == 0 {
+		if err := controller.renewRuntime(stateFile, managed, now); err != nil {
 			failures = append(failures, err)
 		}
 	}

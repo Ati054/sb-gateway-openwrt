@@ -9,6 +9,7 @@
 'require ui';
 'require rpc';
 'require poll';
+'require view.resproxy.runtime_status as monitor';
 'require view.resproxy.safe_dom as safeDOM';
 
 var E = safeDOM.create;
@@ -17,12 +18,7 @@ var commitSourceSettings = rpc.declare({
  object: 'uci', method: 'commit', params: ['config'], reject: true
 });
 
-function readSourceStatus() {
-	return fs.exec('/usr/libexec/resproxy-status').then(function(result) {
-		if (result.code !== 0) throw new Error('Status unavailable');
-		return JSON.parse(result.stdout).subscriptions || {};
-	});
-}
+function readSourceStatus() { return monitor.sources(); }
 
 function sourceName(value) {
 	return String(value || '').trim();

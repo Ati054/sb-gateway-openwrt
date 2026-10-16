@@ -1,6 +1,7 @@
 'use strict';
 'require view.resproxy.appearance as sbgTheme';
 'require view.resproxy.node_health as healthUI';
+'require view.resproxy.runtime_status as monitor';
 'require view';
 'require form';
 'require fs';
@@ -10,18 +11,15 @@
 
 var E = safeDOM.create;
 
-var helpers = { status: '/usr/libexec/resproxy-status', health: '/usr/libexec/resproxy-health', rules: '/usr/libexec/resproxy-rulesets' };
 function snapshot(keys) {
- return Promise.all((keys || Object.keys(helpers)).map(function(key) {
-  // Health can exceed rpcd's buffered exec limit for large candidate pools.
-  var read = key === 'health' ? fs.exec_direct(helpers[key], [], 'json') :
-   fs.exec(helpers[key]).then(function(result) {
-    if (result.code !== 0) throw new Error(result.stderr || 'Read failed');
-    return JSON.parse(result.stdout);
-   });
-  return read.then(function(value) { return { key:key, value:value }; })
-   .catch(function(error) { return { key:key, error:String(error) }; });
- }));
+ var requests=[monitor.snapshot().then(function(value) {
+  return [{key:'status',value:value.status},{key:'health',value:value.health}];
+ }).catch(function(error) {return [{key:'status',error:String(error)},{key:'health',error:String(error)}];})];
+ if (!keys || keys.indexOf('rules')>=0) requests.push(fs.exec('/usr/libexec/resproxy-rulesets').then(function(result) {
+  if (result.code!==0) throw new Error(result.stderr || 'Read failed');
+  return [{key:'rules',value:JSON.parse(result.stdout)}];
+ }).catch(function(error) {return [{key:'rules',error:String(error)}];}));
+ return Promise.all(requests).then(function(result) {return [].concat.apply([],result);});
 }
 function displayTable(headers, body) {
  return E('div', { 'class': 'sbg-table-scroll', tabindex: '0' }, E('table', { 'class': 'table' }, [

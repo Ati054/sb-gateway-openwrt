@@ -264,16 +264,26 @@ func printStatus(paths daemon.Paths) error {
 		return err
 	}
 	type policyState struct {
-		Selected         string `json:"selected"`
-		RuntimeSelected  string `json:"runtime_selected"`
-		RuntimeConfirmed bool   `json:"runtime_confirmed"`
-		RuntimeError     string `json:"runtime_error"`
-		LastSwitchReason string `json:"last_switch_reason"`
-		CheckedAt        string `json:"checked_at"`
+		WANFallbackActive bool   `json:"wan_fallback_active"`
+		Selected          string `json:"selected"`
+		RuntimeSelected   string `json:"runtime_selected"`
+		RuntimeConfirmed  bool   `json:"runtime_confirmed"`
+		RuntimeError      string `json:"runtime_error"`
+		LastSwitchReason  string `json:"last_switch_reason"`
+		CheckedAt         string `json:"checked_at"`
 	}
 	states := map[string]policyState{}
-	if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "health-state", "selector-health.json")); err == nil {
-		_ = json.Unmarshal(body, &states)
+	if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "health-state", "selector-runtime.json")); err == nil {
+		var snapshot struct {
+			Policies map[string]policyState `json:"policies"`
+		}
+		if json.Unmarshal(body, &snapshot) == nil {
+			states = snapshot.Policies
+		}
+	} else if errors.Is(err, os.ErrNotExist) {
+		if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "health-state", "selector-health.json")); err == nil {
+			_ = json.Unmarshal(body, &states)
+		}
 	}
 	var dnsStatus any
 	if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "dns-status.json")); err == nil {
@@ -321,6 +331,10 @@ type nodeHealthStats struct {
 }
 
 type policyHealth struct {
+	ProbeLimits struct {
+		ActiveSeconds int `json:"active_seconds"`
+		BackupSeconds int `json:"backup_seconds"`
+	} `json:"probe_limits,omitempty"`
 	HistoryTruncated bool         `json:"history_truncated,omitempty"`
 	HistoryBudgetKiB int          `json:"history_budget_kib,omitempty"`
 	HistoryUsageKiB  int          `json:"history_usage_kib,omitempty"`
@@ -373,6 +387,23 @@ func setFreshLatencyDeltas(nodes []nodeHealth, now time.Time, activeSeconds, bac
 }
 
 func printHealth(paths daemon.Paths) error {
+	// The controller already owns and summarizes history. CLI users consume the
+	// same compact view as LuCI; legacy history is read only before its creation.
+	if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "health-state", "monitor.json")); err == nil {
+		var snapshot struct {
+			Health []policyHealth `json:"health"`
+		}
+		if err := json.Unmarshal(body, &snapshot); err != nil {
+			return err
+		}
+		for i := range snapshot.Health {
+			policy := &snapshot.Health[i]
+			setFreshLatencyDeltas(policy.Nodes, time.Now(), policy.ProbeLimits.ActiveSeconds, policy.ProbeLimits.BackupSeconds)
+		}
+		return json.NewEncoder(os.Stdout).Encode(snapshot.Health)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	type stats struct {
 		Samples             int      `json:"samples"`
 		AvailabilityPercent *float64 `json:"availability_percent"`
@@ -427,6 +458,8 @@ func printHealth(paths daemon.Paths) error {
 			Selected: item.RuntimeSelected, HealthyReserves: item.HealthyReserves,
 			CandidateCount: item.CandidateCount, CheckedAt: item.CheckedAt,
 			UnderlayFailure: item.UnderlayFailure, Nodes: []nodeHealth{}}
+		entry.ProbeLimits.ActiveSeconds = item.ProbeLimits.ActiveSeconds
+		entry.ProbeLimits.BackupSeconds = item.ProbeLimits.BackupSeconds
 		order := map[string]int{}
 		for rank, nodeID := range strings.Split(item.CandidateSignature, "\n") {
 			order[nodeID] = rank

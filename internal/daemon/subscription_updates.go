@@ -122,6 +122,7 @@ func (u *subscriptionUpdates) finish(id, attempt string, before, after []catalog
 	}
 	u.values[id] = value
 	u.save()
+	publishCatalogSummary(filepath.Dir(u.path), after)
 }
 
 func (u *subscriptionUpdates) save() {
@@ -134,5 +135,28 @@ func (u *subscriptionUpdates) save() {
 	}
 	if err != nil {
 		log.Printf("resproxy: subscription status unavailable: %v", err)
+	}
+}
+
+// Only a successful catalog transaction (or startup) updates this bounded RAM
+// summary. Monitoring never reloads subscription credentials to count nodes.
+func publishCatalogSummary(root string, nodes []catalog.Node) {
+	counts := map[string]int{}
+	for _, node := range nodes {
+		counts[node.ProviderID]++
+	}
+	body, err := json.Marshal(struct {
+		Nodes  int            `json:"nodes"`
+		Counts map[string]int `json:"counts"`
+	}{len(nodes), counts})
+	path := filepath.Join(root, "catalog-summary.json")
+	if err == nil {
+		err = os.WriteFile(path+".tmp", body, 0600)
+	}
+	if err == nil {
+		err = os.Rename(path+".tmp", path)
+	}
+	if err != nil {
+		log.Printf("resproxy: catalog monitoring summary unavailable: %v", err)
 	}
 }

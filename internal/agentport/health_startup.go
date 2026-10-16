@@ -14,7 +14,7 @@ func InvalidateRuntimeHealth(root string) error {
 	state := healthState{}
 	if err := readJSON(path, &state); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil
+			return (&healthController{}).publishMonitor(path, state, time.Now())
 		}
 		return err
 	}
@@ -30,7 +30,10 @@ func InvalidateRuntimeHealth(root string) error {
 		item.RuntimeSelected, item.RuntimeError, item.RuntimeObservedAt = "", "", ""
 		item.WANFallbackActive = false
 	}
-	return writeJSONAtomic(path, state)
+	if err := writeJSONAtomic(path, state); err != nil {
+		return err
+	}
+	return (&healthController{}).publishMonitor(path, state, time.Now())
 }
 
 func retainWorkingSelection(item *policyHealthState) {

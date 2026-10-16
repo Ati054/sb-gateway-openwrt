@@ -143,6 +143,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	if err != nil {
 		return fmt.Errorf("remove unconfigured subscription sources: %w", err)
 	}
+	publishCatalogSummary(paths.RunRoot, nodes)
 	if err := agentport.WritePool(poolPath, nodes, config.Policies); err != nil {
 		return err
 	}
@@ -208,7 +209,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				DirectBootstrapIP: directBootstrapIP,
 				Mode:              dnsInterop.EffectiveMode, DefaultPolicy: config.Base.DefaultPolicy,
 				Policies:        dnsPoliciesFromBase(routingBase),
-				HealthStatePath: filepath.Join(paths.RunRoot, "health-state", "selector-health.json"),
+				HealthStatePath: filepath.Join(paths.RunRoot, "health-state", "selector-runtime.json"),
 				StatusPath:      filepath.Join(paths.RunRoot, "dns-status.json"),
 				GenerationPath:  filepath.Join(paths.RunRoot, "dns-generation.json"),
 			})

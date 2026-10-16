@@ -553,6 +553,10 @@ func (controller *healthController) checkDuringProbe(now time.Time, pool healthP
 		if err := controller.publishState(statePath(controller.opts.StateRoot, "selector-health"), controller.state, now); err != nil {
 			return errHealthYield
 		}
+	} else if result == nil {
+		if err := controller.renewRuntime(statePath(controller.opts.StateRoot, "selector-health"), controller.state, now); err != nil {
+			return errHealthYield
+		}
 	}
 	return result
 }

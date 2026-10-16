@@ -29,11 +29,57 @@
         ],
         "/usr/libexec/resproxy-plugins status": [
           "exec"
+        ],
+        "/var/run/resproxy/health-state/monitor.json": [
+          "read"
+        ],
+        "/var/run/resproxy/health-state/selector-runtime.json": [
+          "read"
+        ],
+        "/var/run/resproxy/catalog-summary.json": [
+          "read"
+        ],
+        "/var/run/resproxy/subscription-status.json": [
+          "read"
+        ],
+        "/var/run/resproxy/resources.json": [
+          "read"
+        ],
+        "/var/run/resproxy/dns-status.json": [
+          "read"
+        ],
+        "/var/run/resproxy/dns-interop.json": [
+          "read"
+        ],
+        "/tmp/run/resproxy/health-state/monitor.json": [
+          "read"
+        ],
+        "/tmp/run/resproxy/health-state/selector-runtime.json": [
+          "read"
+        ],
+        "/tmp/run/resproxy/catalog-summary.json": [
+          "read"
+        ],
+        "/tmp/run/resproxy/subscription-status.json": [
+          "read"
+        ],
+        "/tmp/run/resproxy/resources.json": [
+          "read"
+        ],
+        "/tmp/run/resproxy/dns-status.json": [
+          "read"
+        ],
+        "/tmp/run/resproxy/dns-interop.json": [
+          "read"
         ]
       },
       "ubus": {
         "file": [
-          "exec"
+          "exec",
+          "read"
+        ],
+        "service": [
+          "list"
         ]
       }
     },

@@ -3,16 +3,13 @@
 'require view';
 'require form';
 'require uci';
-'require fs';
+'require view.resproxy.runtime_status as monitor';
 
 return view.extend({
 	load: function() {
 		return Promise.all([
 			uci.load('resproxy'),
-			fs.exec('/usr/libexec/resproxy-status').then(function(result) {
-				var status = JSON.parse(result.stdout || '{}');
-				return { external: status.external_dns_service || '' };
-			}).catch(function() { return { external: '' }; })
+			monitor.externalDNS().then(function(name) {return {external:name};}).catch(function() {return {external:''};})
 		]);
 	},
 	render: function(data) {

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
+	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
 	"github.com/xtls/xray-core/common/geodata"
 	"golang.org/x/sync/singleflight"
 )
@@ -78,6 +79,8 @@ type server struct {
 	ruleWANActive     map[string]bool
 	proxySelections   map[string]string
 	stateValid        bool
+	stateFileInfo     os.FileInfo
+	stateLease        time.Time
 	sem               chan struct{}
 	cacheMu           sync.Mutex
 	cache             map[string]cacheEntry
@@ -422,21 +425,53 @@ func (s *server) readState() {
 		s.invalidateState()
 		return
 	}
-	body, err := os.ReadFile(s.config.HealthStatePath)
-	if err != nil || len(body) > 2*1024*1024 {
+	if !s.stateLease.IsZero() && (time.Since(s.stateLease) > 20*time.Second || time.Until(s.stateLease) > time.Second) {
+		s.invalidateState()
+	}
+	// Check the lease on every tick, including cache hits. Atomic replacement
+	// with equal size/mtime must still be observed through inode identity.
+	if s.stateFileInfo != nil && os.SameFile(info, s.stateFileInfo) && info.ModTime() == s.stateFileInfo.ModTime() && info.Size() == s.stateFileInfo.Size() {
+		return
+	}
+	file, err := os.Open(s.config.HealthStatePath)
+	if err != nil {
 		s.invalidateState()
 		return
 	}
-	var states map[string]struct {
-		Selected          string `json:"selected"`
-		RuntimeSelected   string `json:"runtime_selected"`
-		RuntimeConfirmed  bool   `json:"runtime_confirmed"`
-		WANFallbackActive bool   `json:"wan_fallback_active"`
-	}
-	if json.Unmarshal(body, &states) != nil {
+	opened, err := file.Stat()
+	if err != nil || opened.Size() > 128*1024 {
+		file.Close()
 		s.invalidateState()
 		return
 	}
+	body, err := io.ReadAll(io.LimitReader(file, 128*1024+1))
+	file.Close()
+	if err != nil || len(body) > 128*1024 {
+		s.invalidateState()
+		return
+	}
+	var snapshot healthcontract.RuntimeSnapshot
+	if json.Unmarshal(body, &snapshot) != nil {
+		s.invalidateState()
+		return
+	}
+	states := snapshot.Policies
+	if states == nil {
+		// Compatibility for callers supplying the pre-snapshot runtime shape.
+		if json.Unmarshal(body, &states) != nil {
+			s.invalidateState()
+			return
+		}
+	} else if snapshot.UpdatedAt.IsZero() || time.Since(snapshot.UpdatedAt) > 20*time.Second || time.Until(snapshot.UpdatedAt) > time.Second {
+		s.invalidateState()
+		return
+	}
+	if time.Since(opened.ModTime()) > 20*time.Second {
+		s.invalidateState()
+		return
+	}
+	s.stateFileInfo = opened
+	s.stateLease = snapshot.UpdatedAt
 	ruleWAN := make(map[string]bool, len(states))
 	selections := make(map[string]string, len(states))
 	for tag, state := range states {
@@ -477,6 +512,8 @@ func (s *server) readState() {
 func (s *server) invalidateState() {
 	s.stateMu.Lock()
 	s.stateValid = false
+	s.stateFileInfo = nil
+	s.stateLease = time.Time{}
 	s.stateMu.Unlock()
 }
 

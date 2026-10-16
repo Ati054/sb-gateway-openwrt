@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -56,4 +57,47 @@ func TestSubscriptionStatusRestartAndDeletion(t *testing.T) {
 	if SubscriptionUpdates(paths, []catalog.Node{{ID: "a", ProviderID: "one"}})["one"].Nodes != 1 {
 		t.Fatal("lost catalog count")
 	}
+}
+
+func TestCatalogSummaryTracksActualGenerationWithoutCredentials(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{RunRoot: root}
+	u := newSubscriptionUpdates(paths, []settings.Subscription{{ID: "one"}, {ID: "two"}})
+	before := []catalog.Node{{ID: "a", ProviderID: "one", Credentials: map[string]string{"password": "secret"}}}
+	after := []catalog.Node{{ID: "b", ProviderID: "two"}}
+	check := func(total int, counts map[string]int) {
+		t.Helper()
+		body, err := os.ReadFile(filepath.Join(root, "catalog-summary.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var summary struct {
+			Nodes  int            `json:"nodes"`
+			Counts map[string]int `json:"counts"`
+		}
+		if err := json.Unmarshal(body, &summary); err != nil {
+			t.Fatal(err)
+		}
+		if summary.Nodes != total || len(summary.Counts) != len(counts) {
+			t.Fatal(summary)
+		}
+		for id, count := range counts {
+			if summary.Counts[id] != count {
+				t.Fatal(summary)
+			}
+		}
+		var fields map[string]any
+		json.Unmarshal(body, &fields)
+		if len(fields) != 2 {
+			t.Fatal("summary exposed catalog internals", fields)
+		}
+	}
+	publishCatalogSummary(root, before)
+	check(1, map[string]int{"one": 1})
+	u.finish("one", "attempt", before, before, errors.New("network"))
+	check(1, map[string]int{"one": 1})
+	u.finish("one", "attempt", before, after, nil)
+	check(1, map[string]int{"two": 1})
+	publishCatalogSummary(root, nil)
+	check(0, map[string]int{})
 }

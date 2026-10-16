@@ -58,7 +58,10 @@ func historyLimitBytes(pool healthPool) int {
 
 func (controller *healthController) publishState(path string, state healthState, now time.Time) error {
 	enforceHistoryBudget(state, now, controller.historyLimitBytes)
-	return writeJSONAtomic(path, state)
+	if err := writeJSONAtomic(path, state); err != nil {
+		return err
+	}
+	return controller.publishMonitor(path, state, now)
 }
 
 // Compact duplicate raw samples first; daily aggregates keep the full counts.

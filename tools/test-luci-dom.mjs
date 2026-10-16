@@ -71,9 +71,44 @@ try {
   for (const element of [safeDOM.create('p', payload), safeDOM.create('p', {}, () => payload), safeDOM.create([payload])]) {
    if (element.textContent !== payload) throw Error('Scalar/callback text lost'); document.body.append(element);
   }
+  // Exercise the actual overview against the prepared-view reader. Polling
+  // and manual refresh must use RAM snapshots, including failover and stop.
+  let alive=true, monitorReads=0, poller;
+  const stamp=()=>new Date().toISOString();
+  const sample=(id,label,delay)=>({id,label,available:true,latest_delay_ms:delay,latest_quality_at:Math.floor(Date.now()/1000),period_stats:{today:{samples:17,availability_percent:100,median_ms:delay}}});
+  const runtime={updated_at:stamp(),policies:{'resproxy-all':{selected:'a',runtime_selected:'a',runtime_confirmed:true},'resproxy-pc':{selected:'block',runtime_selected:'block',runtime_confirmed:true,wan_fallback_active:true}}};
+  const files={
+   'health-state/selector-runtime.json':runtime,
+   'health-state/monitor.json':{updated_at:stamp(),health:[{id:'all',mode:'best',healthy_reserves:1,candidate_count:2,probe_limits:{active_seconds:60},nodes:[sample('a',payload,450),sample('b','Backup',300)]},{id:'pc',mode:'priority',healthy_reserves:0,candidate_count:1,nodes:[sample('b','Backup',300)]}]},
+   'catalog-summary.json':{nodes:842,counts:{source:842}},'subscription-status.json':{},'dns-status.json':{queries:42},'dns-interop.json':{effective_mode:'proxy-only'},'resources.json':null
+  };
+  function read(path) {monitorReads++;return structuredClone(files[path.replace('/var/run/resproxy/','')]);}
+  const fs={read:async path=>JSON.stringify(read(path)),read_direct:async path=>read(path),exec:async command=>{
+   if(command!='/usr/libexec/resproxy-rulesets')throw Error('Overview launched a status/health CLI');
+   return {code:0,stdout:JSON.stringify({choices:[],status:{packs:[]}})};
+  }};
+  const rpc={declare:()=>async()=>({resproxy:{instances:{gateway:{running:alive}}}})};
+  const monitor=new Function('baseclass','fs','rpc',sources.runtime_status)(baseclass,fs,rpc);
+  const uci={load:async()=>{},sections:()=>[{id:'all',mode:'best'},{id:'pc',mode:'priority'}]};
+  function Map() {this.section=()=>({option:()=>({})});this.render=async()=>document.createElement('div');}
+  const overview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_',sources.overview)(
+   {decorate:node=>node},health,{extend:value=>value},{Map,NamedSection:{},Flag:{extend:value=>value}},fs,uci,
+   {add:fn=>{poller=fn;},remove:()=>{}},safeDOM,monitor,_);
+  const dashboard=await overview.render(await overview.load());document.body.append(dashboard);
+  const routeRows=()=>dashboard.querySelector('.sbg-overview > .sbg-table-scroll tbody').rows;
+  if(!dashboard.textContent.includes('842 nodes') || !routeRows()[1].textContent.includes('Fallback WAN'))throw Error('Prepared metadata or WAN state lost in overview');
+  if(dashboard.querySelector('img'))throw Error('Prepared label parsed as HTML');
+  runtime.policies['resproxy-pc']={selected:'b',runtime_selected:'b',runtime_confirmed:true};runtime.updated_at=stamp();
+  await poller();
+  if(routeRows()[1].textContent.includes('Fallback WAN'))throw Error('Overview retained stale fallback after recovery');
+  alive=false;await poller();
+  if(!dashboard.textContent.includes('Stopped'))throw Error('Overview ignored procd stop');
+  const refresh=dashboard.querySelector('.sbg-overview-toolbar button');refresh.click();
+  await new Promise(resolve=>setTimeout(resolve,20));
+  if(!monitorReads)throw Error('Prepared reader was not exercised');
   await new Promise(resolve => setTimeout(resolve, 50));
   if (document.querySelector('img,svg,script') || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
-  return {negativeControl:true, health:true, picker:true, scalarAndCallback:true, images:0, executed:0};
+  return {negativeControl:true, health:true, picker:true, scalarAndCallback:true, overviewMonitoring:true, images:0, executed:0};
  }, { sources, stockDOM });
  assert.deepEqual(errors, []);
  console.log(JSON.stringify(result));

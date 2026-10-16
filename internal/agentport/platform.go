@@ -89,6 +89,16 @@ func writeJSONAtomic(path string, value any) error {
 }
 
 func writeJSONAtomicContext(ctx context.Context, path string, value any) error {
+	return writeJSONAtomicMode(ctx, path, value, true)
+}
+
+// Replaceable RAM views need atomic visibility, not storage durability. Their
+// lease changes on every publication, so reading the previous file is wasted.
+func writeRAMJSONAtomic(path string, value any) error {
+	return writeJSONAtomicMode(context.Background(), path, value, false)
+}
+
+func writeJSONAtomicMode(ctx context.Context, path string, value any, syncFile bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -96,8 +106,10 @@ func writeJSONAtomicContext(ctx context.Context, path string, value any) error {
 	if err != nil {
 		return err
 	}
-	if previous, err := os.ReadFile(path); err == nil && bytes.Equal(previous, body) {
-		return nil
+	if syncFile {
+		if previous, err := os.ReadFile(path); err == nil && bytes.Equal(previous, body) {
+			return nil
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
@@ -116,9 +128,11 @@ func writeJSONAtomicContext(ctx context.Context, path string, value any) error {
 		file.Close()
 		return err
 	}
-	if err := file.Sync(); err != nil {
-		file.Close()
-		return err
+	if syncFile {
+		if err := file.Sync(); err != nil {
+			file.Close()
+			return err
+		}
 	}
 	if err := file.Close(); err != nil {
 		return err
