@@ -27,7 +27,9 @@ import (
 
 	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
 	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
+	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"github.com/xtls/xray-core/common/geodata"
+	"github.com/xtls/xray-core/common/geodata/strmatcher"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -65,36 +67,57 @@ type Config struct {
 }
 
 type server struct {
-	generationStarted string
-	workers           sync.WaitGroup
-	config            Config
-	proxy             *http.Client
-	policyProxies     map[string]*http.Client
-	direct            *http.Client
-	directAddress     string
-	prefixes          []policyPrefix
-	matcherMu         sync.RWMutex
-	matchers          map[string]domainMatcher
-	stateMu           sync.RWMutex
-	ruleWANActive     map[string]bool
-	proxySelections   map[string]string
-	stateValid        bool
-	stateFileInfo     os.FileInfo
-	stateLease        time.Time
-	sem               chan struct{}
-	cacheMu           sync.Mutex
-	cache             map[string]cacheEntry
-	lookups           singleflight.Group
-	queries           atomic.Uint64
-	proxyUse          atomic.Uint64
-	directUse         atomic.Uint64
-	fallbackUse       atomic.Uint64
-	cacheHits         atomic.Uint64
-	localUse          atomic.Uint64
-	failures          atomic.Uint64
+	generationStarted     string
+	workers               sync.WaitGroup
+	config                Config
+	proxy                 *http.Client
+	policyProxies         map[string]*http.Client
+	direct                *http.Client
+	directAddress         string
+	prefixes              []policyPrefix
+	matcherMu             sync.RWMutex
+	matchers              map[string]domainMatcher
+	stateMu               sync.RWMutex
+	ruleWANActive         map[string]bool
+	proxySelections       map[string]string
+	stateValid            bool
+	stateFileInfo         os.FileInfo
+	stateLease            time.Time
+	requestMemory         *memoryGate
+	clientMemory          *memoryGate
+	requestBudget         int64
+	clientBudget          int64
+	udpBufferBytes        int
+	cacheMu               sync.Mutex
+	cache                 map[string]*cacheEntry
+	cacheHead             *cacheEntry
+	cacheTail             *cacheEntry
+	cacheBytes            int64
+	cacheBudget           int64
+	cacheEvictions        uint64
+	lookups               singleflight.Group
+	activeQueries         atomic.Int64
+	tcpClients            atomic.Int64
+	queries               atomic.Uint64
+	proxyUse              atomic.Uint64
+	directUse             atomic.Uint64
+	fallbackUse           atomic.Uint64
+	cacheHits             atomic.Uint64
+	localUse              atomic.Uint64
+	failures              atomic.Uint64
+	upstreamTimeouts      atomic.Uint64
+	upstreamTransport     atomic.Uint64
+	upstreamInvalid       atomic.Uint64
+	upstreamHTTPStatus    atomic.Int64
+	upstreamExchanges     atomic.Uint64
+	upstreamTimeoutPhases [5]atomic.Uint64
 }
 
 type cacheEntry struct {
+	key      string
+	prev     *cacheEntry
+	next     *cacheEntry
+	bytes    int64
 	response []byte
 	TTLs     []ttlField
 	stored   time.Time
@@ -113,6 +136,7 @@ type policyPrefix struct {
 
 type domainMatcher struct {
 	assets   []geodata.DomainMatcher
+	compact  *strmatcher.MphMatcherGroup
 	proxyWAN bool
 	ordered  []domainActionRule
 	exact    map[string]bool
@@ -154,14 +178,19 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 			return (&net.Dialer{}).DialContext(ctx, network, address)
 		}
 	}
+	totalRAM := resources.CurrentBudget().Total
 	s := &server{config: config,
 		proxy:         newDoHClient(proxyTransport),
 		direct:        newDoHClient(directTransport),
 		policyProxies: make(map[string]*http.Client),
-		sem:           make(chan struct{}, 64),
-		cache:         make(map[string]cacheEntry),
+		cache:         make(map[string]*cacheEntry),
+		cacheBudget:   dnsCacheBudget(totalRAM),
+		requestBudget: dnsWorkBudget(totalRAM),
+		clientBudget:  dnsWorkBudget(totalRAM),
 		matchers:      make(map[string]domainMatcher),
 	}
+	s.requestMemory = newMemoryGate(s.requestBudget, dnsRequestMemory)
+	s.clientMemory = newMemoryGate(s.clientBudget, dnsClientMemory)
 	if config.DirectBootstrapIP != "" {
 		_, port, _ := net.SplitHostPort(directEndpoint.Address)
 		s.directAddress = net.JoinHostPort(config.DirectBootstrapIP, port)
@@ -192,6 +221,7 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 	if err != nil {
 		return nil, nil, err
 	}
+	s.udpBufferBytes = configureUDPQueue(udp, s.requestBudget)
 	tcp, err := net.Listen("tcp", address)
 	if err != nil {
 		_ = udp.Close()
@@ -248,8 +278,23 @@ func (s *server) writeStatus(ctx context.Context) {
 			"queries": s.queries.Load(), "proxy": s.proxyUse.Load(),
 			"direct": s.directUse.Load(), "fallback": s.fallbackUse.Load(),
 			"cache_hits": s.cacheHits.Load(), "local": s.localUse.Load(),
-			"failures": s.failures.Load(),
+			"failures":       s.failures.Load(),
+			"active_queries": uint64(s.activeQueries.Load()), "tcp_clients": uint64(s.tcpClients.Load()),
+			"request_budget_bytes": uint64(s.requestBudget), "tcp_budget_bytes": uint64(s.clientBudget),
+			"upstream_timeouts": s.upstreamTimeouts.Load(), "upstream_transport_errors": s.upstreamTransport.Load(),
+			"upstream_invalid_responses": s.upstreamInvalid.Load(), "upstream_last_http_status": uint64(s.upstreamHTTPStatus.Load()),
+			"udp_receive_buffer_bytes": uint64(s.udpBufferBytes),
+			"upstream_exchanges":       s.upstreamExchanges.Load(),
+			"exchange_timeout_connect": s.upstreamTimeoutPhases[0].Load(),
+			"exchange_timeout_tls":     s.upstreamTimeoutPhases[1].Load(),
+			"exchange_timeout_write":   s.upstreamTimeoutPhases[2].Load(),
+			"exchange_timeout_headers": s.upstreamTimeoutPhases[3].Load(),
+			"exchange_timeout_body":    s.upstreamTimeoutPhases[4].Load(),
 		}
+		s.cacheMu.Lock()
+		status["cache_entries"], status["cache_bytes"] = uint64(len(s.cache)), uint64(s.cacheBytes)
+		status["cache_budget_bytes"], status["cache_evictions"] = uint64(s.cacheBudget), s.cacheEvictions
+		s.cacheMu.Unlock()
 		if body, err := json.Marshal(status); err == nil {
 			_ = os.WriteFile(s.config.StatusPath, body, 0o600)
 		}
@@ -278,7 +323,7 @@ func (s *server) updatePolicies(policies []Policy) error {
 	}
 	s.matchers = matchers
 	s.cacheMu.Lock()
-	s.cache = make(map[string]cacheEntry)
+	s.clearCacheLocked()
 	s.cacheMu.Unlock()
 	s.matcherMu.Unlock()
 	return nil
@@ -291,10 +336,50 @@ func (s *server) matchesDirect(policy, name string) bool {
 }
 
 func compileMatcher(policy Policy) (domainMatcher, error) {
+	return compileMatcherWithIndex(policy, true)
+}
+
+func compileMatcherWithIndex(policy Policy, allowCompact bool) (domainMatcher, error) {
 	if policy.ProxyOutageAction != "" && policy.ProxyOutageAction != "block" && policy.ProxyOutageAction != "wan" {
 		return domainMatcher{}, errors.New("invalid proxy traffic outage action")
 	}
-	result := domainMatcher{proxyWAN: policy.ProxyOutageAction == "wan", exact: make(map[string]bool), suffixes: make(map[string]bool)}
+	result := domainMatcher{proxyWAN: policy.ProxyOutageAction == "wan"}
+	// Reuse the core's pointer-free arena for large custom lists. Building it
+	// directly avoids holding a temporary string map alongside the new index.
+	// Small lists keep maps: their savings do not justify building an MPH table.
+	domainCount := len(policy.DirectDomains)
+	for _, expression := range policy.DirectServiceExpressions {
+		if strings.HasPrefix(expression, "full:") || strings.HasPrefix(expression, "domain:") {
+			domainCount++
+		}
+	}
+	if allowCompact && domainCount >= compactDomainThreshold {
+		result.compact = strmatcher.NewMphMatcherGroup()
+	}
+	addExact := func(name string) {
+		name = strings.ToLower(name)
+		if result.compact != nil {
+			result.compact.AddFullMatcher(strmatcher.FullMatcher(name), 0)
+			return
+		}
+		if result.exact == nil {
+			result.exact = make(map[string]bool)
+		}
+		result.exact[name] = true
+	}
+	addSuffix := func(name string) {
+		name = strings.ToLower(name)
+		// Preserve the legacy map semantics for unusual leading-dot suffixes;
+		// Xray's DomainMatcher gives these a different wildcard meaning.
+		if result.compact != nil && name != "" && name[0] != '.' {
+			result.compact.AddDomainMatcher(strmatcher.DomainMatcher(name), 0)
+			return
+		}
+		if result.suffixes == nil {
+			result.suffixes = make(map[string]bool)
+		}
+		result.suffixes[name] = true
+	}
 	for _, rule := range policy.Rules {
 		if rule.Action != "direct" && rule.Action != "proxy" {
 			return domainMatcher{}, errors.New("invalid domain rule action")
@@ -312,20 +397,20 @@ func compileMatcher(policy Policy) (domainMatcher, error) {
 			}
 			expressions = append(expressions, value)
 		}
-		matcher, err := compileMatcher(Policy{DirectServiceExpressions: expressions})
+		matcher, err := compileMatcherWithIndex(Policy{DirectServiceExpressions: expressions}, allowCompact)
 		if err != nil {
 			return domainMatcher{}, err
 		}
 		result.ordered = append(result.ordered, domainActionRule{action: rule.Action, outageAction: rule.OutageAction, matcher: matcher})
 	}
 	for _, domain := range policy.DirectDomains {
-		result.suffixes[strings.ToLower(domain)] = true
+		addSuffix(domain)
 	}
 	if policy.RUZoneMode == "ru" || policy.RUZoneMode == "both" {
-		result.suffixes["ru"] = true
+		addSuffix("ru")
 	}
 	if policy.RUZoneMode == "rf" || policy.RUZoneMode == "both" {
-		result.suffixes["xn--p1ai"] = true
+		addSuffix("xn--p1ai")
 	}
 	for _, expression := range policy.DirectServiceExpressions {
 		kind, value, ok := strings.Cut(expression, ":")
@@ -351,9 +436,9 @@ func compileMatcher(policy Policy) (domainMatcher, error) {
 			}
 			result.assets = append(result.assets, matcher)
 		case "full":
-			result.exact[strings.ToLower(value)] = true
+			addExact(value)
 		case "domain":
-			result.suffixes[strings.ToLower(value)] = true
+			addSuffix(value)
 		case "keyword":
 			result.keywords = append(result.keywords, strings.ToLower(value))
 		case "regexp":
@@ -366,8 +451,17 @@ func compileMatcher(policy Policy) (domainMatcher, error) {
 			return domainMatcher{}, errors.New("unknown service expression")
 		}
 	}
+	if result.compact != nil {
+		if err := result.compact.Build(); err != nil {
+			// MPH has a bounded set of hash multipliers. A collision must not
+			// make an otherwise valid custom rule impossible to apply.
+			return compileMatcherWithIndex(policy, false)
+		}
+	}
 	return result, nil
 }
+
+const compactDomainThreshold = 256
 
 func (m domainMatcher) matches(name string) bool {
 	for _, rule := range m.ordered {
@@ -379,6 +473,9 @@ func (m domainMatcher) matches(name string) bool {
 		if asset.MatchAny(name) {
 			return true
 		}
+	}
+	if m.compact != nil && m.compact.MatchAny(name) {
+		return true
 	}
 	if m.exact[name] {
 		return true
@@ -551,28 +648,50 @@ func (s *server) useRuleWAN(policy, name string) bool {
 }
 
 func (s *server) serveUDP(ctx context.Context, conn net.PacketConn) {
+	var packet [maxDNSMessage]byte
 	for {
-		buffer := make([]byte, maxDNSMessage)
-		n, address, err := conn.ReadFrom(buffer)
+		// Backpressure is based on a RAM budget, not a fixed client count.
+		// Only this listener waits: no unbounded queue of waiting goroutines.
+		n, address, err := conn.ReadFrom(packet[:])
 		if err != nil {
 			if ctx.Err() == nil {
 				log.Printf("resproxy: LAN DNS UDP listener: %v", err)
 			}
 			return
 		}
-		select {
-		case s.sem <- struct{}{}:
-			s.workers.Add(1)
-			go func(query []byte, address net.Addr) {
-				defer s.workers.Done()
-				defer func() { <-s.sem }()
-				response := s.resolve(ctx, query, addrIP(address))
-				_, _ = conn.WriteTo(response, address)
-			}(buffer[:n], address)
-		default:
-			_, _ = conn.WriteTo(servfail(buffer[:n]), address)
+		if err := s.requestMemory.acquire(ctx); err != nil {
+			return
 		}
+		// A DoH request body can outlive an early transport error. Give every
+		// query independent backing storage instead of recycling its bytes.
+		query := append([]byte(nil), packet[:n]...)
+		s.workers.Add(1)
+		go func(query []byte, address net.Addr) {
+			defer s.workers.Done()
+			defer s.requestMemory.release()
+			response := s.resolve(ctx, query, addrIP(address))
+			_, _ = conn.WriteTo(response, address)
+		}(query, address)
 	}
+}
+
+const dnsRequestMemory int64 = 8 << 10
+const dnsClientMemory int64 = 4 << 10
+
+func dnsWorkBudget(totalRAM int64) int64 { return max(512<<10, totalRAM/64) }
+
+// Retain a short burst in the socket while request workers are scheduled. The
+// kernel may clamp this request to its own rmem_max; no global sysctl changes.
+// This storage is additional kernel memory, separate from the work estimate.
+func configureUDPQueue(conn net.PacketConn, workBudget int64) int {
+	if udp, ok := conn.(*net.UDPConn); ok {
+		actual, err := setUDPReadBuffer(udp, int(max(128<<10, min(1<<20, workBudget/4))))
+		if err != nil {
+			log.Printf("resproxy: DNS receive buffer: %v", err)
+		}
+		return actual
+	}
+	return 0
 }
 
 func (s *server) serveTCP(ctx context.Context, listener net.Listener) {
@@ -584,24 +703,26 @@ func (s *server) serveTCP(ctx context.Context, listener net.Listener) {
 			}
 			return
 		}
-		select {
-		case s.sem <- struct{}{}:
-			s.workers.Add(1)
-			go func() {
-				defer s.workers.Done()
-				defer func() { <-s.sem; _ = conn.Close() }()
-				s.handleTCP(ctx, conn)
-			}()
-		default:
+		if err := s.clientMemory.acquire(ctx); err != nil {
 			_ = conn.Close()
+			return
 		}
+		s.workers.Add(1)
+		s.tcpClients.Add(1)
+		go func() {
+			defer s.workers.Done()
+			defer s.tcpClients.Add(-1)
+			defer s.clientMemory.release()
+			defer conn.Close()
+			s.handleTCP(ctx, conn)
+		}()
 	}
 }
 
 func (s *server) handleTCP(ctx context.Context, conn net.Conn) {
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
-	for i := 0; i < 16; i++ {
+	for ctx.Err() == nil {
 		_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 		var length [2]byte
 		if _, err := io.ReadFull(conn, length[:]); err != nil {
@@ -615,7 +736,11 @@ func (s *server) handleTCP(ctx context.Context, conn net.Conn) {
 		if _, err := io.ReadFull(conn, query); err != nil {
 			return
 		}
+		if err := s.requestMemory.acquire(ctx); err != nil {
+			return
+		}
 		response := s.resolve(ctx, query, addrIP(conn.RemoteAddr()))
+		s.requestMemory.release()
 		binary.BigEndian.PutUint16(length[:], uint16(len(response)))
 		packet := append(length[:], response...)
 		if _, err := io.Copy(conn, bytes.NewReader(packet)); err != nil {
@@ -625,6 +750,8 @@ func (s *server) handleTCP(ctx context.Context, conn net.Conn) {
 }
 
 func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) []byte {
+	s.activeQueries.Add(1)
+	defer s.activeQueries.Add(-1)
 	s.queries.Add(1)
 	name, valid := questionName(query)
 	if !valid {
@@ -694,6 +821,7 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 		}
 		var body []byte
 		var err error
+		s.upstreamExchanges.Add(1)
 		if parsed.Protocol == "doh" {
 			body, err = exchangeDoH(ctx, client, endpoint, query)
 		} else {
@@ -703,6 +831,10 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 			body, err = exchangeWire(ctx, parsed, query, viaWAN, proxyPort)
 		}
 		if err != nil {
+			var timeout *upstreamTimeoutPhase
+			if errors.As(err, &timeout) && timeout.phase >= 0 && timeout.phase < len(s.upstreamTimeoutPhases) {
+				s.upstreamTimeoutPhases[timeout.phase].Add(1)
+			}
 			return nil, err
 		}
 		if !matchingQuestion(query, body) {
@@ -721,6 +853,17 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 	})
 	if err != nil {
 		s.failures.Add(1)
+		var responseErr upstreamResponseError
+		var networkErr net.Error
+		switch {
+		case errors.As(err, &responseErr):
+			s.upstreamInvalid.Add(1)
+			s.upstreamHTTPStatus.Store(int64(responseErr.status))
+		case errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &networkErr) && networkErr.Timeout()):
+			s.upstreamTimeouts.Add(1)
+		default:
+			s.upstreamTransport.Add(1)
+		}
 		return servfail(query)
 	}
 	// Each caller owns its response; rewriting one transaction ID must never
@@ -821,62 +964,6 @@ func dialProxyConnect(ctx context.Context, port int, address string) (net.Conn, 
 	return conn, nil
 }
 
-func (s *server) cached(key string, transactionID []byte) []byte {
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	entry, ok := s.cache[key]
-	if !ok {
-		return nil
-	}
-	now := time.Now()
-	if !now.Before(entry.expires) {
-		delete(s.cache, key)
-		return nil
-	}
-	response := append([]byte(nil), entry.response...)
-	copy(response[:2], transactionID)
-	elapsed := uint32(now.Sub(entry.stored) / time.Second)
-	for _, field := range entry.TTLs {
-		remaining := uint32(0)
-		if field.value > elapsed {
-			remaining = field.value - elapsed
-		}
-		binary.BigEndian.PutUint32(response[field.offset:field.offset+4], remaining)
-	}
-	return response
-}
-
-func (s *server) remember(key string, response []byte) {
-	fields, ttl, ok := answerTTLs(response)
-	if !ok || ttl == 0 {
-		return
-	}
-	if ttl > 30 {
-		ttl = 30
-	}
-	now := time.Now()
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	if s.cache == nil {
-		s.cache = make(map[string]cacheEntry)
-	}
-	if len(s.cache) >= 512 {
-		for oldKey, old := range s.cache {
-			if now.After(old.expires) {
-				delete(s.cache, oldKey)
-			}
-		}
-		if len(s.cache) >= 512 {
-			for oldKey := range s.cache {
-				delete(s.cache, oldKey)
-				break
-			}
-		}
-	}
-	s.cache[key] = cacheEntry{response: append([]byte(nil), response...), TTLs: fields,
-		stored: now, expires: now.Add(time.Duration(ttl) * time.Second)}
-}
-
 func answerTTLs(message []byte) ([]ttlField, uint32, bool) {
 	if len(message) < 12 || message[3]&0x0f != 0 || binary.BigEndian.Uint16(message[4:6]) != 1 {
 		return nil, 0, false
@@ -885,30 +972,38 @@ func answerTTLs(message []byte) ([]ttlField, uint32, bool) {
 	if answers == 0 || answers > 128 {
 		return nil, 0, false
 	}
+	records := answers + int(binary.BigEndian.Uint16(message[8:10])) + int(binary.BigEndian.Uint16(message[10:12]))
+	if records > 384 {
+		return nil, 0, false
+	}
 	offset, ok := skipName(message, 12)
 	if !ok || offset+4 > len(message) {
 		return nil, 0, false
 	}
 	offset += 4
-	fields := make([]ttlField, 0, answers)
+	fields := make([]ttlField, 0, records)
 	minimum := uint32(^uint32(0))
-	for i := 0; i < answers; i++ {
+	for i := 0; i < records; i++ {
 		offset, ok = skipName(message, offset)
 		if !ok || offset+10 > len(message) {
 			return nil, 0, false
 		}
-		ttl := binary.BigEndian.Uint32(message[offset+4 : offset+8])
-		if ttl < minimum {
-			minimum = ttl
+		// OPT's TTL word contains EDNS version/flags, not a cache lifetime.
+		// Every other section ages with the answer and can shorten its lifetime.
+		if binary.BigEndian.Uint16(message[offset:offset+2]) != 41 {
+			ttl := binary.BigEndian.Uint32(message[offset+4 : offset+8])
+			if ttl < minimum {
+				minimum = ttl
+			}
+			fields = append(fields, ttlField{offset: offset + 4, value: ttl})
 		}
-		fields = append(fields, ttlField{offset: offset + 4, value: ttl})
 		rdLength := int(binary.BigEndian.Uint16(message[offset+8 : offset+10]))
 		offset += 10 + rdLength
 		if offset > len(message) {
 			return nil, 0, false
 		}
 	}
-	return fields, minimum, true
+	return fields, minimum, len(fields) != 0
 }
 
 func skipName(message []byte, offset int) (int, bool) {

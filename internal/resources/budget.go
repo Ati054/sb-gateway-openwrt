@@ -33,11 +33,10 @@ func ForMemory(total int64) Budget {
 	if core < 32*MiB {
 		core = 32 * MiB
 	}
-	gc := 100
-	if total < 384*MiB {
-		gc = 75
-	}
-	return Budget{Total: total, Daemon: daemon, Core: core, GCPercent: gc}
+	// The memory limit already makes collection more frequent near the RAM
+	// budget. Keep Go's usual pacing below that limit instead of adding a
+	// second, lower heap-growth target on small routers.
+	return Budget{Total: total, Daemon: daemon, Core: core, GCPercent: 100}
 }
 
 func readTotal(reader io.Reader) int64 {

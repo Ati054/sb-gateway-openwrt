@@ -329,14 +329,12 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 
 		runRulesetUpdates(ctx, initial, paths, manager, rulesetSnapshot, routingBase, updateDNS)
 	}(config)
-	watchdogSelector := "resproxy-" + config.Base.DefaultPolicy
 	background.Add(2)
 	go func() {
 		defer background.Done()
 		err := supervisor.run(ctx, xray.StartupTimeout(routingBase)+15*time.Second,
 			func(check context.Context) error {
-				_, err := manager.Current(check, watchdogSelector)
-				return err
+				return manager.CheckAPI(check)
 			},
 			func() error {
 				err := os.Remove(readyPath)
@@ -402,8 +400,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			if supervisor.Recovering(time.Now()) {
 				return nil
 			}
-			_, err := manager.Current(ctx, watchdogSelector)
-			return err
+			return manager.CheckAPI(ctx)
 		}, func(ctx context.Context) error { return renewProcdWatchdog(ctx, instance) })
 	}()
 	// Recovery must run while initial routes are being confirmed. The supervisor

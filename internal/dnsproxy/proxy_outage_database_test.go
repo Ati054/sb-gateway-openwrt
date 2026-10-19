@@ -33,7 +33,7 @@ func TestDatabaseOutageDNSCoversUnmatchedNamesAndRecovery(t *testing.T) {
 	}
 	strict, _ := compileMatcher(Policy{ProxyOutageAction: "block"})
 	path := filepath.Join(t.TempDir(), "health.json")
-	s := &server{config: Config{Mode: "proxy-only", DefaultPolicy: "pc", HealthStatePath: path, ProxyURL: proxy.URL + "/dns-query", DirectURL: wan.URL + "/dns-query"}, proxy: proxy.Client(), direct: wan.Client(), cache: map[string]cacheEntry{}, matchers: map[string]domainMatcher{"pc": m, "other": strict}, prefixes: []policyPrefix{{id: "other", prefix: netip.MustParsePrefix("192.0.2.0/24")}}}
+	s := &server{config: Config{Mode: "proxy-only", DefaultPolicy: "pc", HealthStatePath: path, ProxyURL: proxy.URL + "/dns-query", DirectURL: wan.URL + "/dns-query"}, proxy: proxy.Client(), direct: wan.Client(), cache: map[string]*cacheEntry{}, matchers: map[string]domainMatcher{"pc": m, "other": strict}, prefixes: []policyPrefix{{id: "other", prefix: netip.MustParsePrefix("192.0.2.0/24")}}}
 	write := func(body string) {
 		t.Helper()
 		if err := os.WriteFile(path, []byte(body), 0600); err != nil {

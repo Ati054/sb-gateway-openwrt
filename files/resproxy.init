@@ -34,7 +34,25 @@ start_service() {
 	# to 90 seconds after health progress and local API are confirmed.
 	procd_set_param watchdog 1 300
 	procd_set_param term_timeout 90
-	procd_set_param limits nofile="8192 8192"
+	# Descriptor allowance follows router RAM (one per 32 KiB), with the
+	# existing small-router floor and a finite ceiling. Nothing is preallocated.
+	local mem_key mem_value mem_unit fd_limit=8192 fd_ceiling=65536
+	while read -r mem_key mem_value mem_unit; do
+		[ "$mem_key" = 'MemTotal:' ] || continue
+		case "$mem_value" in
+			''|*[!0-9]*) ;;
+			*) fd_limit=$((mem_value / 32)) ;;
+		esac
+		break
+	done < /proc/meminfo
+	[ "$fd_limit" -ge 8192 ] || fd_limit=8192
+	[ "$fd_limit" -le 65536 ] || fd_limit=65536
+	read -r fd_ceiling < /proc/sys/fs/nr_open || fd_ceiling=65536
+	case "$fd_ceiling" in
+		''|*[!0-9]*) fd_ceiling=65536 ;;
+	esac
+	[ "$fd_limit" -le "$fd_ceiling" ] || fd_limit="$fd_ceiling"
+	procd_set_param limits nofile="$fd_limit $fd_limit"
 	procd_set_param stdout 1
 	procd_set_param stderr 1
 	procd_close_instance

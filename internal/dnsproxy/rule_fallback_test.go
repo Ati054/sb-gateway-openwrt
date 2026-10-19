@@ -80,7 +80,7 @@ func TestLegacyGlobalDNSModeCannotBypassRuleOutagePolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &server{config: Config{Mode: "proxy-fallback-wan", DefaultPolicy: "pc", HealthStatePath: path, ProxyURL: proxy.URL + "/dns-query", DirectURL: wan.URL + "/dns-query"},
-		proxy: proxy.Client(), direct: wan.Client(), cache: make(map[string]cacheEntry),
+		proxy: proxy.Client(), direct: wan.Client(), cache: make(map[string]*cacheEntry),
 		matchers: map[string]domainMatcher{"pc": matcher}, prefixes: []policyPrefix{{id: "other", prefix: netip.MustParsePrefix("192.0.2.0/24")}}}
 	s.readState()
 	for _, test := range []struct {

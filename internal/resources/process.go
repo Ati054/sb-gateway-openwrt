@@ -26,6 +26,7 @@ type Snapshot struct {
 	TCP          *int64     `json:"tcp_sessions"`
 	UDP          *int64     `json:"udp_sessions"`
 	Budget       Budget     `json:"budget"`
+	ControllerGo *GoRuntime `json:"controller_go"`
 	LastOOM      *time.Time `json:"last_oom,omitempty"`
 }
 
@@ -85,5 +86,5 @@ func ReadSnapshot(corePID int) Snapshot {
 	if threshold < 16*1024 {
 		threshold = 16 * 1024
 	}
-	return Snapshot{UpdatedAt: time.Now().UTC(), TotalKiB: total, AvailableKiB: available, LowMemory: values != nil && available < threshold, Controller: ReadProcess("/proc", os.Getpid()), Core: ReadProcess("/proc", corePID), Budget: CurrentBudget()}
+	return Snapshot{UpdatedAt: time.Now().UTC(), TotalKiB: total, AvailableKiB: available, LowMemory: values != nil && available < threshold, Controller: ReadProcess("/proc", os.Getpid()), Core: ReadProcess("/proc", corePID), Budget: CurrentBudget(), ControllerGo: ReadGoRuntime()}
 }

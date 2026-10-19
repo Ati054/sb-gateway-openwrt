@@ -113,3 +113,30 @@ func TestCoreRecoveryFailureAndCancellationRemainFatal(t *testing.T) {
 		})
 	}
 }
+
+func TestSlowControlAPIIsConfirmedBeforeRestart(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	core := &runningCore{exited: make(chan error), close: func() error { return nil }}
+	supervisor := newSupervisedCore(core)
+	defer supervisor.Close()
+	checks, restarts := 0, 0
+	err := supervisor.run(ctx, time.Second, func(check context.Context) error {
+		checks++
+		if checks <= 3 {
+			return context.DeadlineExceeded
+		}
+		deadline, ok := check.Deadline()
+		if !ok || time.Until(deadline) < 4*time.Second {
+			t.Error("confirmation reused the short probe deadline")
+		}
+		cancel()
+		return nil
+	}, func() error { t.Error("responsive core readiness withdrawn"); return nil }, func(context.Context) (*runningCore, error) {
+		restarts++
+		return nil, errors.New("unexpected restart")
+	})
+	if !errors.Is(err, context.Canceled) || checks != 4 || restarts != 0 {
+		t.Fatalf("checks=%d restarts=%d error=%v", checks, restarts, err)
+	}
+}

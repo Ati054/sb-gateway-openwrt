@@ -3,6 +3,7 @@ package dnsproxy
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -333,4 +334,38 @@ func TestHTTP2TimeoutRetiresTransportWithoutAbortingHealthyStream(t *testing.T) 
 	if err != nil || !matchingQuestion(query, body) {
 		t.Fatalf("healthy stream aborted on retirement: %v", err)
 	}
+}
+
+func TestDoHTimeoutReportsActualStage(t *testing.T) {
+	for _, phase := range []int{3, 4} {
+		t.Run(fmtPhase(phase), func(t *testing.T) {
+			release := make(chan struct{})
+			upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if phase == 4 {
+					w.Header().Set("Content-Type", "application/dns-message")
+					w.WriteHeader(200)
+					w.(http.Flusher).Flush()
+				}
+				select {
+				case <-r.Context().Done():
+				case <-release:
+				}
+			}))
+			defer upstream.Close()
+			defer close(release)
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			_, err := exchangeDoH(ctx, upstream.Client(), upstream.URL, dnsQuery("example.com"))
+			var detail *upstreamTimeoutPhase
+			if !errors.As(err, &detail) || detail.phase != phase || !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("timeout phase=%v err=%v", detail, err)
+			}
+		})
+	}
+}
+func fmtPhase(phase int) string {
+	if phase == 3 {
+		return "headers"
+	}
+	return "body"
 }

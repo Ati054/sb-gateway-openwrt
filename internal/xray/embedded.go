@@ -182,6 +182,12 @@ func (e *APIClient) Command(parent context.Context, _ string, args ...string) ([
 			return nil, err
 		}
 		return json.Marshal(result.GetStat())
+	case "statssys":
+		result, err := stats.NewStatsServiceClient(e.conn).GetSysStats(ctx, &stats.SysStatsRequest{})
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
 	case "statsonline":
 		result, err := stats.NewStatsServiceClient(e.conn).GetStatsOnline(ctx, &stats.GetStatsRequest{Name: "user>>>" + *email + ">>>online"})
 		if err != nil {

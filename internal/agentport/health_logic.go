@@ -317,7 +317,19 @@ func selectDesired(now time.Time, mode, selected string, candidates []string, gr
 					measuredStable = append(measuredStable, candidate)
 				}
 			}
-			if better := meaningfullyBetter(selected, measuredStable, medians, p); better != "" {
+			// Finish an unexpired candidate's comparison against the active
+			// route. Small changes in the ordering of two qualifying reserves
+			// must not repeatedly restart both candidates' confirmations.
+			better := ""
+			pending := item.OptimizationCandidate
+			if item.OptimizationChecks > 0 && item.OptimizationBaseline == selected &&
+				freshComparisonAt(now, item.OptimizationLastResult, p) && contains(measuredStable, pending) {
+				better = meaningfullyBetter(selected, []string{pending}, medians, p)
+			}
+			if better == "" {
+				better = meaningfullyBetter(selected, measuredStable, medians, p)
+			}
+			if better != "" {
 				desired, reason = better, "meaningfully-faster"
 			}
 		}

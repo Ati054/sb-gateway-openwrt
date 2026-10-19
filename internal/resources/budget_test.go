@@ -16,6 +16,9 @@ func TestBudgetsScaleWithRouterRAM(t *testing.T) {
 		if b.Daemon <= previous.Daemon || b.Core <= previous.Core {
 			t.Fatalf("budgets did not grow: %+v -> %+v", previous, b)
 		}
+		if b.GCPercent != 100 {
+			t.Fatal("memory budget unexpectedly adds aggressive GC pacing", mib)
+		}
 		previous = b
 	}
 }
@@ -33,7 +36,7 @@ func TestCoreBudgetDoesNotMutateParentOrOverrideAdministrator(t *testing.T) {
 	base := []string{"PATH=/bin", "GOMEMLIMIT=", "GOGC="}
 	want := slices.Clone(base)
 	env := CoreEnvironment(base, ForMemory(256*MiB))
-	if !slices.Equal(base, want) || !slices.Contains(env, "GOGC=75") || slices.Contains(env, "GOMEMLIMIT=") {
+	if !slices.Equal(base, want) || !slices.Contains(env, "GOGC=100") || slices.Contains(env, "GOMEMLIMIT=") {
 		t.Fatal(base, env)
 	}
 	env = CoreEnvironment([]string{"GOMEMLIMIT=123MiB", "GOGC=90"}, ForMemory(1024*MiB))

@@ -12,10 +12,12 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -112,7 +114,38 @@ func retryDoH(err error) bool {
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
 }
 
-func exchangeDoH(ctx context.Context, client *http.Client, endpoint string, query []byte) ([]byte, error) {
+// Structured, bounded diagnostics never retain a client's queried domain or
+// an upstream URL. They distinguish remote rejection from local saturation.
+type upstreamResponseError struct{ status int }
+
+func (e upstreamResponseError) Error() string { return "invalid DoH response" }
+
+// upstreamTimeoutPhase keeps fixed-size diagnostics without retaining query names.
+type upstreamTimeoutPhase struct {
+	phase int
+	cause error
+}
+
+func (e *upstreamTimeoutPhase) Error() string   { return e.cause.Error() }
+func (e *upstreamTimeoutPhase) Unwrap() error   { return e.cause }
+func (e *upstreamTimeoutPhase) Timeout() bool   { return true }
+func (e *upstreamTimeoutPhase) Temporary() bool { return true }
+
+func exchangeDoH(ctx context.Context, client *http.Client, endpoint string, query []byte) (result []byte, resultErr error) {
+	var phase atomic.Int32
+	defer func() {
+		if resultErr != nil && (errors.Is(resultErr, context.DeadlineExceeded) || timeoutError(resultErr)) {
+			resultErr = &upstreamTimeoutPhase{phase: int(phase.Load()), cause: resultErr}
+		}
+	}()
+	trace := &httptrace.ClientTrace{
+		GetConn:              func(string) { phase.Store(0) },
+		TLSHandshakeStart:    func() { phase.Store(1) },
+		GotConn:              func(httptrace.GotConnInfo) { phase.Store(2) },
+		WroteRequest:         func(httptrace.WroteRequestInfo) { phase.Store(3) },
+		GotFirstResponseByte: func() { phase.Store(4) },
+	}
+	ctx = httptrace.WithClientTrace(ctx, trace)
 	requestCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	// Do not mutate a client shared with other requests or permit redirects to
@@ -134,11 +167,11 @@ func exchangeDoH(ctx context.Context, client *http.Client, endpoint string, quer
 		if err == nil {
 			mediaType, _, mimeErr := mime.ParseMediaType(response.Header.Get("Content-Type"))
 			if response.StatusCode != http.StatusOK || mimeErr != nil || mediaType != "application/dns-message" {
-				err = errors.New("invalid DoH response")
+				err = upstreamResponseError{status: response.StatusCode}
 			} else {
 				body, err = io.ReadAll(io.LimitReader(response.Body, maxDNSMessage+1))
 				if err == nil && !matchingQuestion(query, body) {
-					err = errors.New("DoH response does not match DNS question")
+					err = upstreamResponseError{status: response.StatusCode}
 				}
 			}
 			_ = response.Body.Close()

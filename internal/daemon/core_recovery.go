@@ -152,6 +152,16 @@ func (supervisor *supervisedCore) run(ctx context.Context, window time.Duration,
 			if failedChecks < 3 {
 				continue
 			}
+			// A saturated router can miss short control deadlines while Xray
+			// continues forwarding. Confirm with a fresh, longer runtime probe
+			// before destroying its established connections.
+			confirm, confirmCancel := context.WithTimeout(ctx, 5*time.Second)
+			cause = ready(confirm)
+			confirmCancel()
+			if cause == nil {
+				failedChecks = 0
+				continue
+			}
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()

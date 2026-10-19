@@ -223,6 +223,14 @@ func (m *Manager) Current(ctx context.Context, selector string) (string, error) 
 	return m.current(ctx, selector)
 }
 
+// CheckAPI probes the running core without waiting for a selector mutation.
+// A subscription refresh may legitimately hold mu longer than the watchdog's
+// deadline; that contention is not evidence that Xray has stopped responding.
+func (m *Manager) CheckAPI(ctx context.Context) error {
+	_, err := m.command(ctx, "statssys", "--server="+m.Server)
+	return err
+}
+
 // Restore selects an already-present handler after a later persistence failure.
 // It never removes the newly added handler; cleanup is a separate operation.
 func (m *Manager) Restore(ctx context.Context, selector, tag string) error {

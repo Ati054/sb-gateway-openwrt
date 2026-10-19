@@ -92,7 +92,7 @@ func TestRouterLoopbackQueryUsesWANEvenInProxyOnlyMode(t *testing.T) {
 		Mode: "proxy-only", DefaultPolicy: "main",
 		DirectURL: "udp://" + upstream.LocalAddr().String(),
 		ProxyURL:  "https://1.1.1.1/dns-query",
-	}, cache: make(map[string]cacheEntry)}
+	}, cache: make(map[string]*cacheEntry)}
 	query := dnsQuery("example.com")
 	response := s.resolve(context.Background(), query, netip.MustParseAddr("127.0.0.1"))
 	if len(response) < 12 || response[3]&0x0f != 0 || s.directUse.Load() != 1 || s.proxyUse.Load() != 0 {

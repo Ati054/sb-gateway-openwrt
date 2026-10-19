@@ -111,7 +111,7 @@ func TestPlainDNSOverTCPUsesSelectedPolicyProxy(t *testing.T) {
 				"main": mainPort, "other": otherPort,
 			}},
 		prefixes: []policyPrefix{{id: "other", prefix: netip.MustParsePrefix("192.0.2.0/24")}},
-		cache:    make(map[string]cacheEntry),
+		cache:    make(map[string]*cacheEntry),
 	}
 	query := dnsQuery("example.com")
 	for _, address := range []string{"198.51.100.3", "192.0.2.3"} {
