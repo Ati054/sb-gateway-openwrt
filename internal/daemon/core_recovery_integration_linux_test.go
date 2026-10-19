@@ -57,6 +57,7 @@ func TestIndependentRecoveryWithRealXrayChildAndTraffic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	manager := xray.NewManager(binary, server, root)
+	manager.LivenessSOCKS = fmt.Sprintf("127.0.0.1:%d", config.SocksPort)
 	manager.Run = supervisor.Command
 	if err = waitAPI(ctx, manager, "resproxy-main", engine.exited, 20*time.Second); err != nil {
 		supervisor.Close()
@@ -118,7 +119,7 @@ func TestIndependentRecoveryWithRealXrayChildAndTraffic(t *testing.T) {
 	go func() {
 		// Allow software-emulated ARM startup overhead in this transport test.
 		// Production allowance and crash-loop deadlines are covered separately.
-		doneErr := supervisor.run(ctx, 90*time.Second, func(ctx context.Context) error { _, err := manager.Current(ctx, "resproxy-main"); return err }, func() error { return os.Remove(readyPath) }, func(recovery context.Context) (*runningCore, error) {
+		doneErr := supervisor.run(ctx, 90*time.Second, manager.CheckLiveness, func() error { return os.Remove(readyPath) }, func(recovery context.Context) (*runningCore, error) {
 			replacement, err := startCore("process", body, path, binary, server)
 			if err != nil {
 				return nil, err

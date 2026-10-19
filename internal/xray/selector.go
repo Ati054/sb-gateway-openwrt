@@ -29,6 +29,7 @@ const maxDynamicOutboundsPerSelector = 10
 type Manager struct {
 	Binary          string
 	Server          string
+	LivenessSOCKS   string
 	TempDir         string
 	Run             CommandRunner
 	mu              sync.Mutex

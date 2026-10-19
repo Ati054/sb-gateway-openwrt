@@ -114,6 +114,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	plugins := sip003.NewManager()
 	defer plugins.Close()
 	manager := xray.NewManager(paths.Binary, fmt.Sprintf("127.0.0.1:%d", config.Base.APIPort), paths.RunRoot)
+	manager.LivenessSOCKS = fmt.Sprintf("127.0.0.1:%d", config.Base.SocksPort)
 	manager.Run = supervisor.Command
 	manager.PrepareOutbound = plugins.Prepare
 	manager.ReleaseOutbound = plugins.Release
@@ -292,7 +293,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	supervisor.mu.Unlock()
 	healthOptions := agentport.Options{
 		OnProgress:      progress.mark,
-		BackgroundBusy:  resources.UpdateInProgress,
+		BackgroundBusy:  resources.NewBackgroundBusy(),
 		XrayProcessName: engine.processName, RunXrayCommand: supervisor.Command,
 		PrepareOutbound: plugins.Prepare, ReleaseOutbound: plugins.Release,
 		StateRoot:  filepath.Join(paths.RunRoot, "health-state"),
@@ -334,7 +335,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		defer background.Done()
 		err := supervisor.run(ctx, xray.StartupTimeout(routingBase)+15*time.Second,
 			func(check context.Context) error {
-				return manager.CheckAPI(check)
+				return manager.CheckLiveness(check)
 			},
 			func() error {
 				err := os.Remove(readyPath)
@@ -400,7 +401,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			if supervisor.Recovering(time.Now()) {
 				return nil
 			}
-			return manager.CheckAPI(ctx)
+			return manager.CheckLiveness(ctx)
 		}, func(ctx context.Context) error { return renewProcdWatchdog(ctx, instance) })
 	}()
 	// Recovery must run while initial routes are being confirmed. The supervisor

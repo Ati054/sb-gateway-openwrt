@@ -586,10 +586,14 @@ func (controller *healthController) Tick(now time.Time) error {
 		activeFailures := item.AvailabilityFailures[item.Selected]
 		confirmingFailure := activeFailures > 0 && activeFailures < policySettings(contract.Policy, contract.Mode).failureThreshold
 		reconciled, hasReconciliation := controller.reconciled[policyID]
-		confirmedReconciliation := hasReconciliation && item.RuntimeConfirmed && item.RuntimeSelected == item.Selected &&
-			reconciled == (policyReconciliation{controller.processedGeneration, strings.Join(uniqueCandidates(contract.Candidates), "\n"), contract.Mode, item.Selected})
+		reconciliationMatches := hasReconciliation && reconciled == (policyReconciliation{controller.processedGeneration, strings.Join(uniqueCandidates(contract.Candidates), "\n"), contract.Mode, item.Selected})
+		confirmedReconciliation := reconciliationMatches && item.RuntimeConfirmed && item.RuntimeSelected == item.Selected
 		warmWork := !controller.warmStarted[policyID] && !(confirmingFailure && confirmedReconciliation)
-		deferQuality := controller.opts.BackgroundBusy != nil && controller.opts.BackgroundBusy() && activeFailures == 0 && item.RuntimeConfirmed
+		knownWorking := item.RuntimeConfirmed && item.RuntimeSelected == item.Selected || item.LastWorkingSelection != nil &&
+			item.LastWorkingSelection.Selected == item.Selected && item.LastWorkingSelection.Mode == item.Mode &&
+			item.LastWorkingSelection.CandidateSignature == item.CandidateSignature
+		deferQuality := controller.opts.BackgroundBusy != nil && controller.opts.BackgroundBusy() &&
+			activeFailures == 0 && reconciliationMatches && knownWorking
 		// Finish a pending fast proof before due quality work. A confirmed outage
 		// still enters tickPolicy immediately to probe reserves, not the active.
 		if controller.transitions[policyID] != nil || warmWork ||
