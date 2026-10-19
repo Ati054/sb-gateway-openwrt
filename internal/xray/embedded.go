@@ -78,6 +78,7 @@ func (e *APIClient) Command(parent context.Context, _ string, args ...string) ([
 	flags.IntVar(&timeout, "t", 5, "")
 	balancer := flags.String("b", "", "")
 	email := flags.String("email", "", "")
+	statName := flags.String("name", "", "")
 	appendRules := flags.Bool("append", false, "")
 	if err := flags.Parse(args[2:]); err != nil {
 		return nil, err
@@ -182,6 +183,15 @@ func (e *APIClient) Command(parent context.Context, _ string, args ...string) ([
 			return nil, err
 		}
 		return json.Marshal(result.GetStat())
+	case "stats":
+		if *statName == "" {
+			return nil, errors.New("counter name required")
+		}
+		result, err := stats.NewStatsServiceClient(e.conn).GetStats(ctx, &stats.GetStatsRequest{Name: *statName})
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
 	case "statssys":
 		result, err := stats.NewStatsServiceClient(e.conn).GetSysStats(ctx, &stats.SysStatsRequest{})
 		if err != nil {

@@ -227,7 +227,11 @@ func (m *Manager) Current(ctx context.Context, selector string) (string, error) 
 // A subscription refresh may legitimately hold mu longer than the watchdog's
 // deadline; that contention is not evidence that Xray has stopped responding.
 func (m *Manager) CheckAPI(ctx context.Context) error {
-	_, err := m.command(ctx, "statssys", "--server="+m.Server)
+	// GetSysStats stops the Go world to read MemStats. A timed-out request
+	// can keep waiting inside that operation and amplify CPU saturation.
+	// This counter is registered by every gateway traffic inbound; reading it
+	// neither scans the traffic inventory nor interrupts the runtime.
+	_, err := m.command(ctx, "stats", "--server="+m.Server, "-name=sb-gateway>>>active>>>tcp")
 	return err
 }
 

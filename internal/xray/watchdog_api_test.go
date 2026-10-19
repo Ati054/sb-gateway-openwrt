@@ -16,7 +16,7 @@ func TestWatchdogAPIIsIndependentOfSelectorMutation(t *testing.T) {
 	m := NewManager("xray", "127.0.0.1:10085", t.TempDir())
 	called := make(chan struct{}, 1)
 	m.Run = func(ctx context.Context, binary string, args ...string) ([]byte, error) {
-		if binary != "xray" || len(args) != 3 || args[0] != "api" || args[1] != "statssys" {
+		if binary != "xray" || len(args) != 4 || args[0] != "api" || args[1] != "stats" || args[3] != "-name=sb-gateway>>>active>>>tcp" {
 			t.Error("unexpected watchdog operation")
 		}
 		called <- struct{}{}
@@ -55,8 +55,13 @@ func (s *busyCountersServer) QueryStats(ctx context.Context, _ *stats.QueryStats
 	return nil, ctx.Err()
 }
 
-func (*busyCountersServer) GetSysStats(context.Context, *stats.SysStatsRequest) (*stats.SysStatsResponse, error) {
-	return &stats.SysStatsResponse{NumGoroutine: 1, Alloc: 1024}, nil
+func (*busyCountersServer) GetSysStats(ctx context.Context, _ *stats.SysStatsRequest) (*stats.SysStatsResponse, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (*busyCountersServer) GetStats(_ context.Context, request *stats.GetStatsRequest) (*stats.GetStatsResponse, error) {
+	return &stats.GetStatsResponse{Stat: &stats.Stat{Name: request.Name}}, nil
 }
 
 func TestWatchdogDoesNotWaitForBusyTrafficCounters(t *testing.T) {
