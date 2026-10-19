@@ -580,6 +580,19 @@ func (s *server) readState() {
 	}
 	var changed []string
 	s.stateMu.Lock()
+	for tag, state := range states {
+		previous := s.proxySelections[tag]
+		// A failed selector observation is not a routing change. Keep the
+		// existing proxy session and its route-scoped cache while the intended
+		// leaf is unchanged. Rebuilding them on an API timeout creates a cold
+		// TLS/DNS burst precisely when the router is already overloaded.
+		// This never confirms health or authorizes WAN fallback; a changed,
+		// blocked or removed route still retires its previous transport.
+		if !state.RuntimeConfirmed && previous != "" && previous != "block" && previous != "direct-wan" &&
+			state.Selected == previous && (state.RuntimeSelected == "" || state.RuntimeSelected == previous) {
+			selections[tag] = previous
+		}
+	}
 	for tag, previous := range s.proxySelections {
 		if selections[tag] != previous {
 			changed = append(changed, tag)
