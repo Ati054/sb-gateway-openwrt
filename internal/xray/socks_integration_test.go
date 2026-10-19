@@ -50,8 +50,8 @@ func TestRealXraySOCKSTrafficConditionsAndInternalIsolation(t *testing.T) {
 	cfg.HTTPPort = freePort(t)
 	cfg.SocksPort = freePort(t)
 	cfg.TransparentPort = freePort(t)
-	cfg.ProbeBasePort = 33000
-	cfg.DNSPolicyBasePort = 34000
+	cfg.ProbeBasePort = freePortRange(t, cfg.ProbeLaneCount()+1)
+	cfg.DNSPolicyBasePort = freePortRange(t, len(cfg.Policies))
 	cfg.Policies[0].Rules = []RouteRule{{ID: "conditional", Name: "Тест портов", Action: "direct", Ports: dest.Port(), Network: "tcp", Protocols: []string{"http"}, Inbounds: []string{"socks"}}}
 	body, err := RenderBase(cfg)
 	if err != nil {
@@ -63,20 +63,35 @@ func TestRealXraySOCKSTrafficConditionsAndInternalIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	process := exec.Command(binary, "run", "-c", path)
+	coreLog, err := os.Create(filepath.Join(filepath.Dir(path), "core.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer coreLog.Close()
+	process.Stdout, process.Stderr = coreLog, coreLog
 	if err = process.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { process.Process.Kill(); process.Wait() }()
+	exited := make(chan struct{})
+	go func() { _ = process.Wait(); close(exited) }()
+	defer func() { _ = process.Process.Kill(); <-exited }()
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.SocksPort))
 	deadline := time.Now().Add(10 * time.Second)
 	for {
+		select {
+		case <-exited:
+			body, _ := os.ReadFile(coreLog.Name())
+			t.Fatalf("SOCKS core exited: %s\n%s", process.ProcessState, body)
+		default:
+		}
 		c, e := net.DialTimeout("tcp", addr, 100*time.Millisecond)
 		if e == nil {
 			c.Close()
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("SOCKS not listening", e)
+			body, _ := os.ReadFile(coreLog.Name())
+			t.Fatalf("SOCKS not listening: %v\n%s", e, body)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}

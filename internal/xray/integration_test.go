@@ -40,18 +40,26 @@ var integrationPorts = struct {
 }{used: map[int]bool{}}
 
 func freePort(t *testing.T) int {
+	return freePortRange(t, 4)
+}
+
+func freePortRange(t *testing.T, count int) int {
 	t.Helper()
 	integrationPorts.Lock()
 	defer integrationPorts.Unlock()
 	// Keep test listeners outside the kernel's ephemeral client range and
 	// reserve IPv6, probe and refresh neighbours used by the fixture too.
-	for port := 2000; port < 9000; port += 4 {
-		if integrationPorts.used[port] || integrationPorts.used[port+1] {
+	for port := 2000; port+count <= 9000; port += 4 {
+		occupied := false
+		for candidate := port; candidate < port+count; candidate++ {
+			occupied = occupied || integrationPorts.used[candidate]
+		}
+		if occupied {
 			continue
 		}
 		var sockets []io.Closer
 		ok := true
-		for _, candidate := range []int{port, port + 1, port + 2, port + 3} {
+		for candidate := port; candidate < port+count; candidate++ {
 			listener, err := net.Listen("tcp4", net.JoinHostPort("0.0.0.0", strconv.Itoa(candidate)))
 			if err != nil {
 				ok = false
@@ -69,10 +77,9 @@ func freePort(t *testing.T) int {
 			socket.Close()
 		}
 		if ok {
-			integrationPorts.used[port] = true
-			integrationPorts.used[port+1] = true
-			integrationPorts.used[port+2] = true
-			integrationPorts.used[port+3] = true
+			for candidate := port; candidate < port+count; candidate++ {
+				integrationPorts.used[candidate] = true
+			}
 			return port
 		}
 	}

@@ -29,10 +29,11 @@ func TestRealXraySelectedDevicesOverrideAllDeviceList(t *testing.T) {
 		t.Run(strconv.FormatBool(commonFirst), func(t *testing.T) {
 			cfg := DefaultBaseConfig()
 			cfg.APIPort, cfg.HTTPPort, cfg.SocksPort, cfg.TransparentPort = freePort(t), freePort(t), freePort(t), freePort(t)
-			cfg.ProbeBasePort, cfg.DNSPolicyBasePort = 33000, 34000
 			common := BasePolicy{ID: "main", Rules: []RouteRule{{ID: "common", Action: "direct", Ports: "23456"}}}
 			device := BasePolicy{ID: "office", SourceCIDRs: []string{"127.0.0.2/32", "::1/128"}, Rules: []RouteRule{{ID: "device", Action: "proxy", Ports: "23456"}}}
 			cfg.Policies = []BasePolicy{common, device}
+			cfg.ProbeBasePort = freePortRange(t, cfg.ProbeLaneCount()+1)
+			cfg.DNSPolicyBasePort = freePortRange(t, len(cfg.Policies))
 			if !commonFirst {
 				cfg.Policies = []BasePolicy{device, common}
 			}
