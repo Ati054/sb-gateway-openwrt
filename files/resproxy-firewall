@@ -54,6 +54,11 @@ if [ "$action" != remove ]; then
 
 fi
 
+# Serialize with fw4's own start/reload/stop transaction. In particular, its
+# ruleset-post include and our live SYN exemption must never race into copies.
+exec 8>/var/run/fw4.lock
+flock -x 8
+
 mv "$temporary" "$rules"
 if [ "$action" != remove ] && [ "$action" != guard ] && ! fw4 check; then
 	mv "$backup" "$rules"
@@ -107,6 +112,21 @@ fi
 # A single nft batch replaces our private tables atomically. Keep the fw4
 # ruleset-post include for later firewall reloads, but do not reload the whole
 # firewall merely because this service starts or stops.
+if nft list table inet fw4 >/dev/null 2>&1; then
+	syn_rules="$(nft -a list chain inet fw4 syn_flood 2>/dev/null || :)"
+	if [ "$action" != remove ]; then
+		if ! printf '%s\n' "$syn_rules" | grep -Fq 'comment "sb-gateway: transparent SYN"'; then
+			printf '%s\n' 'add chain inet fw4 syn_flood' >> "$batch"
+			printf '%s\n' 'insert rule inet fw4 syn_flood meta mark 0x5253 meta l4proto tcp socket transparent 1 counter return comment "sb-gateway: transparent SYN"' >> "$batch"
+		fi
+	else
+		# Only remove our tagged rules, leaving the user's SYN policy untouched.
+		for handle in $(printf '%s\n' "$syn_rules" | sed -n 's/.*comment "sb-gateway: transparent SYN" # handle \([0-9]*\)$/\1/p'); do
+			case "$handle" in ''|*[!0-9]*) exit 1;; esac
+			printf 'delete rule inet fw4 syn_flood handle %s\n' "$handle" >> "$batch"
+		done
+	fi
+fi
 if nft list table ip resproxy >/dev/null 2>&1; then
 	printf 'delete table ip resproxy\n' >> "$batch"
 fi
