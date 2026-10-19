@@ -21,7 +21,7 @@ func TestRenderBaseHasOneCoreAndFailClosedRoutes(t *testing.T) {
 		t.Fatal("routine Xray access probes must not flood the system journal")
 	}
 	inbounds := parsed["inbounds"].([]any)
-	if len(inbounds) != 6+ProbeLanes+len(config.Policies) {
+	if len(inbounds) != 5+ProbeLanes+len(config.Policies) {
 		t.Fatalf("unexpected inbound count: %d", len(inbounds))
 	}
 	routing := parsed["routing"].(map[string]any)
@@ -55,8 +55,8 @@ func TestDomainStrategyUsesProxiedRoutingDNSOnlyWhenEnabled(t *testing.T) {
 		t.Fatal("routing DNS has no dedicated inbound tag")
 	}
 	rules := parsed["routing"].(map[string]any)["rules"].([]any)
-	if !containsRuleValue(rules[1].(map[string]any)["inboundTag"], "resproxy-routing-dns") ||
-		rules[1].(map[string]any)["balancerTag"] != "resproxy-main" {
+	if !containsRuleValue(rules[0].(map[string]any)["inboundTag"], "resproxy-routing-dns") ||
+		rules[0].(map[string]any)["balancerTag"] != "resproxy-main" {
 		t.Fatal("routing DNS could bypass the default proxy policy")
 	}
 	config.DomainStrategy = "AsIs"
@@ -70,6 +70,33 @@ func TestDomainStrategyUsesProxiedRoutingDNSOnlyWhenEnabled(t *testing.T) {
 	}
 	if parsed["dns"] != nil {
 		t.Fatal("AsIs should not start a second DNS client")
+	}
+}
+
+func TestControlAPIUsesDedicatedLoopbackListener(t *testing.T) {
+	config := DefaultBaseConfig()
+	body, err := RenderBase(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	api := parsed["api"].(map[string]any)
+	if api["listen"] != "127.0.0.1:10085" {
+		t.Fatal("control API must bind directly to loopback")
+	}
+	for _, raw := range parsed["inbounds"].([]any) {
+		inbound := raw.(map[string]any)
+		if inbound["tag"] == api["tag"] || inbound["port"] == float64(config.APIPort) {
+			t.Fatal("control API still traverses a proxy inbound")
+		}
+	}
+	for _, raw := range parsed["routing"].(map[string]any)["rules"].([]any) {
+		if raw.(map[string]any)["outboundTag"] == api["tag"] {
+			t.Fatal("control API still depends on proxy routing")
+		}
 	}
 }
 

@@ -270,8 +270,6 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 	}
 	apiTag := "resproxy-api"
 	inbounds := []any{
-		map[string]any{"tag": apiTag, "listen": "127.0.0.1", "port": c.APIPort,
-			"protocol": "dokodemo-door", "settings": map[string]any{"address": "127.0.0.1"}},
 		map[string]any{"tag": "resproxy-transparent", "listen": "127.0.0.1", "port": c.TransparentPort,
 			"protocol": "dokodemo-door", "settings": map[string]any{"network": "tcp,udp", "followRedirect": true},
 			"streamSettings": map[string]any{"sockopt": map[string]any{"tproxy": "tproxy"}},
@@ -295,7 +293,7 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 			"protocol": "http", "settings": map[string]any{"allowTransparent": false},
 		})
 	}
-	rules := []any{map[string]any{"type": "field", "inboundTag": []string{apiTag}, "outboundTag": apiTag}}
+	rules := []any{}
 	if c.DomainStrategy == "IPOnDemand" {
 		rules = append(rules, map[string]any{"type": "field", "inboundTag": []string{"resproxy-routing-dns"},
 			"balancerTag": "resproxy-" + c.DefaultPolicy})
@@ -359,9 +357,11 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 		"inboundTag":  []string{"resproxy-transparent", "resproxy-transparent6", "resproxy-socks"},
 		"balancerTag": c.defaultProxyTrafficTag()})
 	config := map[string]any{
-		"policy":   map[string]any{"levels": map[string]any{"0": map[string]any{"connIdle": 120, "uplinkOnly": 2, "downlinkOnly": 5}}},
-		"log":      map[string]any{"access": "none", "loglevel": "warning"},
-		"api":      map[string]any{"tag": apiTag, "services": []string{"RoutingService", "HandlerService", "StatsService"}},
+		"policy": map[string]any{"levels": map[string]any{"0": map[string]any{"connIdle": 120, "uplinkOnly": 2, "downlinkOnly": 5}}},
+		"log":    map[string]any{"access": "none", "loglevel": "warning"},
+		// A dedicated loopback listener keeps control RPCs outside proxy
+		// dispatch, routing replacement and data-plane connection policy.
+		"api":      map[string]any{"tag": apiTag, "listen": fmt.Sprintf("127.0.0.1:%d", c.APIPort), "services": []string{"RoutingService", "HandlerService", "StatsService"}},
 		"inbounds": inbounds,
 		"outbounds": []any{
 			map[string]any{"tag": "block", "protocol": "blackhole", "settings": map[string]any{}},

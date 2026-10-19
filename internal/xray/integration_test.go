@@ -168,12 +168,9 @@ func TestRealXrayDynamicSwitchKeepsPID(t *testing.T) {
 	if err := json.Unmarshal(base, &config); err != nil {
 		t.Fatal(err)
 	}
-	apiPort := 0
 	httpPort := 0
 	for _, inbound := range config.Inbounds {
-		if inbound.Tag == "resproxy-api" {
-			apiPort = inbound.Port
-		} else if inbound.Tag == "resproxy-http" {
+		if inbound.Tag == "resproxy-http" {
 			httpPort = inbound.Port
 		}
 	}
@@ -188,7 +185,7 @@ func TestRealXrayDynamicSwitchKeepsPID(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = process.Process.Kill(); _ = process.Wait() }()
-	manager := NewManager(binary, fmt.Sprintf("127.0.0.1:%d", apiPort), t.TempDir())
+	manager := NewManager(binary, testAPIAddress(t, base), t.TempDir())
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -313,7 +310,7 @@ func TestRealXrayIsolatedRefreshProbe(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = process.Process.Kill(); _ = process.Wait() }()
-	manager := NewManager(binary, fmt.Sprintf("127.0.0.1:%d", ports["resproxy-api"]), t.TempDir())
+	manager := NewManager(binary, testAPIAddress(t, base), t.TempDir())
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)

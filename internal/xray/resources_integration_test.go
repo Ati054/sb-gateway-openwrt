@@ -72,7 +72,7 @@ func TestRealXrayClientSessionGauges(t *testing.T) {
 	routing := config["routing"].(map[string]any)
 	rules := routing["rules"].([]any)
 	clientTags := append([]string{"resproxy-transparent", "resproxy-http"}, HealthProbeTags()...)
-	routing["rules"] = append([]any{rules[0], map[string]any{"type": "field", "inboundTag": clientTags, "outboundTag": "session-fixture"}}, rules[1:]...)
+	routing["rules"] = append([]any{map[string]any{"type": "field", "inboundTag": clientTags, "outboundTag": "session-fixture"}}, rules...)
 	// Expiry must be observed during this integration test. The production
 	// timeout is independently asserted in the base configuration tests.
 	config["policy"] = map[string]any{"levels": map[string]any{"0": map[string]any{"connIdle": 2, "uplinkOnly": 1, "downlinkOnly": 1}}}
@@ -96,7 +96,7 @@ func TestRealXrayClientSessionGauges(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = process.Process.Kill(); _ = process.Wait() }()
-	api, err := NewAPIClient(fmt.Sprintf("127.0.0.1:%d", ports["resproxy-api"]))
+	api, err := NewAPIClient(testAPIAddress(t, base))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -68,8 +68,24 @@ func TestQuestionNameAndLocal(t *testing.T) {
 func TestServfailResponse(t *testing.T) {
 	query := dnsQuery("example.com")
 	response := servfail(query)
-	if len(response) != 12 || binary.BigEndian.Uint16(response[:2]) != 0x1234 || response[2]&0x80 == 0 || response[3]&0x0f != 2 {
+	if len(response) != len(query) || binary.BigEndian.Uint16(response[:2]) != 0x1234 || response[2]&0x80 == 0 || response[3]&0x0f != 2 || !matchingQuestion(query, response) {
 		t.Fatalf("unexpected SERVFAIL: %x", response)
+	}
+}
+
+func TestServfailRetainsQuestionWithoutCopyingAdditionalRecords(t *testing.T) {
+	query := dnsQuery("example.com")
+	end := len(query)
+	query[11] = 1
+	query = append(query, 0, 0, 41, 4, 208, 0, 0, 0, 0, 0, 0)
+	response := servfail(query)
+	if len(response) != end || response[5] != 1 || response[11] != 0 || !matchingQuestion(query, response) {
+		t.Fatal("SERVFAIL question or section counts are malformed")
+	}
+	for _, malformed := range [][]byte{nil, {1}, make([]byte, 12), append(dnsQuery("example.com")[:12], 0xc0, 0xff)} {
+		if answer := servfail(malformed); len(answer) != 12 || answer[5] != 0 {
+			t.Fatal("malformed question was echoed into an error")
+		}
 	}
 }
 

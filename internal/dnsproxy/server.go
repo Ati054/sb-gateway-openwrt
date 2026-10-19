@@ -1102,8 +1102,16 @@ func servfail(query []byte) []byte {
 	}
 	response[2] = 0x80
 	if len(query) >= 3 {
-		response[2] |= query[2] & 1
+		response[2] |= query[2] & 0x79
 	}
 	response[3] = 2
+	// Resolvers match errors to their original question too. A header-only
+	// reply to a valid query is rejected as malformed by clients such as c-ares.
+	if _, valid := questionName(query); valid {
+		if end, ok := skipName(query, 12); ok && end+4 <= len(query) {
+			response[5] = 1
+			response = append(response, query[12:end+4]...)
+		}
+	}
 	return response
 }
