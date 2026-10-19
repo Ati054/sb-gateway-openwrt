@@ -35,7 +35,9 @@ func TestControlAPIWorksWithAllProxyTrafficBlocked(t *testing.T) {
 	defer client.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if _, err := client.Command(ctx, "", "api", "statssys"); err != nil {
+	manager := NewManager("unused", testAPIAddress(t, body), t.TempDir())
+	manager.Run = client.Command
+	if err := manager.CheckAPI(ctx); err != nil {
 		t.Fatalf("proxy blocking disabled local control API: %v", err)
 	}
 }

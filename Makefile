@@ -44,7 +44,7 @@ endef
 # A Linux Go 1.27.2 host toolchain is required by the SDK build host.
 define Build/Compile
 	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.2 GOMAXPROCS=2 \
-		GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=0888beb38a9ba45440557175e71ce21cf8ba3b13' \
+		GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=92ccc939aaf4f8965f369cf0b142e005aeaa11d5' \
 		-o $(PKG_BUILD_DIR)/resproxyd ./cmd/resproxyd
 endef
 

@@ -21,12 +21,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// Embedded owns the core and one persistent API connection in the gateway
-// process. Command retains the existing transaction/readback contract without
-// starting a second Go runtime for each handler or routing operation.
+// APIClient reuses separate mutation/telemetry and heartbeat transports.
+// Command retains the transaction/readback contract without starting a
+// second Go runtime for each handler or routing operation.
 type APIClient struct {
-	conn   *grpc.ClientConn
-	server string
+	conn      *grpc.ClientConn
+	heartbeat *grpc.ClientConn
+	server    string
 }
 
 type Embedded struct {
@@ -55,10 +56,18 @@ func NewAPIClient(server string) (*APIClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &APIClient{conn: conn, server: server}, nil
+	// Handler/routing mutations can fill or stall their HTTP/2 transport.
+	// Keep the small watchdog RPC independent so transport backpressure does
+	// not cause a healthy core and all its client streams to be restarted.
+	heartbeat, err := grpc.NewClient(server, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return &APIClient{conn: conn, heartbeat: heartbeat, server: server}, nil
 }
 
-func (e *APIClient) Close() error { return e.conn.Close() }
+func (e *APIClient) Close() error { return errors.Join(e.heartbeat.Close(), e.conn.Close()) }
 func (e *Embedded) Close() error  { return errors.Join(e.APIClient.Close(), e.core.Close()) }
 
 func (e *APIClient) Command(parent context.Context, _ string, args ...string) ([]byte, error) {
@@ -187,7 +196,7 @@ func (e *APIClient) Command(parent context.Context, _ string, args ...string) ([
 		if *statName == "" {
 			return nil, errors.New("counter name required")
 		}
-		result, err := stats.NewStatsServiceClient(e.conn).GetStats(ctx, &stats.GetStatsRequest{Name: *statName})
+		result, err := stats.NewStatsServiceClient(e.heartbeat).GetStats(ctx, &stats.GetStatsRequest{Name: *statName})
 		if err != nil {
 			return nil, err
 		}

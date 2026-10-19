@@ -258,6 +258,7 @@ func (c *client) tcp(ctx context.Context, release func()) (stat.Connection, erro
 
 		client:  true,
 		onClose: release,
+		lock:    make(chan struct{}, 1),
 	}, nil
 }
 
