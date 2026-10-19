@@ -1,7 +1,7 @@
 include "/var/run/resproxy/firewall*.nft"
 
-# TProxy turns forwarded TCP into local input. It must not consume the router's
-# SYN allowance shared with DNS. Only a kernel-marked transparent socket skips
-# that allowance; the regular input/zone policy still decides whether to accept.
-add chain inet fw4 syn_flood
-insert rule inet fw4 syn_flood meta mark 0x5253 meta l4proto tcp socket transparent 1 counter return comment "sb-gateway: transparent SYN"
+# TProxy delivers forwarded traffic locally. Accept only our kernel-marked
+# transparent sockets before fw4's router SYN allowance and zone input policy.
+# Direct router access and traffic without a transparent listener stay subject
+# to the user's firewall policy.
+insert rule inet fw4 input meta mark 0x5253 meta l4proto { tcp, udp } socket transparent 1 counter accept comment "sb-gateway: TProxy delivery"
