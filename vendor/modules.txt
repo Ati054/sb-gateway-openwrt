@@ -61,9 +61,10 @@ github.com/klauspost/compress/internal/le
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/klauspost/cpuid/v2 v2.4.0
+# github.com/klauspost/cpuid/v2 v2.4.1
 ## explicit; go 1.24.0
 github.com/klauspost/cpuid/v2
+github.com/klauspost/cpuid/v2/topology
 # github.com/koron/go-ssdp v0.0.4
 ## explicit; go 1.19
 github.com/koron/go-ssdp
@@ -288,6 +289,7 @@ github.com/xtls/xray-core/transport
 github.com/xtls/xray-core/transport/internet
 github.com/xtls/xray-core/transport/internet/browser_dialer
 github.com/xtls/xray-core/transport/internet/finalmask
+github.com/xtls/xray-core/transport/internet/finalmask/filter
 github.com/xtls/xray-core/transport/internet/finalmask/fragment
 github.com/xtls/xray-core/transport/internet/finalmask/header/custom
 github.com/xtls/xray-core/transport/internet/finalmask/mkcp/aes128gcm
@@ -352,7 +354,7 @@ golang.org/x/crypto/internal/poly1305
 golang.org/x/crypto/ocsp
 golang.org/x/crypto/poly1305
 golang.org/x/crypto/sha3
-# golang.org/x/crypto/x509roots/fallback v0.0.0-20261005185213-c3db4df58582
+# golang.org/x/crypto/x509roots/fallback v0.0.0-20261020153306-9f2b28d4331a
 ## explicit; go 1.26.0
 golang.org/x/crypto/x509roots/fallback/bundle
 # golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842

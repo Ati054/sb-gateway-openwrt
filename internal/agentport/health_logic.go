@@ -418,12 +418,14 @@ func freshComparisonAt(now time.Time, comparison *optimizationComparison, p effe
 }
 
 // A candidate needs a new ordinary probe. At a one-slot limit the active
-// measurement may come from the preceding cycle, with the same freshness bound.
+// measurement may come from the preceding cycle, with the same freshness bound,
+// but it must have been renewed since the previous qualifying comparison.
 func regularOptimizationComparison(now time.Time, selected, candidate string, measured map[string]probeEvidence, item *policyHealthState, quality, available bool, p effectivePolicySettings) *optimizationComparison {
 	if _, fresh := measured[candidate]; !fresh {
 		return nil
 	}
 	pair := map[string]probeEvidence{candidate: measured[candidate]}
+	activeAt := float64(now.Unix())
 	if active, ok := measured[selected]; ok {
 		pair[selected] = active
 	} else {
@@ -433,10 +435,23 @@ func regularOptimizationComparison(now time.Time, selected, candidate string, me
 			age := float64(now.Unix()) - last.At
 			if last.At > 0 && age >= 0 && age <= float64(maxInt(p.active*2, 120)) {
 				pair[selected] = probeEvidence{OK: last.OK, DelayMS: last.DelayMS}
+				activeAt = last.At
 			}
 		}
 	}
-	return compareOptimization(now, selected, candidate, pair, quality, available, p)
+	comparison := compareOptimization(now, selected, candidate, pair, quality, available, p)
+	previous := item.OptimizationLastResult
+	if comparison.Result == optimizationWin && item.OptimizationChecks > 0 &&
+		item.OptimizationBaseline == selected && item.OptimizationCandidate == candidate &&
+		freshComparisonAt(now, previous, p) {
+		at, _ := time.Parse(time.RFC3339, previous.At)
+		if activeAt <= float64(at.Unix()) {
+			// Keep the first confirmation while ordinary rotation renews the
+			// active sample. A candidate's new probe alone is not a new pair.
+			return nil
+		}
+	}
+	return comparison
 }
 
 func freshOptimizationWin(selected, candidate string, measured map[string]probeEvidence, p effectivePolicySettings) bool {

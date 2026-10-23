@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sb-gateway-openwrt
-PKG_VERSION:=0.1.11
+PKG_VERSION:=0.1.12
 PKG_RELEASE:=
 PKG_LICENSE:=AGPL-3.0-only AND MPL-2.0 AND MIT AND Apache-2.0 AND BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE XRAY-LICENSE DOMAIN-LIST-LICENSE
@@ -41,10 +41,10 @@ endef
 
 # Build for the selected OpenWrt ARM64 SDK target. The
 # vendored dependencies allow offline builds without CGO or module downloads.
-# A Linux Go 1.27.2 host toolchain is required by the SDK build host.
+# A Linux Go 1.27.3 host toolchain is required by the SDK build host.
 define Build/Compile
-	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.2 GOMAXPROCS=2 \
-		GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=92ccc939aaf4f8965f369cf0b142e005aeaa11d5' \
+	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.3 GOMAXPROCS=2 \
+		GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=1b1647cd9ddf0abc34b981d4611fc03bcac1ca74' \
 		-o $(PKG_BUILD_DIR)/resproxyd ./cmd/resproxyd
 endef
 

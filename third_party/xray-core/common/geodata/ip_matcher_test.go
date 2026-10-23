@@ -405,12 +405,12 @@ func TestIPMatcher4CN(t *testing.T) {
 
 // Country ownership of a public anycast address changes with external data.
 // A local binary GeoIP fixture tests IPv6 loading and prefix boundaries without
-// asserting that a particular resolver must always belong to the US dataset.
-func ipv6USFixture(t testing.TB) {
+// asserting that a particular resolver must always belong to the RU dataset.
+func ipv6RUFixture(t testing.TB) {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("xray.location.asset", dir)
-	data, err := proto.Marshal(&GeoIPList{Entry: []*GeoIP{{Code: "US", Cidr: []*CIDR{
+	data, err := proto.Marshal(&GeoIPList{Entry: []*GeoIP{{Code: "RU", Cidr: []*CIDR{
 		{Ip: net.ParseIP("2001:db8:1234::").To16(), Prefix: 48},
 		{Ip: net.IP{203, 0, 113, 0}, Prefix: 24},
 	}}}})
@@ -422,9 +422,9 @@ func ipv6USFixture(t testing.TB) {
 	}
 }
 
-func TestIPMatcher6US(t *testing.T) {
-	ipv6USFixture(t)
-	matcher := buildIPMatcher("geoip:us")
+func TestIPMatcher6RU(t *testing.T) {
+	ipv6RUFixture(t)
+	matcher := buildIPMatcher("geoip:ru")
 	for raw, want := range map[string]bool{
 		"2001:db8:1234::1":                       true,
 		"2001:db8:1234:ffff:ffff:ffff:ffff:ffff": true,
@@ -434,7 +434,7 @@ func TestIPMatcher6US(t *testing.T) {
 		"203.0.114.5":                            false,
 	} {
 		if got := matcher.Match(xnet.ParseAddress(raw).IP()); got != want {
-			t.Errorf("GeoIP US match %s = %v, want %v", raw, got, want)
+			t.Errorf("GeoIP RU match %s = %v, want %v", raw, got, want)
 		}
 	}
 }
@@ -452,10 +452,10 @@ func BenchmarkIPMatcher4CN(b *testing.B) {
 	}
 }
 
-func BenchmarkIPMatcher6US(b *testing.B) {
-	ipv6USFixture(b)
+func BenchmarkIPMatcher6RU(b *testing.B) {
+	ipv6RUFixture(b)
 
-	matcher := buildIPMatcher("geoip:us")
+	matcher := buildIPMatcher("geoip:ru")
 	ip := xnet.ParseAddress("2001:db8:1234::1").IP()
 
 	b.ResetTimer()

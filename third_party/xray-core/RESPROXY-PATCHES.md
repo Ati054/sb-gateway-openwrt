@@ -1,7 +1,7 @@
 # Embedded Xray source
 
-Pinned upstream: XTLS/Xray-core v26.10.17, commit
-92ccc939aaf4f8965f369cf0b142e005aeaa11d5. Licensed under MPL-2.0;
+Pinned upstream: XTLS/Xray-core v26.10.21, commit
+1b1647cd9ddf0abc34b981d4611fc03bcac1ca74. Licensed under MPL-2.0;
 see LICENSE. The complete source is retained here for reproducible builds.
 
 The source includes the existing gateway patches for passive failure signals,

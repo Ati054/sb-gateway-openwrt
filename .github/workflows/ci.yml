@@ -32,10 +32,14 @@ jobs:
       - name: Gateway Xray regressions
         run: |
           mkdir -p third_party/xray-core/resources
-          curl -fsSL --retry 2 --max-time 60 -o third_party/xray-core/resources/geosite.dat https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
-          curl -fsSL --retry 2 --max-time 60 -o third_party/xray-core/resources/geoip.dat https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
+          curl -fsSL --retry 2 --max-time 60 -o third_party/xray-core/resources/geosite.dat https://github.com/XTLS/Xray-rules-dat/releases/latest/download/geosite.dat
+          curl -fsSL --retry 2 --max-time 60 -o third_party/xray-core/resources/geoip.dat https://github.com/XTLS/Xray-rules-dat/releases/latest/download/geoip-lite.dat
+          geoip_hash=$(curl -fsSL --retry 2 --max-time 60 https://github.com/XTLS/Xray-rules-dat/releases/latest/download/geoip-lite.dat.sha256sum | awk '{print $1}')
+          geosite_hash=$(curl -fsSL --retry 2 --max-time 60 https://github.com/XTLS/Xray-rules-dat/releases/latest/download/geosite.dat.sha256sum | awk '{print $1}')
+          printf '%s  third_party/xray-core/resources/geoip.dat\n%s  third_party/xray-core/resources/geosite.dat\n' "$geoip_hash" "$geosite_hash" | sha256sum -c -
           cd third_party/xray-core
-          go test ./common/geodata/... ./app/router ./app/dispatcher ./app/proxyman/inbound ./app/proxyman/outbound ./transport/internet/tls ./transport/internet/reality ./transport/internet/hysteria ./transport/internet/grpc ./transport/internet/splithttp ./proxy/vless/outbound
+          go test ./common/geodata/... ./common/net ./app/router ./app/dispatcher ./app/proxyman/inbound ./app/proxyman/outbound ./transport/internet/tls ./transport/internet/reality ./transport/internet/hysteria ./transport/internet/grpc ./transport/internet/splithttp ./proxy/vless/outbound ./proxy/http ./proxy/socks ./transport/internet/finalmask/filter ./transport/internet/xdrive ./proxy/tun ./infra/conf
+          go test ./testing/scenarios -run '^TestHTTPOutboundServerFirst$' -count=1
       - name: Vet
         run: go vet -mod=vendor ./...
       - name: Race checks
