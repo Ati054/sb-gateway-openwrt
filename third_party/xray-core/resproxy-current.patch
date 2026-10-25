@@ -3187,3 +3187,103 @@ new file mode 100644
 +		t.Fatal("ticker changed shared proto certificate state")
 +	}
 +}
+diff --git a/common/errors/feature_errors.go b/common/errors/feature_errors.go
+--- a/common/errors/feature_errors.go
++++ b/common/errors/feature_errors.go
+@@ -2,17 +2,42 @@
+ 
+ import (
+ 	"context"
++	"sync"
++
++	"github.com/xtls/xray-core/common/log"
+ )
++
++var deprecatedFeatureWarnings sync.Map
++
++// Live outbound preparation can build the same transport hundreds of times.
++// Report each deprecation once per process, without filtering runtime errors.
++func firstFeatureWarning(feature, target string, removal bool) bool {
++	if log.GetSeverity() < log.Severity_Warning {
++		return false
++	}
++	key := struct {
++		feature, target string
++		removal         bool
++	}{feature, target, removal}
++	_, seen := deprecatedFeatureWarnings.LoadOrStore(key, struct{}{})
++	return !seen
++}
+ 
+ // PrintNonRemovalDeprecatedFeatureWarning prints a warning of the deprecated feature that won't be removed in the near future.
+ // Do not remove this function even there is no reference to it.
+ func PrintNonRemovalDeprecatedFeatureWarning(sourceFeature string, targetFeature string) {
++	if !firstFeatureWarning(sourceFeature, targetFeature, false) {
++		return
++	}
+ 	LogWarning(context.Background(), "The feature "+sourceFeature+" is deprecated, not recommended for using and might be removed. Please migrate to "+targetFeature+" as soon as possible.")
+ }
+ 
+ // PrintDeprecatedFeatureWarning prints a warning for deprecated and going to be removed feature.
+ // Do not remove this function even there is no reference to it.
+ func PrintDeprecatedFeatureWarning(feature string, migrateFeature string) {
++	if !firstFeatureWarning(feature, migrateFeature, true) {
++		return
++	}
+ 	if len(migrateFeature) > 0 {
+ 		LogWarning(context.Background(), "This feature "+feature+" is deprecated, will be removed soon and being migrated to "+migrateFeature+". Please update your config(s) according to release note and documentation before removal.")
+ 	} else {
+diff --git a/common/errors/feature_once_test.go b/common/errors/feature_once_test.go
+new file mode 100644
+--- /dev/null
++++ b/common/errors/feature_once_test.go
+@@ -0,0 +1,49 @@
++package errors
++
++import (
++	"context"
++	"sync"
++	"testing"
++
++	"github.com/xtls/xray-core/common/log"
++)
++
++type featureWarningSink struct {
++	mu       sync.Mutex
++	messages []log.Message
++}
++
++func (s *featureWarningSink) Handle(message log.Message) {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	s.messages = append(s.messages, message)
++}
++
++func TestRepeatedDeprecationsKeepFirstWarningAndAllRuntimeErrors(t *testing.T) {
++	sink := &featureWarningSink{}
++	log.RegisterHandler(sink)
++	var work sync.WaitGroup
++	for i := 0; i < 64; i++ {
++		work.Add(1)
++		go func() {
++			defer work.Done()
++			PrintNonRemovalDeprecatedFeatureWarning("fixture-grpc", "fixture-xhttp")
++			PrintDeprecatedFeatureWarning("fixture-old-config", "fixture-new-config")
++		}()
++	}
++	work.Wait()
++	if len(sink.messages) != 2 {
++		t.Fatal("deprecation spam", len(sink.messages))
++	}
++	PrintNonRemovalDeprecatedFeatureWarning("fixture-other-transport", "fixture-xhttp")
++	for i := 0; i < 2; i++ {
++		LogWarning(context.Background(), "fixture connection timeout")
++		LogError(context.Background(), "fixture invalid config")
++		if PrintRemovedFeatureError("fixture-removed", "fixture-new") == nil {
++			t.Fatal("removed feature error suppressed")
++		}
++	}
++	if len(sink.messages) != 7 {
++		t.Fatal("distinct warning or repeated runtime errors lost", len(sink.messages))
++	}
++}

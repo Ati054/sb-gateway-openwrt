@@ -40,18 +40,33 @@ return view.extend({
 			'aria-label': _('Journal output')
 		}, initial);
 		var loaded = initial;
+		var request = 0, loading = false;
 		function filter() {
+			if (loading) return;
 			var query = search.value.toLocaleLowerCase();
 			output.textContent = query ? loaded.split('\n').filter(function(line) {
 				return line.toLocaleLowerCase().indexOf(query) >= 0;
 			}).join('\n') : loaded;
 		}
 		function refresh() {
+			var current = ++request;
+			loading = true;
+			output.setAttribute('aria-busy', 'true');
+			output.textContent = _('Loading…');
 			return readLog(kind.value, count.value).then(function(text) {
+				if (current !== request) return;
 				loaded = text;
+				loading = false;
 				filter();
 			}).catch(function(error) {
+				if (current !== request) return;
+				output.textContent = _('Unable to read the journal.');
 				ui.addNotification(null, E('p', {}, String(error)));
+			}).finally(function() {
+				if (current === request) {
+					loading = false;
+					output.removeAttribute('aria-busy');
+				}
 			});
 		}
 		kind.addEventListener('change', refresh);

@@ -5,11 +5,22 @@ kind="${1:-events}"
 lines="${2:-200}"
 case "$kind" in events|errors|xray|all) ;; *) exit 2 ;; esac
 case "$lines" in 50|200|500) ;; *) exit 2 ;; esac
+read_journal() {
+ # Collapse old deprecation spam already in the RAM ring too. Keep the first
+ # notice per feature/process; ordinary warnings and errors remain untouched.
+ logread 2>/dev/null | LC_ALL=C awk '
+ /common\/errors: (The feature|This feature) .* is deprecated/ {
+  key=$0; sub(/^.*common\/errors: /,"",key); pid="";
+  if(match($0,/\[[0-9]+\]:/)) pid=substr($0,RSTART,RLENGTH);
+  key=pid SUBSEP key; if(seen[key]++) next;
+ }
+ { print }'
+}
 {
 case "$kind" in
- events) logread 2>/dev/null | grep -Ei 'resproxyd|resproxy:|agent:' | tail -n "$lines" || : ;;
- errors) logread 2>/dev/null | grep -Ei '(resproxyd|resproxy:|agent:|xray).*([Ee]rror|[Ww]arn|[Ff]ail|[Bb]lock|rollback)' | tail -n "$lines" || : ;;
- xray) logread 2>/dev/null | grep -Ei 'xray' | tail -n "$lines" || : ;;
- all) logread 2>/dev/null | tail -n "$lines" || : ;;
+ events) read_journal | grep -Ei 'resproxy:|resproxyd:|agent:' | tail -n "$lines" || : ;;
+ errors) read_journal | grep -Ei 'resproxyd|resproxy:|agent:|xray' | grep -Ei 'error|warn|fail|block|rollback|panic|fatal|resproxyd:|DNS coexistence' | tail -n "$lines" || : ;;
+ xray) read_journal | grep -Ei 'xray|resproxyd.*\[(debug|info|warning|error|fatal)\]' | tail -n "$lines" || : ;;
+ all) read_journal | tail -n "$lines" || : ;;
 esac
 } | LC_ALL=C awk 'BEGIN { first=1 } { buffer[++last]=$0; size+=length($0)+1; while(size>65536) { size-=length(buffer[first])+1; delete buffer[first++] } } END { for(i=first;i<=last;i++) print buffer[i] }'

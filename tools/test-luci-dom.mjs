@@ -123,9 +123,42 @@ try {
   const refresh=dashboard.querySelector('.sbg-overview-toolbar button');refresh.click();
   await new Promise(resolve=>setTimeout(resolve,20));
   if(!monitorReads)throw Error('Prepared reader was not exercised');
+	// Category changes must issue distinct requests and ignore older replies.
+	const journalRequests=[];
+	const journalFS={exec:(command,args)=>{
+	 if(command!=='/usr/libexec/resproxy-log')throw Error('Unexpected journal command');
+	 return new Promise((resolve,reject)=>journalRequests.push({args,resolve,reject}));
+	}};
+	const journal=new Function('sbgTheme','view','fs','ui','safeDOM','_',sources.log)(
+	 {decorate:node=>node},{extend:value=>value},journalFS,{addNotification:()=>{}},safeDOM,_);
+	const journalView=journal.render('initial events');document.body.append(journalView);
+	const category=journalView.querySelector('select[aria-label="Journal category"]');
+	const lineCount=journalView.querySelector('select[aria-label="Maximum lines"]');
+	const journalOutput=journalView.querySelector('pre');
+	category.value='errors';category.dispatchEvent(new Event('change'));
+	category.value='xray';category.dispatchEvent(new Event('change'));
+	if(journalRequests.map(r=>r.args[0]).join(',')!=='errors,xray')throw Error('Journal category did not reach helper');
+	journalRequests[1].resolve({code:0,stdout:'core warning'});
+	await new Promise(resolve=>setTimeout(resolve,0));
+	journalRequests[0].resolve({code:0,stdout:'old errors'});
+	await new Promise(resolve=>setTimeout(resolve,0));
+	if(journalOutput.textContent!=='core warning')throw Error('Older journal reply overwrote selected category');
+	lineCount.value='500';lineCount.dispatchEvent(new Event('change'));
+	if(journalRequests[2].args.join(',')!=='xray,500' || journalOutput.getAttribute('aria-busy')!=='true')throw Error('Journal line count or loading state ignored');
+	journalRequests[2].resolve({code:0,stdout:payload});
+	await new Promise(resolve=>setTimeout(resolve,0));
+	if(journalOutput.textContent!==payload || journalOutput.querySelector('img'))throw Error('Journal HTML was executed');
+	category.value='all';category.dispatchEvent(new Event('change'));
+	journalRequests[3].resolve({code:0,stdout:'system-only entry'});
+	await new Promise(resolve=>setTimeout(resolve,0));
+	if(journalRequests[3].args[0]!=='all' || journalOutput.textContent!=='system-only entry')throw Error('System journal did not switch');
+	category.value='events';category.dispatchEvent(new Event('change'));
+	journalRequests[4].reject(Error('fixture read failed'));
+	await new Promise(resolve=>setTimeout(resolve,0));
+	if(journalOutput.textContent!=='Unable to read the journal.' || journalOutput.hasAttribute('aria-busy'))throw Error('Journal failure retained misleading old category');
   await new Promise(resolve => setTimeout(resolve, 50));
   if (document.querySelector('img,svg,script') || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
-  return {negativeControl:true, health:true, picker:true, scalarAndCallback:true, overviewMonitoring:true, clockIndependentStatus:true, visibleDatabaseFailure:true, images:0, executed:0};
+  return {negativeControl:true, health:true, picker:true, scalarAndCallback:true, overviewMonitoring:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
  }, { sources, stockDOM });
  assert.deepEqual(errors, []);
  console.log(JSON.stringify(result));

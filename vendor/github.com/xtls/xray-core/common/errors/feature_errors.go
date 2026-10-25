@@ -2,17 +2,42 @@ package errors
 
 import (
 	"context"
+	"sync"
+
+	"github.com/xtls/xray-core/common/log"
 )
+
+var deprecatedFeatureWarnings sync.Map
+
+// Live outbound preparation can build the same transport hundreds of times.
+// Report each deprecation once per process, without filtering runtime errors.
+func firstFeatureWarning(feature, target string, removal bool) bool {
+	if log.GetSeverity() < log.Severity_Warning {
+		return false
+	}
+	key := struct {
+		feature, target string
+		removal         bool
+	}{feature, target, removal}
+	_, seen := deprecatedFeatureWarnings.LoadOrStore(key, struct{}{})
+	return !seen
+}
 
 // PrintNonRemovalDeprecatedFeatureWarning prints a warning of the deprecated feature that won't be removed in the near future.
 // Do not remove this function even there is no reference to it.
 func PrintNonRemovalDeprecatedFeatureWarning(sourceFeature string, targetFeature string) {
+	if !firstFeatureWarning(sourceFeature, targetFeature, false) {
+		return
+	}
 	LogWarning(context.Background(), "The feature "+sourceFeature+" is deprecated, not recommended for using and might be removed. Please migrate to "+targetFeature+" as soon as possible.")
 }
 
 // PrintDeprecatedFeatureWarning prints a warning for deprecated and going to be removed feature.
 // Do not remove this function even there is no reference to it.
 func PrintDeprecatedFeatureWarning(feature string, migrateFeature string) {
+	if !firstFeatureWarning(feature, migrateFeature, true) {
+		return
+	}
 	if len(migrateFeature) > 0 {
 		LogWarning(context.Background(), "This feature "+feature+" is deprecated, will be removed soon and being migrated to "+migrateFeature+". Please update your config(s) according to release note and documentation before removal.")
 	} else {
