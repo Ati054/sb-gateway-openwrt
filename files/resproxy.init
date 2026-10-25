@@ -6,7 +6,20 @@ STOP=05
 
 . /lib/functions.sh
 
+# OpenWrt's APK post-install starts init scripts automatically. The managed
+# updater must finish releasing recovery RAM before activating the new daemon.
+resproxy_update_installing() {
+	local state=/var/run/sb-gateway-upgrade worker
+	[ -f "$state/busy" ] && [ "$(cat "$state/phase" 2>/dev/null)" = installing ] || return 1
+	read -r worker < "$state/worker.pid" 2>/dev/null || return 1
+	case "$worker" in ''|*[!0-9]*) return 1;; esac
+	[ "$worker" -gt 1 ] && kill -0 "$worker" 2>/dev/null || return 1
+	[ -r "/proc/$worker/cmdline" ] || return 1
+	tr '\000' ' ' < "/proc/$worker/cmdline" | grep -Eq '^/bin/sh /tmp/\.sb-gateway-upgrade-runner (install|github-install-worker)( |$)'
+}
+
 start_service() {
+	resproxy_update_installing && return 0
 	config_load resproxy
 	local enabled route_enabled
 	config_get_bool enabled main enabled 0
