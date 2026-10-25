@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -8,7 +9,11 @@ import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
 	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/xtls/xray-core/infra/conf/serial"
+	"maps"
 	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -104,5 +109,95 @@ func TestCompactAllSelectableCardsAndInternalDependencies(t *testing.T) {
 	}
 	if _, changed, err := compactRulesetSnapshot(compact, root); err != nil || changed {
 		t.Fatal("repeat migration", err, changed)
+	}
+	// Exercise application, not just asset publication: aggregate cards can
+	// contain both their own compact reference and references to dependencies.
+	for _, choice := range choices {
+		t.Run(choice.ID, func(t *testing.T) {
+			base := xray.DefaultBaseConfig()
+			base.DefaultPolicy = "one"
+			base.Policies = []xray.BasePolicy{{ID: "one", Rules: []xray.RouteRule{{ID: "services", Action: "direct", ServicePacks: []string{choice.ID}}}}}
+			compiled, err := withRulesets(base, []settings.Policy{{ID: "one"}}, compact, root)
+			if err != nil {
+				t.Fatal("apply compact card", err)
+			}
+			for _, ref := range compiled.Policies[0].Rules[0].ServiceDomains {
+				if err := geoipasset.VerifyDomain(root, ref); err != nil {
+					t.Fatal("card did not retain a valid shared asset", err)
+				}
+			}
+		})
+	}
+	// Countries, overlapping aggregate selections and mixed old/new snapshots
+	// must compile to the same routing and DNS references after restart/update.
+	snapshot.Countries = map[string]rulesets.CountryRules{}
+	base := xray.DefaultBaseConfig()
+	base.DefaultPolicy = "one"
+	base.Policies = []xray.BasePolicy{{ID: "one", Rules: []xray.RouteRule{{ID: "services", Action: "direct", ServicePacks: append(ids, ids...)}}}}
+	for _, country := range []string{"ru", "cn", "ir"} {
+		snapshot.Countries[country] = rulesets.CountryRules{Geosite: rulesets.Rules{Suffix: []string{"example." + country}, Exact: []string{"exact." + country}, Keyword: []string{"needle-" + country}, Regex: []string{`^regex\.` + country + `$`}}, GeoIP: []string{"198.51.100.0/24", "2001:db8::/32"}}
+		base.Policies[0].Rules = append(base.Policies[0].Rules, xray.RouteRule{ID: "country-" + country, Action: "proxy", Country: country, UseGeosite: true, UseGeoIP: true})
+	}
+	compact, _, err = compactRulesetSnapshot(snapshot, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "rulesets.json")
+	if err := rulesets.Save(path, compact); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := rulesets.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mixed := restored
+	mixed.Packs = maps.Clone(restored.Packs)
+	for i, id := range ids {
+		if raw, ok := snapshot.Packs[id]; ok && i%2 == 0 {
+			mixed.Packs[id] = raw
+		}
+	}
+	t.Setenv("XRAY_LOCATION_ASSET", root)
+	var expected []xray.BasePolicy
+	for _, stage := range []struct {
+		name string
+		data rulesets.Snapshot
+	}{{"raw", snapshot}, {"compact", compact}, {"restored", restored}, {"mixed", mixed}} {
+		t.Run(stage.name, func(t *testing.T) {
+			compiled, err := withRulesets(base, []settings.Policy{{ID: "one"}}, stage.data, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if expected == nil {
+				expected = compiled.Policies
+			} else if !reflect.DeepEqual(expected, compiled.Policies) {
+				t.Fatal("routing changed with snapshot storage format")
+			}
+			for _, rule := range compiled.Policies[0].Rules {
+				seen := map[string]bool{}
+				for _, ref := range rule.ServiceDomains {
+					if seen[ref] {
+						t.Fatal("overlapping cards duplicated component", ref)
+					}
+					seen[ref] = true
+				}
+			}
+			body, err := xray.RenderBase(compiled)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := serial.LoadJSONConfig(bytes.NewReader(body)); err != nil {
+				t.Fatal("Xray rejected shared country/service assets", err)
+			}
+			dnsPolicies := dnsPoliciesFromBase(compiled)
+			if len(dnsPolicies) != 1 || len(dnsPolicies[0].Rules) != len(compiled.Policies[0].Rules) {
+				t.Fatal("DNS rules lost during aggregate expansion")
+			}
+			for i, rule := range dnsPolicies[0].Rules {
+				if rule.Action != compiled.Policies[0].Rules[i].Action {
+					t.Fatal("DNS action changed")
+				}
+			}
+		})
 	}
 }

@@ -17,17 +17,18 @@ type Process struct {
 	FDLimit int64 `json:"fd_limit"`
 }
 type Snapshot struct {
-	UpdatedAt    time.Time  `json:"updated_at"`
-	TotalKiB     int64      `json:"total_kib"`
-	AvailableKiB int64      `json:"available_kib"`
-	LowMemory    bool       `json:"low_memory"`
-	Controller   *Process   `json:"controller"`
-	Core         *Process   `json:"core"`
-	TCP          *int64     `json:"tcp_sessions"`
-	UDP          *int64     `json:"udp_sessions"`
-	Budget       Budget     `json:"budget"`
-	ControllerGo *GoRuntime `json:"controller_go"`
-	LastOOM      *time.Time `json:"last_oom,omitempty"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	UpdatedUptimeSeconds float64    `json:"updated_uptime_seconds,omitempty"`
+	TotalKiB             int64      `json:"total_kib"`
+	AvailableKiB         int64      `json:"available_kib"`
+	LowMemory            bool       `json:"low_memory"`
+	Controller           *Process   `json:"controller"`
+	Core                 *Process   `json:"core"`
+	TCP                  *int64     `json:"tcp_sessions"`
+	UDP                  *int64     `json:"udp_sessions"`
+	Budget               Budget     `json:"budget"`
+	ControllerGo         *GoRuntime `json:"controller_go"`
+	LastOOM              *time.Time `json:"last_oom,omitempty"`
 }
 
 func readKiB(path string) map[string]int64 {
@@ -86,5 +87,5 @@ func ReadSnapshot(corePID int) Snapshot {
 	if threshold < 16*1024 {
 		threshold = 16 * 1024
 	}
-	return Snapshot{UpdatedAt: time.Now().UTC(), TotalKiB: total, AvailableKiB: available, LowMemory: values != nil && available < threshold, Controller: ReadProcess("/proc", os.Getpid()), Core: ReadProcess("/proc", corePID), Budget: CurrentBudget(), ControllerGo: ReadGoRuntime()}
+	return Snapshot{UpdatedAt: time.Now().UTC(), UpdatedUptimeSeconds: BootSeconds(), TotalKiB: total, AvailableKiB: available, LowMemory: values != nil && available < threshold, Controller: ReadProcess("/proc", os.Getpid()), Core: ReadProcess("/proc", corePID), Budget: CurrentBudget(), ControllerGo: ReadGoRuntime()}
 }

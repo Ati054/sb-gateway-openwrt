@@ -84,10 +84,16 @@ func Featured() ([]Choice, error) {
 
 // ValidateSelection checks selectable cards and their dependency graph.
 func ValidateSelection(selected []string) error {
+	_, err := Components(selected)
+	return err
+}
+
+// Components resolves selectable cards into unique catalog components. Keeping
+// each component separate lets aggregate cards reuse immutable domain assets.
+func Components(selected []string) ([]string, error) {
 	packs, err := index()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = selectedPacks(selected, packs)
-	return err
+	return selectedPacks(selected, packs)
 }

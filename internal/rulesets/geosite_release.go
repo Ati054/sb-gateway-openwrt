@@ -21,10 +21,13 @@ type ReleaseFetch func(context.Context) (io.ReadCloser, error)
 
 // One bounded download replaces hundreds of per-include HTTP requests. The
 // full release is never persisted; only selected country rules enter Snapshot.
-func GeoSiteReleaseHTTPFetch(timeout time.Duration) ReleaseFetch {
+func GeoSiteReleaseHTTPFetch(timeout time.Duration, transports ...http.RoundTripper) ReleaseFetch {
 	client := &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return errors.New("GeoSite redirect is not allowed")
 	}}
+	if len(transports) > 0 {
+		client.Transport = transports[0]
+	}
 	return func(ctx context.Context) (io.ReadCloser, error) {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, geoSiteReleaseURL, nil)
 		if err != nil {

@@ -1266,6 +1266,27 @@ msgstr "Заблокирован"
 msgid "Waiting for checks"
 msgstr "Ожидание проверки"
 
+msgid "Starting"
+msgstr "Запускается"
+
+msgid "Status data is stale"
+msgstr "Нет свежих данных"
+
+msgid "DNS takeover failed; previous DNS restored. See the journal."
+msgstr "Не удалось передать DNS; прежние настройки восстановлены. Подробности в журнале."
+
+msgid "%d downloaded · %d cached · %d unavailable"
+msgstr "Скачано: %d · Из кэша: %d · Недоступно: %d"
+
+msgid "Downloaded"
+msgstr "Скачано"
+
+msgid "Rule database update was not applied; previous rules remain active. %s"
+msgstr "Обновление баз правил не применено; действуют прежние правила. %s"
+
+msgid "Some rule databases could not be updated. See Rule databases for details."
+msgstr "Не удалось обновить часть баз правил. Подробности в разделе «Базы правил»."
+
 msgid "Not confirmed"
 msgstr "Не подтверждён"
 

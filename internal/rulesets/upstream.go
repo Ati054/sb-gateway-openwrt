@@ -41,10 +41,13 @@ type Fetch func(context.Context, string) (string, error)
 
 // HTTPFetch only reads the pinned upstream host. Redirects, oversized bodies,
 // invalid UTF-8 and non-200 replies fail closed; the last good rules stay put.
-func HTTPFetch(timeout time.Duration) Fetch {
+func HTTPFetch(timeout time.Duration, transports ...http.RoundTripper) Fetch {
 	client := &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return errors.New("ruleset redirect is not allowed")
 	}}
+	if len(transports) > 0 {
+		client.Transport = transports[0]
+	}
 	return func(ctx context.Context, name string) (string, error) {
 		if !upstreamName.MatchString(name) {
 			return "", errors.New("invalid upstream ruleset name")
@@ -69,6 +72,21 @@ func HTTPFetch(timeout time.Duration) Fetch {
 			return "", fmt.Errorf("ruleset %s is invalid or oversized", name)
 		}
 		return string(body), nil
+	}
+}
+
+// FallbackFetch retries a failed download through the alternate route. A
+// canceled update never starts another network request.
+func FallbackFetch(primary, fallback Fetch) Fetch {
+	return func(ctx context.Context, name string) (string, error) {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		body, err := primary(ctx, name)
+		if err == nil || ctx.Err() != nil {
+			return body, err
+		}
+		return fallback(ctx, name)
 	}
 }
 

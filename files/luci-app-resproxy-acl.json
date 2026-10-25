@@ -10,6 +10,9 @@
         "dhcp"
       ],
       "file": {
+        "/proc/uptime": [
+          "read"
+        ],
         "/usr/libexec/sb-gateway-upgrade status": [
           "exec"
         ],

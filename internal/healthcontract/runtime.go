@@ -5,8 +5,9 @@ import "time"
 // RuntimeSnapshot is deliberately independent of retained measurement history.
 // Its publication time is a lease, not evidence that a selector was confirmed.
 type RuntimeSnapshot struct {
-	UpdatedAt time.Time                `json:"updated_at"`
-	Policies  map[string]RuntimePolicy `json:"policies"`
+	UpdatedAt            time.Time                `json:"updated_at"`
+	UpdatedUptimeSeconds float64                  `json:"updated_uptime_seconds,omitempty"`
+	Policies             map[string]RuntimePolicy `json:"policies"`
 }
 
 type RuntimePolicy struct {

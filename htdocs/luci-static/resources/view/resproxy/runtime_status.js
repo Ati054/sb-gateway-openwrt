@@ -12,6 +12,18 @@ function read(name,large) {
   throw error;
  });
 }
+function uptime() {
+ return fs.read('/proc/uptime').then(function(body) {
+  var value=parseFloat(body);
+  return Number.isFinite(value) && value>=0 ? value : null;
+ }).catch(function() { return null; });
+}
+function snapshotAge(snapshot,boot) {
+ if (!snapshot) return Infinity;
+ if (boot!=null && Number.isFinite(snapshot.updated_uptime_seconds) && snapshot.updated_uptime_seconds>0)
+  return (boot-snapshot.updated_uptime_seconds)*1000;
+ return Date.now()-Date.parse(snapshot.updated_at);
+}
 function serviceRunning(result) {
  var instances=result.resproxy && result.resproxy.instances || {};
  return Object.keys(instances).some(function(id) { return instances[id].running===true; });
@@ -59,14 +71,20 @@ return baseclass.extend({
  snapshot:function() {
   return Promise.all([read('health-state/monitor.json',true),read('health-state/selector-runtime.json'),
    read('catalog-summary.json'),read('subscription-status.json'),read('resources.json'),
-   read('dns-status.json'),read('dns-interop.json'),services('resproxy')]).then(function(data) {
+   read('dns-status.json'),read('dns-interop.json'),services('resproxy'),uptime()]).then(function(data) {
    return catalog(data[2]).then(function(summary) {data[2]=summary;return data;});
   }).then(function(data) {
    var view=data[0],runtime=data[1],running=serviceRunning(data[7]),now=Date.now();
-   var age=runtime ? now-Date.parse(runtime.updated_at) : Infinity;
+   var age=snapshotAge(runtime,data[8]);
+   var resourceAge=snapshotAge(data[4],data[8]);
+   var resourceFresh=running && resourceAge>=-1000 && resourceAge<30000;
    var health=view && view.health || [];
    var lease=health.reduce(function(seconds,policy) {return Math.max(seconds,((policy.probe_limits || {}).liveness_seconds || 0)+5);},20);
    var valid=running && age>=-1000 && age<=lease*1000;
+   // Keep measurement freshness in the router's clock domain. Browser clocks
+   // and NTP adjustments must not hide a live selector or fresh process data.
+   var clock=runtime && Number.isFinite(age) ? Date.parse(runtime.updated_at)+age :
+    resourceFresh ? Date.parse(data[4].updated_at)+resourceAge : now;
    // Runtime publication precedes history/view publication. Use the newest
    // confirmed selector even when a view read straddles an atomic replacement.
    health.forEach(function(policy) {
@@ -75,7 +93,10 @@ return baseclass.extend({
    });
    return {status:{running:running,nodes:data[2] ? data[2].nodes : 0,
     policies:valid ? runtime.policies : {},subscriptions:sources(data[2],data[3]),
-    resources:data[4],dns:data[5],dns_interop:data[6]},health:deltas(health,Math.floor(now/1000))};
+    resources:data[4],resources_fresh:resourceFresh,now:clock,
+    runtime_pending:!runtime || !Object.keys(runtime.policies || {}).length,
+    runtime_stale:running && !!runtime && !valid,
+    dns:data[5],dns_interop:data[6]},health:deltas(health,Math.floor(clock/1000))};
   });
  },
  sources:function() {return Promise.all([read('catalog-summary.json').then(catalog),read('subscription-status.json')]).then(function(data) {return sources(data[0],data[1]);});},

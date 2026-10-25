@@ -39,6 +39,9 @@ func TestMonitorPublishesCompactViewsAndRevokesStartupWAN(t *testing.T) {
 	if !runtime.Policies["resproxy-main"].WANFallbackActive || time.Since(runtime.UpdatedAt) > time.Second {
 		t.Fatal("lost confirmed WAN or backdated publication", runtime)
 	}
+	if _, err := os.Stat("/proc/uptime"); err == nil && runtime.UpdatedUptimeSeconds <= 0 {
+		t.Fatal("runtime lease has no monotonic publication timestamp")
+	}
 	body, err := os.ReadFile(filepath.Join(root, "monitor.json"))
 	if err != nil {
 		t.Fatal(err)

@@ -33,10 +33,13 @@ const geoIPBase = "https://raw.githubusercontent.com/v2fly/geoip/release/text/"
 const maxGeoIPEntries = 50000
 
 // GeoIPHTTPFetch is restricted to three reviewed country files on one host.
-func GeoIPHTTPFetch(timeout time.Duration) Fetch {
+func GeoIPHTTPFetch(timeout time.Duration, transports ...http.RoundTripper) Fetch {
 	client := &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return errors.New("GeoIP redirect is not allowed")
 	}}
+	if len(transports) > 0 {
+		client.Transport = transports[0]
+	}
 	return func(ctx context.Context, country string) (string, error) {
 		if countryGeositeRoot[country] == "" {
 			return "", errors.New("unsupported GeoIP country")
@@ -117,7 +120,7 @@ func GeoSiteExpressions(rules Rules) []string {
 // BuildSelected fetches only selected GeoSite/GeoIP country data. If a source
 // fails, the last good copy remains active; unrelated routes are unaffected.
 func BuildSelected(ctx context.Context, packs []string, countries map[string]CountrySelection,
-	previous Snapshot, packFetch Fetch, releaseFetch ReleaseFetch, geoIPFetch Fetch) (Snapshot, []PackStatus, error) {
+	previous Snapshot, packFetch Fetch, releaseFetch ReleaseFetch, geoIPFetch Fetch, releaseFallbacks ...ReleaseFetch) (Snapshot, []PackStatus, error) {
 	result, statuses, err := Build(ctx, packs, previous, packFetch)
 	if err != nil {
 		return Snapshot{}, nil, err
@@ -140,22 +143,7 @@ func BuildSelected(ctx context.Context, packs []string, countries map[string]Cou
 	var geoSiteRules map[string]Rules
 	var releaseErr error
 	if len(selectedGeoSite) > 0 {
-		if releaseFetch == nil {
-			releaseErr = errors.New("GeoSite release fetcher is unavailable")
-		} else {
-			var body io.ReadCloser
-			body, releaseErr = releaseFetch(ctx)
-			if releaseErr == nil {
-				if body == nil {
-					releaseErr = errors.New("GeoSite body is missing")
-				} else {
-					geoSiteRules, releaseErr = CompileGeoSiteReader(body, selectedGeoSite)
-					if closeErr := body.Close(); releaseErr == nil {
-						releaseErr = closeErr
-					}
-				}
-			}
-		}
+		geoSiteRules, releaseErr = fetchGeoSiteRules(ctx, selectedGeoSite, append([]ReleaseFetch{releaseFetch}, releaseFallbacks...))
 	}
 	for _, country := range keys {
 		requested := countries[country]
@@ -197,4 +185,39 @@ func BuildSelected(ctx context.Context, packs []string, countries map[string]Cou
 		return Snapshot{}, nil, err
 	}
 	return result, statuses, nil
+}
+
+// Retry the complete stream after read/parse failure too. No partial country
+// map from a failed attempt is published, and the release is never buffered.
+func fetchGeoSiteRules(ctx context.Context, selected map[string]bool, sources []ReleaseFetch) (map[string]Rules, error) {
+	lastErr := errors.New("GeoSite release fetcher is unavailable")
+	for _, fetch := range sources {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if fetch == nil {
+			continue
+		}
+		body, err := fetch(ctx)
+		if err != nil {
+			if body != nil {
+				body.Close()
+			}
+			lastErr = err
+			continue
+		}
+		if body == nil {
+			lastErr = errors.New("GeoSite body is missing")
+			continue
+		}
+		rules, err := CompileGeoSiteReader(body, selected)
+		if closeErr := body.Close(); err == nil {
+			err = closeErr
+		}
+		if err == nil {
+			return rules, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }

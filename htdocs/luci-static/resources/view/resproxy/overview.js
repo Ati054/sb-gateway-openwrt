@@ -44,7 +44,7 @@ return view.extend({
   var errors=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
   var checked=E('span', { 'class':'sbg-muted', 'aria-live':'off' });
   var dbSummary=E('p'), dbBody=E('tbody');
-  var dbError=E('p', { 'class':'alert-message warning', hidden:'' });
+  var dbError=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
   function addPair(list, title, value) { list.appendChild(E('div', {}, [E('dt', {}, title),E('dd', {}, value)])); }
   function paint(result) {
    result.forEach(function(item) {
@@ -57,11 +57,11 @@ return view.extend({
    info.replaceChildren(); dns.replaceChildren();
    var routeRows=document.createDocumentFragment();
    var status=values.status, policies=values.health || [];
-   addPair(info,_('Service'),status ? status.running ? _('Running') : _('Stopped') : _('No data'));
+   addPair(info,_('Service'),status ? status.running ? status.runtime_pending ? _('Starting') : status.runtime_stale ? _('Status data is stale') : _('Running') : _('Stopped') : _('No data'));
    addPair(info,_('Active catalog'),status ? _('%d nodes').format(status.nodes) : '—');
    addPair(info,_('DNS mode'),dnsMode(status));
    var resources=status && status.resources;
-   var resourceFresh=status && status.running && resources && Date.now()-Date.parse(resources.updated_at)<30000;
+   var resourceFresh=status && status.resources_fresh && resources;
    function ram(process) {
     if (!resourceFresh || !process) return '—';
     return E('span', { title:_('RssAnon: %s · Files: %s / %s').format((process.anon_kib/1024).toFixed(1)+' MiB',process.fds,process.fd_limit || '—') },(process.rss_kib/1024).toFixed(1)+' MiB');
@@ -74,7 +74,7 @@ return view.extend({
    var memoryMessages=[];
    if (resourceFresh && resources.low_memory) memoryMessages.push(_('Low available router memory. Reduce connection load or selected rule sets.'));
    if (resourceFresh && resources.core && resources.core.fd_limit>0 && resources.core.fds>=resources.core.fd_limit*0.8) memoryMessages.push(_('Xray is near its open-file limit.'));
-   if (resources && resources.last_oom && Date.now()-Date.parse(resources.last_oom)<600000) memoryMessages.push(_('Xray was stopped by the kernel for lack of memory. See the journal.'));
+   if (resources && resources.last_oom && status.now-Date.parse(resources.last_oom)>=0 && status.now-Date.parse(resources.last_oom)<600000) memoryMessages.push(_('Xray was stopped by the kernel for lack of memory. See the journal.'));
    memoryWarning.hidden=!memoryMessages.length; memoryWarning.textContent=memoryMessages.join(' ');
    var routeLists=uci.sections('resproxy','policy');
    // Saved lists remain selectable before the controller's first measurement.
@@ -90,7 +90,7 @@ return view.extend({
     var node=policy && policy.nodes.find(function(n) { return n.id === selected; });
     var ruleWAN=state && state.runtime_confirmed && state.wan_fallback_active && selected === 'block';
     var label=node ? node.label : ruleWAN ? _('WAN by rules') : selected === 'block' ? _('Blocked') : '—';
-    var routeState=!status ? _('No data') : !status.running ? _('Stopped') : !state ? _('Waiting for checks') :
+    var routeState=!status ? _('No data') : !status.running ? _('Stopped') : !state ? status.runtime_stale ? _('Status data is stale') : _('Starting') :
      state.runtime_error ? _('Error') : ruleWAN ? _('Fallback WAN') : selected === 'block' ? _('Blocked') :
      state.runtime_confirmed ? _('Active') : _('Not confirmed');
     var row=E('tr', { 'class':'tr' }, [cell(id),cell(label),cell(routeState),
@@ -111,7 +111,8 @@ return view.extend({
     'other-dns-service':_('Another DNS service is running; DNS capture is disabled.'),
     'other-dns-redirect':_('Another DNS redirect is present; DNS capture is disabled.'),
     'firewall-inspection-failed':_('Unable to inspect firewall; DNS capture is disabled.'),
-    'listener-failed':_('DNS listener failed. See the journal.')
+    'listener-failed':_('DNS listener failed. See the journal.'),
+    'router-dns-handoff-failed':_('DNS takeover failed; previous DNS restored. See the journal.')
    };
    dnsWarning.hidden=!(interop && interop.reason);
    dnsWarning.textContent=interop && interop.reason ? warning[interop.reason] || interop.reason : '';
@@ -125,13 +126,17 @@ return view.extend({
     var stale=packs.filter(function(p) { return p.state==='stale'; }).length;
     var unavailable=packs.filter(function(p) { return p.state==='unavailable'; }).length;
     dbSummary.textContent=!catalog ? _('No data') : !database ? _('No catalog update yet.') :
-     _('%d loaded · %d cached · %d unavailable').format(loaded,stale,unavailable) +
+     _('%d downloaded · %d cached · %d unavailable').format(loaded,stale,unavailable) +
       (database.checked_at ? ' · '+new Date(database.checked_at).toLocaleString() : '');
     packs.forEach(function(p) {
-     var state={ updated:_('Updated'),unchanged:_('Unchanged'),stale:_('Last good copy'),unavailable:_('Not loaded') }[p.state] || p.state;
+     var state={ updated:_('Downloaded'),unchanged:_('Unchanged'),stale:_('Last good copy'),unavailable:_('Not loaded') }[p.state] || p.state;
      dbBody.appendChild(E('tr', {},[cell(names[p.id] || p.id),cell(state),cell(String(p.entries || 0)),cell(p.error || '—')]));
     });
-    dbError.hidden=!(database && database.error); dbError.textContent=database && database.error || '';
+    var failedPacks=packs.filter(function(p) { return !!p.error; }).length;
+    dbError.hidden=!(database && database.error) && !failedPacks;
+    dbError.textContent=database && database.error ?
+     _('Rule database update was not applied; previous rules remain active. %s').format(database.error) :
+     failedPacks ? _('Some rule databases could not be updated. See Rule databases for details.') : '';
    }
    if (result.some(function(item) { return !item.error; })) checked.textContent=_('Updated at %s').format(new Date().toLocaleTimeString());
   }
@@ -144,12 +149,12 @@ return view.extend({
    return snapshot(keys).then(paint).finally(function() { refreshing=false; refresh.disabled=false; });
   }
   var dashboard=E('div', { 'class':'sbg-overview' },[
-   E('div', { 'class':'sbg-overview-toolbar' },[refresh,checked]),errors,
+   E('div', { 'class':'sbg-overview-toolbar' },[refresh,checked]),errors,dbError,
    info,memoryWarning,E('h3',{},_('Route lists')),
    displayTable([_('Route list'),_('Selected node'),_('Status'),_('Latency'),_('Healthy reserves')],routes),
    health.node,
    E('h3',{},_('DNS requests')),E('small', { 'class':'sbg-muted' },_('Since service start')),dns,dnsWarning,
-   E('details', { 'class':'sbg-overview-detail' },[E('summary',{},_('Rule databases')),dbSummary,dbError,
+   E('details', { 'class':'sbg-overview-detail' },[E('summary',{},_('Rule databases')),dbSummary,
     displayTable([_('List'),_('Status'),_('Rules'),_('Error')],dbBody)])
   ]);
   var map=new form.Map('resproxy');

@@ -2,6 +2,7 @@ package agentport
 
 import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
+	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -54,7 +55,7 @@ type MonitorStats struct {
 }
 
 func runtimeSnapshot(state healthState, now time.Time) RuntimeSnapshot {
-	result := RuntimeSnapshot{UpdatedAt: now.UTC(), Policies: make(map[string]RuntimePolicy, len(state))}
+	result := RuntimeSnapshot{UpdatedAt: now.UTC(), UpdatedUptimeSeconds: resources.BootSeconds(), Policies: make(map[string]RuntimePolicy, len(state))}
 	for id, item := range state {
 		if item == nil {
 			continue

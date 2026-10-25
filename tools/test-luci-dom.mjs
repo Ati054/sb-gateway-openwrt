@@ -76,16 +76,17 @@ try {
   let alive=true, monitorReads=0, poller;
   const stamp=()=>new Date().toISOString();
   const sample=(id,label,delay)=>({id,label,available:true,latest_delay_ms:delay,latest_quality_at:Math.floor(Date.now()/1000),period_stats:{today:{samples:17,availability_percent:100,median_ms:delay}}});
-  const runtime={updated_at:stamp(),policies:{'resproxy-all':{selected:'a',runtime_selected:'a',runtime_confirmed:true},'resproxy-pc':{selected:'block',runtime_selected:'block',runtime_confirmed:true,wan_fallback_active:true}}};
+  const runtime={updated_at:stamp(),updated_uptime_seconds:999,policies:{'resproxy-all':{selected:'a',runtime_selected:'a',runtime_confirmed:true},'resproxy-pc':{selected:'block',runtime_selected:'block',runtime_confirmed:true,wan_fallback_active:true}}};
+  const ruleStatus={error:'unsupported GeoSite expression',packs:[{id:'cn-all',state:'updated',entries:10}]};
   const files={
    'health-state/selector-runtime.json':runtime,
    'health-state/monitor.json':{updated_at:stamp(),health:[{id:'all',mode:'best',healthy_reserves:1,candidate_count:2,probe_limits:{active_seconds:60},nodes:[sample('a',payload,450),sample('b','Backup',300)]},{id:'pc',mode:'priority',healthy_reserves:0,candidate_count:1,nodes:[sample('b','Backup',300)]}]},
-   'catalog-summary.json':{nodes:842,counts:{source:842}},'subscription-status.json':{},'dns-status.json':{queries:42},'dns-interop.json':{effective_mode:'proxy-only'},'resources.json':null
+   'catalog-summary.json':{nodes:842,counts:{source:842}},'subscription-status.json':{},'dns-status.json':{queries:42},'dns-interop.json':{effective_mode:'proxy-only'},'resources.json':{updated_at:stamp(),updated_uptime_seconds:998,controller:{rss_kib:49152,anon_kib:20000,fds:20,fd_limit:8192},core:{rss_kib:40960,anon_kib:20000,fds:30,fd_limit:8192},available_kib:90000,tcp_sessions:10,udp_sessions:2}
   };
   function read(path) {monitorReads++;return structuredClone(files[path.replace('/var/run/resproxy/','')]);}
-  const fs={read:async path=>JSON.stringify(read(path)),read_direct:async path=>read(path),exec:async command=>{
+  const fs={read:async path=>path==='/proc/uptime' ? '1000 1500' : JSON.stringify(read(path)),read_direct:async path=>read(path),exec:async command=>{
    if(command!='/usr/libexec/resproxy-rulesets')throw Error('Overview launched a status/health CLI');
-   return {code:0,stdout:JSON.stringify({choices:[],status:{packs:[]}})};
+   return {code:0,stdout:JSON.stringify({choices:[],status:ruleStatus})};
   }};
   const rpc={declare:()=>async()=>({resproxy:{instances:{gateway:{running:alive}}}})};
   const monitor=new Function('baseclass','fs','rpc',sources.runtime_status)(baseclass,fs,rpc);
@@ -104,6 +105,15 @@ try {
   configured=savedPolicies;
   const routeRows=()=>dashboard.querySelector('.sbg-overview > .sbg-table-scroll tbody').rows;
   if(!dashboard.textContent.includes('842 nodes') || !routeRows()[1].textContent.includes('Fallback WAN'))throw Error('Prepared metadata or WAN state lost in overview');
+  const databaseWarning=Array.from(dashboard.querySelectorAll('.alert-message')).find(node=>node.textContent.includes('Rule database update was not applied'));
+  if(!databaseWarning || databaseWarning.hidden || databaseWarning.closest('details') || !databaseWarning.getBoundingClientRect().height)throw Error('Database failure hidden in collapsed details');
+  if(dashboard.querySelector('details[open]'))throw Error('Regression fixture must keep database details collapsed');
+  const realNow=Date.now;
+  for(const skew of [-7*3600000,7*3600000]) {
+   Date.now=()=>realNow()+skew;await poller();
+   if(!routeRows()[0].textContent.includes('Active') || !dashboard.textContent.includes('48.0 MiB'))throw Error('PC clock hid active route or RAM');
+  }
+  Date.now=realNow;
   if(dashboard.querySelector('img'))throw Error('Prepared label parsed as HTML');
   runtime.policies['resproxy-pc']={selected:'b',runtime_selected:'b',runtime_confirmed:true};runtime.updated_at=stamp();
   await poller();
@@ -115,7 +125,7 @@ try {
   if(!monitorReads)throw Error('Prepared reader was not exercised');
   await new Promise(resolve => setTimeout(resolve, 50));
   if (document.querySelector('img,svg,script') || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
-  return {negativeControl:true, health:true, picker:true, scalarAndCallback:true, overviewMonitoring:true, images:0, executed:0};
+  return {negativeControl:true, health:true, picker:true, scalarAndCallback:true, overviewMonitoring:true, clockIndependentStatus:true, visibleDatabaseFailure:true, images:0, executed:0};
  }, { sources, stockDOM });
  assert.deepEqual(errors, []);
  console.log(JSON.stringify(result));

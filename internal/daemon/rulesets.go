@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"time"
 
 	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
@@ -19,6 +18,7 @@ import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
 	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
 
@@ -60,8 +60,10 @@ func withRulesets(base xray.BaseConfig, policies []settings.Policy, snapshot rul
 		base.Policies[index].Rules = append([]xray.RouteRule(nil), base.Policies[index].Rules...)
 		for ruleIndex := range base.Policies[index].Rules {
 			rule := &base.Policies[index].Rules[ruleIndex]
-			selectedPacks := append([]string(nil), rule.ServicePacks...)
-			sort.Strings(selectedPacks)
+			selectedPacks, err := rulesets.Components(rule.ServicePacks)
+			if err != nil {
+				return xray.BaseConfig{}, err
+			}
 			var serviceExpressions []string
 			for _, packID := range selectedPacks {
 				expressions, found := serviceDomains[packID]
@@ -72,7 +74,7 @@ func withRulesets(base xray.BaseConfig, policies []settings.Policy, snapshot rul
 						}
 					}
 					var err error
-					expressions, err = rulesets.Expressions([]string{packID}, snapshot)
+					expressions, err = rulesets.PackExpressions(packID, snapshot)
 					if err != nil {
 						return xray.BaseConfig{}, err
 					}
@@ -211,9 +213,7 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 		if leaseErr != nil {
 			return
 		}
-		candidate, packStatuses, err := rulesets.BuildSelected(ctx, selected, countries, current,
-			rulesets.HTTPFetch(20*time.Second), rulesets.GeoSiteReleaseHTTPFetch(30*time.Second),
-			rulesets.GeoIPHTTPFetch(20*time.Second))
+		candidate, packStatuses, err := fetchSelectedRulesets(ctx, selected, countries, current, config.Base.HTTPPort)
 		if err == nil {
 			candidate, _, err = compactRulesetSnapshot(candidate, filepath.Join(paths.DataRoot, "geoip-assets"))
 			if err == nil {
@@ -297,6 +297,23 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 		}
 		release()
 	}
+}
+
+func fetchSelectedRulesets(ctx context.Context, selected []string, countries map[string]rulesets.CountrySelection, current rulesets.Snapshot, proxyPort int) (rulesets.Snapshot, []rulesets.PackStatus, error) {
+	direct := subscription.NewHTTPClient(0)
+	defer direct.CloseIdleConnections()
+	directPacks := rulesets.HTTPFetch(20*time.Second, direct.Transport)
+	directGeoIP := rulesets.GeoIPHTTPFetch(20*time.Second, direct.Transport)
+	directRelease := rulesets.GeoSiteReleaseHTTPFetch(30*time.Second, direct.Transport)
+	if proxyPort <= 0 {
+		return rulesets.BuildSelected(ctx, selected, countries, current, directPacks, directRelease, directGeoIP)
+	}
+	proxy := subscription.NewHTTPClient(proxyPort)
+	defer proxy.CloseIdleConnections()
+	return rulesets.BuildSelected(ctx, selected, countries, current,
+		rulesets.FallbackFetch(rulesets.HTTPFetch(20*time.Second, proxy.Transport), directPacks),
+		rulesets.GeoSiteReleaseHTTPFetch(30*time.Second, proxy.Transport),
+		rulesets.FallbackFetch(rulesets.GeoIPHTTPFetch(20*time.Second, proxy.Transport), directGeoIP), directRelease)
 }
 
 // Retain both confirmed and pending references before changing a live routing table.

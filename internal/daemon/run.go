@@ -595,16 +595,39 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 }
 
 func verifyRouterDNS(ctx context.Context) error {
-	checkCtx, cancel := context.WithTimeout(ctx, 7*time.Second)
-	defer cancel()
 	resolver := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, network, "127.0.0.1:53")
 	}}
-	addresses, err := resolver.LookupNetIP(checkCtx, "ip4", "example.com")
-	if err != nil || len(addresses) == 0 {
-		return fmt.Errorf("router DNS did not answer through managed WAN path: %w", err)
+	return waitRouterDNS(ctx, func(checkCtx context.Context) error {
+		addresses, err := resolver.LookupNetIP(checkCtx, "ip4", "example.com")
+		if err == nil && len(addresses) == 0 {
+			err = errors.New("empty DNS response")
+		}
+		return err
+	})
+}
+
+// procd can return from dnsmasq restart before the new listener is ready.
+// Retry within the existing total deadline, with no delay on a working DNS path.
+func waitRouterDNS(ctx context.Context, lookup func(context.Context) error) error {
+	checkCtx, cancel := context.WithTimeout(ctx, 7*time.Second)
+	defer cancel()
+	for {
+		if err := checkCtx.Err(); err != nil {
+			return err
+		}
+		err := lookup(checkCtx)
+		if err == nil {
+			return nil
+		}
+		timer := time.NewTimer(200 * time.Millisecond)
+		select {
+		case <-checkCtx.Done():
+			timer.Stop()
+			return fmt.Errorf("router DNS did not answer through managed WAN path: %w", errors.Join(err, checkCtx.Err()))
+		case <-timer.C:
+		}
 	}
-	return nil
 }
 
 func retainConfiguredSources(store generation.Store, nodes []catalog.Node, sources []settings.Subscription) ([]catalog.Node, error) {
