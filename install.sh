@@ -24,9 +24,10 @@ trap 'exit 129' HUP
 fetch() {
  limit=${3:-1048576}
  fifo=$work/download.pipe
+ download_log=$work/download.log
  mkfifo "$fifo"
- if command -v uclient-fetch >/dev/null; then uclient-fetch -q -T 30 -O - "$1" > "$fifo" &
- elif command -v wget >/dev/null; then wget -q -T 30 -O - "$1" > "$fifo" &
+ if command -v uclient-fetch >/dev/null; then uclient-fetch -T 30 -O - "$1" > "$fifo" 2> "$download_log" &
+ elif command -v wget >/dev/null; then wget -T 30 -O - "$1" > "$fifo" 2> "$download_log" &
  else rm -f "$fifo"; echo 'wget or uclient-fetch is required.' >&2; return 1; fi
  fetch_pid=$!
  if ! head -c "$((limit+1))" < "$fifo" > "$2"; then
@@ -37,19 +38,22 @@ fetch() {
  wait "$fetch_pid" || download_status=$?
  fetch_pid=; rm -f "$fifo"
  [ "$(wc -c < "$2")" -le "$limit" ] || { echo 'Download exceeds the size limit.' >&2; return 1; }
- [ "$download_status" = 0 ] && [ -s "$2" ] || { echo 'Download failed.' >&2; return 1; }
+ if [ "$download_status" != 0 ] || [ ! -s "$2" ]; then
+  echo "Download failed: $1 (exit $download_status)." >&2
+  cat "$download_log" >&2
+  return 1
+ fi
 }
 
 echo 'Checking release...'
-fetch "https://api.github.com/repos/Ati054/sb-gateway-openwrt/releases?per_page=20" "$work/releases.json"
-[ "$(wc -c < "$work/releases.json")" -le 1048576 ] || { echo 'Invalid release list.' >&2; exit 1; }
-tag=$(jsonfilter -i "$work/releases.json" -e '@[@.draft=false && @.prerelease=false].tag_name' | head -n 1)
-printf '%s' "$tag" | grep -Eq '^v[0-9][A-Za-z0-9._-]{0,79}$' || { echo 'No published release yet.' >&2; exit 1; }
-base=$repo/releases/download/$tag
-fetch "$base/release.json" "$work/release.json" 16384
+# GitHub's latest download endpoint selects the stable release without the
+# unauthenticated API quota shared by routers behind the same public IP.
+fetch "$repo/releases/latest/download/release.json" "$work/release.json" 16384
 [ "$(wc -c < "$work/release.json")" -le 16384 ] || { echo 'Invalid release metadata.' >&2; exit 1; }
 [ "$(jsonfilter -i "$work/release.json" -e '@.schema')" = 1 ] || exit 1
-[ "$(jsonfilter -i "$work/release.json" -e '@.tag')" = "$tag" ] || exit 1
+tag=$(jsonfilter -i "$work/release.json" -e '@.tag')
+printf '%s' "$tag" | grep -Eq '^v[0-9][A-Za-z0-9._-]{0,79}$' || { echo 'Invalid release tag.' >&2; exit 1; }
+base=$repo/releases/download/$tag
 # New installed controllers authenticate metadata with their pinned key. First
 # installation and migration from legacy unsigned versions bootstrap over HTTPS.
 fetch "$base/release.json.sig" "$work/release.json.sig" 256
