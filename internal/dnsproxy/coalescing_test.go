@@ -39,7 +39,8 @@ func TestColdDNSBurstSharesLookupAndPreservesClientIDs(t *testing.T) {
 			query := dnsQuery("example.com")
 			binary.BigEndian.PutUint16(query[:2], id)
 			<-start
-			reply := s.resolve(context.Background(), query, netip.MustParseAddr("192.0.2.8"))
+			source := netip.AddrFrom4([4]byte{192, 0, 2, byte(id)})
+			reply := s.resolve(context.Background(), query, source)
 			if !matchingQuestion(query, reply) || reply[3]&15 != 0 {
 				t.Errorf("invalid response for client %d", id)
 			}

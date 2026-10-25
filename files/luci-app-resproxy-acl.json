@@ -6,7 +6,8 @@
         "exec"
       ],
       "uci": [
-        "resproxy"
+        "resproxy",
+        "dhcp"
       ],
       "file": {
         "/usr/libexec/sb-gateway-upgrade status": [

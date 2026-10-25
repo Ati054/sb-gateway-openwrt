@@ -785,13 +785,13 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 	directRule := routerQuery || s.matchesDirect(policy, name)
 	fallback := !directRule && (s.useRuleWAN(policy, name))
 	viaWAN := directRule || fallback
-	key := policy + ":" + string(query[2:])
-	if routerQuery {
-		key = "router:" + key
-	}
-	selected := ""
+	// Authorization happens before cache lookup. Every permitted WAN query
+	// uses this server's same immutable resolver and direct transport, so
+	// devices and policies can share its cache and pending lookup. Proxy
+	// answers stay isolated by policy and selected exit, even at the same URL.
+	var key, selected string
 	if viaWAN {
-		key = "wan:" + key
+		key = "wan:" + string(query[2:])
 	} else {
 		s.stateMu.RLock()
 		selected = s.proxySelections["resproxy-"+policy]
@@ -827,7 +827,8 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 	}
 	// Listener jobs share the service context and upstream's five-second
 	// deadline. Collapse a cold burst before opening duplicate TLS connections.
-	// The key includes policy, WAN/proxy path and the complete query except ID.
+	// The key includes the route and complete query except ID; proxy routes
+	// additionally include their policy and selected exit.
 	value, err, _ := s.lookups.Do(key, func() (any, error) {
 		if cached := s.cached(key, query[:2]); cached != nil {
 			return cached, nil

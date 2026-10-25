@@ -76,6 +76,8 @@ jobs:
           node /tmp/sbg-ui/node_modules/playwright/cli.js install --with-deps chromium
       - name: Monitoring snapshot regressions
         run: node tools/test-monitor.mjs
+      - name: First setup and draft navigation regressions
+        run: node tools/test-first-setup.mjs
       - name: Verify text rendering against stock LuCI
         env:
           PLAYWRIGHT_MODULE: /tmp/sbg-ui/node_modules/playwright

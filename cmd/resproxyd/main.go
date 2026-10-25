@@ -112,7 +112,7 @@ func execute(arguments []string) error {
 	if len(arguments) < 1 || len(arguments) > 2 {
 		return errors.New("usage: resproxyd {run|reload|render-base|refresh [source-id]|status|health|locations|capture-restore|rulesets|rulesets-refresh|dns-restore|version}")
 	}
-	if len(arguments) > 1 && arguments[0] != "refresh" && arguments[0] != "plugins-install" && arguments[0] != "plugins-worker" {
+	if len(arguments) > 1 && arguments[0] != "refresh" && arguments[0] != "refresh-worker" && arguments[0] != "plugins-install" && arguments[0] != "plugins-worker" {
 		return errors.New("only refresh accepts a source ID")
 	}
 	paths := daemon.DefaultPaths()
@@ -162,18 +162,26 @@ func execute(arguments []string) error {
 	case "refresh":
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
-		config, err := settings.ReadSystemUCI(ctx)
+		config, err := settings.ReadSystemSubscriptions(ctx)
 		if err != nil {
 			return err
-		}
-		if !config.Enabled {
-			return errors.New("service is disabled")
 		}
 		requested := "*"
 		if len(arguments) == 2 {
 			requested = arguments[1]
 		}
+		if !config.Enabled {
+			return daemon.BeginOfflineRefresh(config, paths, requested)
+		}
 		return daemon.RequestRefresh(ctx, paths, config.Subscriptions, requested)
+	case "refresh-worker":
+		if len(arguments) != 2 {
+			return errors.New("refresh-worker requires a source ID")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+		defer cancel()
+		resources.ConfigureDaemon()
+		return daemon.OfflineRefreshWorker(ctx, paths, arguments[1])
 	case "status":
 		return printStatus(paths)
 	case "rulesets":

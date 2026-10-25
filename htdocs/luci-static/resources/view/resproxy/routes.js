@@ -5,6 +5,7 @@
 'require view.resproxy.drafts as Drafts';
 'require form';
 'require view.resproxy.location_picker as locationPicker';
+'require view.resproxy.static_clients as staticClients';
 'require uci';
 'require fs';
 'require ui';
@@ -224,7 +225,8 @@ return view.extend({
 			fs.exec('/usr/libexec/resproxy-rulesets').then(function(result) {
 				return JSON.parse(result.stdout || '{}');
 			}).catch(function() { return {}; }),
-			readSavedRules()
+			readSavedRules(),
+			uci.load('dhcp').then(function() { return staticClients.choices(uci.sections('dhcp', 'host')); }).catch(function() { return []; })
 		]).then(function(data) {
 			return data;
 		});
@@ -325,6 +327,9 @@ return view.extend({
 		sources.datatype = 'cidr';
 		sources.placeholder = '192.168.1.20/32';
 		sources.rmempty = false;
+		data[4].forEach(function(client) {
+			sources.value(client.cidr, E('span', {}, [client.name, ' · ', client.ip]));
+		});
         var refs = field(policies, 'direct', RulePicker, 'rule_refs', _('Rules — top to bottom'));
         refs.rmempty = true;
         refs.description = _('Select rules. The first match decides the route.');

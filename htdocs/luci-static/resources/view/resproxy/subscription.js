@@ -245,8 +245,7 @@ return view.extend({
 				return commitSourceSettings('resproxy');
 			}).then(function() {
 				if (uci.get('resproxy', 'main', 'enabled') !== '1') {
-					failure = _('Subscription saved. Enable SB Gateway in Overview.');
-					throw new Error(failure);
+					return {code:0};
 				}
 				failure = _('Could not apply subscription settings.');
 				return fs.exec('/etc/init.d/resproxy', ['reload']);

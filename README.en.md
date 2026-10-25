@@ -10,7 +10,7 @@ Route devices and services through proxies with automatic node selection. Config
 
 - **Subscriptions:** multiple sources; links, Clash YAML, sing-box JSON, and Xray JSON. Invalid and unsupported nodes are skipped; manual and scheduled updates. Failed updates preserve the working catalog; successful updates take effect without restarting the core.
 - **Protocols:** VLESS, VMess, Trojan, Shadowsocks, and Hysteria2. Shadowsocks SIP003 plugins v2ray-plugin and obfs-local can be installed from the interface.
-- **Route lists:** separate settings for all devices, selected IP addresses, or subnets. Select nodes by name, subscription, country, location, protocol, and filters.
+- **Route lists:** separate settings for all devices, selected IP addresses, or subnets. Pick devices from OpenWrt static DHCP reservations or enter addresses manually. Select nodes by name, subscription, country, location, protocol, and filters.
 - **URLTest:** selection by HTTPS response time; switches to a faster node after two fresh measurements confirm the configured improvement.
 - **Priority / reserve:** uses nodes in the specified order, falls back when a node fails, and returns to an available node with higher priority.
 - **Presets:** country rules for Russia, China, and Iran; service cards for YouTube, Discord, Telegram, WhatsApp, social networks, AI services, games, exchanges, and smart homes. Each exchange card includes its website and API.
@@ -69,7 +69,7 @@ The project key is installed in `/etc/apk/keys`: APK trusts any package signed b
 
 The service is disabled after the first installation. Open **Services → SB Gateway for OpenWrt** in LuCI:
 
-1. Add subscriptions and download nodes.
+1. Add subscriptions and download nodes while the service is still disabled.
 2. Create rules and route lists, then select devices and nodes.
 3. Configure DNS, enable SB Gateway, save, and apply settings.
 

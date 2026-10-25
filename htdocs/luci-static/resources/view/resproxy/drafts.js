@@ -92,10 +92,10 @@ function attach(map, page) {
    Object.keys(staged).forEach(function(key) { if (snapshot.fields[key]) snapshot.fields[key].staged = staged[key]; });
    lastStaged = staged; write(page, snapshot); lastError = '';
   }).finally(function() { map._sbgDraftStage = false; release(); });
- }, report);
- function flush() {
+ }, function(error) { if (explicit) report(error); });
+ function flush(strict) {
   if (map.readonly) return Promise.resolve();
-  capture(); explicit = true; saves.mark();
+  capture(); explicit = strict !== false; saves.mark();
   return saves.flush().finally(function() { explicit = false; });
  }
  // Native fields cache their initial cfgvalue. During parsing compare with
@@ -148,7 +148,9 @@ function attach(map, page) {
   var url = new URL(link.href, window.location.href);
   if (url.origin !== window.location.origin || url.pathname === window.location.pathname || !saves.pending()) return;
   event.preventDefault();
-  flush().then(function() { window.location.assign(url.href); }).catch(function() {});
+  // Incomplete forms remain in sessionStorage. Navigation must never trap
+  // the user on an editor; only Save/Apply requires a valid complete form.
+  flush(false).catch(function() {}).then(function() { window.location.assign(url.href); });
  }
  function leave() { try { capture(); } catch (error) { report(error); } saves.dispose(); }
  function revert() { saves.discard(); saves.dispose(); write(page, null); }

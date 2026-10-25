@@ -44,10 +44,27 @@ type Result struct {
 // supplied by the health controller and must refer to the new full catalog.
 // An empty choice imports an unselected catalog without switching traffic.
 func (s *Service) Apply(ctx context.Context, providerID string, feed []byte, maxNodes int, selector string, choose Choose) (Result, error) {
+	return s.apply(ctx, providerID, feed, maxNodes, selector, choose, true)
+}
+
+// Import prepares a catalog while the proxy service is stopped. It validates
+// every outbound and uses the same atomic generation transaction as Apply,
+// without starting Xray, probing nodes or changing DNS/firewall configuration.
+func (s *Service) Import(ctx context.Context, providerID string, feed []byte, maxNodes int) (Result, error) {
+	if s.Runtime != nil || s.AfterSwitch != nil {
+		return Result{}, errors.New("offline import cannot use a live runtime")
+	}
+	return s.apply(ctx, providerID, feed, maxNodes, "", func([]catalog.Node) (string, error) { return "", nil }, false)
+}
+
+func (s *Service) apply(ctx context.Context, providerID string, feed []byte, maxNodes int, selector string, choose Choose, live bool) (Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.Runtime == nil || choose == nil || selector == "" {
+	if live && (s.Runtime == nil || choose == nil || selector == "") {
 		return Result{}, errors.New("refresh runtime, selector and choice are required")
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
 	}
 	previous := []catalog.Node{}
 	previousID, current, err := s.Store.Current()
@@ -130,6 +147,9 @@ func (s *Service) Apply(ctx context.Context, providerID string, feed []byte, max
 		}
 	}
 	var publishErr error
+	if !live && ctx.Err() != nil {
+		return Result{}, ctx.Err()
+	}
 	if metadataOnly {
 		publishErr = s.Store.PublishMetadata(id, next)
 	} else {

@@ -43,6 +43,11 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	if !config.Enabled {
 		return errors.New("service is disabled in UCI")
 	}
+	catalogLock, err := acquireCatalog(paths)
+	if err != nil {
+		return err
+	}
+	defer catalogLock.Close()
 	if config.RouteEnabled && !ProtectionActive(paths) {
 		if err := ProtectCapture(ctx, config, paths); err != nil {
 			return fmt.Errorf("protect LAN before startup: %w", err)

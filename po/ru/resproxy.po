@@ -1710,3 +1710,6 @@ msgstr "Xray приближается к лимиту файловых деск�
 
 msgid "Xray was stopped by the kernel for lack of memory. See the journal."
 msgstr "Ядро остановило Xray из-за нехватки памяти. Подробности в журнале."
+
+msgid "Finish configuring route lists before enabling SB Gateway."
+msgstr "Завершите настройку маршрутных листов перед включением SB Gateway."

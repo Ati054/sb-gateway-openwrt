@@ -164,6 +164,14 @@ return view.extend({
   });
   var enabled=service.option(OverviewFlag,'enabled',_('Enable SB Gateway'));
   enabled.default='0'; enabled.rmempty=false;
+  enabled.validate=function(section,value) {
+   if(value!=='1')return true;
+   var policies=uci.sections('resproxy','policy');
+   return policies.length>0 && policies.every(function(policy) {
+    return /^[a-z][a-z0-9-]{0,31}$/.test(policy.id || '') &&
+     (Array.isArray(policy.selection_order) ? policy.selection_order.length>0 : !!String(policy.selection_order || '').trim());
+   }) || _('Finish configuring route lists before enabling SB Gateway.');
+  };
   // One user action controls both the service and client routing. Keep the old
   // UCI key synchronized for existing firewall/init consumers.
   enabled.forcewrite=true;

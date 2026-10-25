@@ -89,12 +89,19 @@ try {
   }};
   const rpc={declare:()=>async()=>({resproxy:{instances:{gateway:{running:alive}}}})};
   const monitor=new Function('baseclass','fs','rpc',sources.runtime_status)(baseclass,fs,rpc);
-  const uci={load:async()=>{},sections:()=>[{id:'all',mode:'best'},{id:'pc',mode:'priority'}]};
-  function Map() {this.section=()=>({option:()=>({})});this.render=async()=>document.createElement('div');}
+  let configured=[{id:'all',mode:'best',selection_order:['all:*']},{id:'pc',mode:'priority',selection_order:['country:FR']}],enabledOption;
+  const uci={load:async()=>{},sections:()=>configured};
+  function Map() {this.section=()=>({option:(_type,name)=>{const option={};if(name==='enabled')enabledOption=option;return option;}});this.render=async()=>document.createElement('div');}
   const overview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_',sources.overview)(
    {decorate:node=>node},health,{extend:value=>value},{Map,NamedSection:{},Flag:{extend:value=>value}},fs,uci,
    {add:fn=>{poller=fn;},remove:()=>{}},safeDOM,monitor,_);
   const dashboard=await overview.render(await overview.load());document.body.append(dashboard);
+  if(enabledOption.validate('main','1')!==true)throw Error('Configured routes could not be enabled');
+  const savedPolicies=configured;configured=[];
+  if(enabledOption.validate('main','1')===true || enabledOption.validate('main','0')!==true)throw Error('Missing routes did not prevent first activation');
+  configured=[{id:'main'}];
+  if(enabledOption.validate('main','1')===true)throw Error('Empty route did not prevent activation');
+  configured=savedPolicies;
   const routeRows=()=>dashboard.querySelector('.sbg-overview > .sbg-table-scroll tbody').rows;
   if(!dashboard.textContent.includes('842 nodes') || !routeRows()[1].textContent.includes('Fallback WAN'))throw Error('Prepared metadata or WAN state lost in overview');
   if(dashboard.querySelector('img'))throw Error('Prepared label parsed as HTML');

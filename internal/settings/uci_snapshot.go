@@ -14,8 +14,22 @@ import (
 // every option. Large saved rule sets must not exhaust the startup deadline or
 // mix values from different edits. LuCI supplies rpcd's UCI service.
 func ReadSystemUCI(ctx context.Context) (Config, error) {
+	return readSystemUCI(ctx, false)
+}
+
+// Subscription preparation must also work while unrelated route/DNS forms
+// are incomplete. It never needs or validates the runtime network settings.
+func ReadSystemSubscriptions(ctx context.Context) (Config, error) {
+	return readSystemUCI(ctx, true)
+}
+
+func readSystemUCI(ctx context.Context, subscriptionsOnly bool) (Config, error) {
 	snapshots := map[string]map[string]map[string]any{}
-	for _, name := range []string{"resproxy", "network"} {
+	packages := []string{"resproxy"}
+	if !subscriptionsOnly {
+		packages = append(packages, "network")
+	}
+	for _, name := range packages {
 		request, _ := json.Marshal(map[string]string{"config": name})
 		body, err := exec.CommandContext(ctx, "/bin/ubus", "call", "uci", "get", string(request)).Output()
 		if err != nil {
@@ -36,7 +50,27 @@ func ReadSystemUCI(ctx context.Context) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	if subscriptionsOnly {
+		return ReadSubscriptionUCI(ctx, get)
+	}
 	return ReadUCI(ctx, get)
+}
+
+func ReadSubscriptionUCI(ctx context.Context, get Getter) (Config, error) {
+	if get == nil {
+		return Config{}, errors.New("UCI getter is required")
+	}
+	return ReadUCI(ctx, func(ctx context.Context, key string) (string, error) {
+		if strings.HasPrefix(key, "resproxy.@subscription[") {
+			return get(ctx, key)
+		}
+		switch key {
+		case "resproxy.main.enabled", "resproxy.main.subscription_url", "resproxy.main.provider_id", "resproxy.main.update_mode", "resproxy.main.update_interval_seconds", "resproxy.main.max_nodes":
+			return get(ctx, key)
+		default:
+			return "", errors.New("runtime setting is not needed for subscription import")
+		}
+	})
 }
 
 func snapshotGetter(packages map[string]map[string]map[string]any) (Getter, error) {
