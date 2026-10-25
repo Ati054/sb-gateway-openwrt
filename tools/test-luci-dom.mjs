@@ -156,6 +156,9 @@ try {
 	journalRequests[4].reject(Error('fixture read failed'));
 	await new Promise(resolve=>setTimeout(resolve,0));
 	if(journalOutput.textContent!=='Unable to read the journal.' || journalOutput.hasAttribute('aria-busy'))throw Error('Journal failure retained misleading old category');
+	const journalSearch=journalView.querySelector('input[type="search"]');
+	journalSearch.value='system-only';journalSearch.dispatchEvent(new Event('input'));
+	if(journalOutput.textContent.includes('system-only entry'))throw Error('Search restored lines from a failed old category');
   await new Promise(resolve => setTimeout(resolve, 50));
   if (document.querySelector('img,svg,script') || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
   return {negativeControl:true, health:true, picker:true, scalarAndCallback:true, overviewMonitoring:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};

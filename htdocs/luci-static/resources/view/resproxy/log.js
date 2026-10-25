@@ -51,6 +51,7 @@ return view.extend({
 		function refresh() {
 			var current = ++request;
 			loading = true;
+			loaded = '';
 			output.setAttribute('aria-busy', 'true');
 			output.textContent = _('Loading…');
 			return readLog(kind.value, count.value).then(function(text) {
@@ -60,7 +61,8 @@ return view.extend({
 				filter();
 			}).catch(function(error) {
 				if (current !== request) return;
-				output.textContent = _('Unable to read the journal.');
+				loaded = _('Unable to read the journal.');
+				output.textContent = loaded;
 				ui.addNotification(null, E('p', {}, String(error)));
 			}).finally(function() {
 				if (current === request) {
