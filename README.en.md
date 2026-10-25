@@ -73,6 +73,8 @@ The service is disabled after the first installation. Open **Services → SB Gat
 2. Create rules and route lists, then select devices and nodes.
 3. Configure DNS, enable SB Gateway, save, and apply settings.
 
+When switching from PassWall2, stop it and disable its autostart in **System → Startup** before enabling SB Gateway. Subscriptions and rules can be prepared while SB Gateway is disabled. Without an all-device list, other addresses continue to use WAN.
+
 During service startup and recovery, temporary WAN access with the OpenWrt DNS resolver is available only to lists that permit WAN for all proxy traffic. Strict lists and their DNS remain blocked. If settings cannot be read or validated, proxy traffic remains blocked. Domain-based rules require a working core; service recovery continues automatically.
 
 To update, open **Package update → Check for updates → Update from GitHub**. Checking only fetches version information; download and installation start after a separate click on **Update from GitHub**. You can skip intermediate versions. Settings and the service's enabled or disabled state are preserved; a running service restarts during the update.

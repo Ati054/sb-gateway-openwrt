@@ -628,14 +628,26 @@ func (s *server) invalidateState() {
 }
 
 func (s *server) policyFor(source netip.Addr) string {
+	policy, _ := s.policyForSource(source)
+	return policy
+}
+
+func (s *server) policyForSource(source netip.Addr) (string, bool) {
 	policy := s.config.DefaultPolicy
 	for _, item := range s.prefixes {
 		if item.prefix.Contains(source.Unmap()) {
-			policy = item.id
-			break
+			return item.id, true
 		}
 	}
-	return policy
+	if len(s.config.Policies) == 0 {
+		return policy, true // Legacy callers provide one implicit common policy.
+	}
+	for _, item := range s.config.Policies {
+		if len(item.SourceCIDRs) == 0 {
+			return policy, true
+		}
+	}
+	return policy, false
 }
 
 // DNS honors the first applicable domain rule, including strict proxy rules
@@ -780,9 +792,9 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 		s.failures.Add(1)
 		return servfail(query)
 	}
-	policy := s.policyFor(source)
+	policy, assigned := s.policyForSource(source)
 	routerQuery := source.IsLoopback()
-	directRule := routerQuery || s.matchesDirect(policy, name)
+	directRule := routerQuery || !assigned || s.matchesDirect(policy, name)
 	fallback := !directRule && (s.useRuleWAN(policy, name))
 	viaWAN := directRule || fallback
 	// Authorization happens before cache lookup. Every permitted WAN query

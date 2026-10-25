@@ -656,6 +656,9 @@ func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, p
 		if policy.BlockPing {
 			arguments = append(arguments, "--block-ping")
 		}
+		if len(policy.ClientCIDRs) > 0 {
+			arguments = append(arguments, "--clients="+strings.Join(policy.ClientCIDRs, ","))
+		}
 		arguments = append(arguments, policy.DirectIPs...)
 	}
 	output, err := boundedCommand(ctx, "/usr/libexec/resproxy-firewall", arguments...).CombinedOutput()

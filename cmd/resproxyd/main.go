@@ -46,7 +46,7 @@ func main() {
 
 func execute(arguments []string) error {
 	if len(arguments) > 0 && (arguments[0] == "capture-rules" || arguments[0] == "capture-emergency-rules" || arguments[0] == "capture-guard-rules") {
-		if len(arguments) < 5 || len(arguments) > 262 {
+		if len(arguments) < 5 || len(arguments) > 263 {
 			return errors.New("usage: capture-rules IFNAME PORT DNSPORT IPV6MODE [--block-ping] [IP...]")
 		}
 		port, err := strconv.Atoi(arguments[2])
@@ -62,7 +62,18 @@ func execute(arguments []string) error {
 			return err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		policy.BlockPing = len(arguments) > 5 && arguments[5] == "--block-ping"
+		for _, option := range arguments[5:] {
+			if option == "--block-ping" {
+				policy.BlockPing = true
+			} else if strings.HasPrefix(option, "--clients=") {
+				value := strings.TrimPrefix(option, "--clients=")
+				if policy.ClientCIDRs != nil || value == "" || len(value) > 65536 {
+					cancel()
+					return errors.New("invalid client capture scope")
+				}
+				policy.ClientCIDRs = strings.Split(value, ",")
+			}
+		}
 		policy.Automatic = capture.Discover(ctx)
 		cancel()
 		if !policy.Automatic.Complete {
@@ -546,8 +557,11 @@ func running(paths daemon.Paths) bool {
 }
 
 func captureAddresses(values []string) []string {
-	if len(values) > 0 && values[0] == "--block-ping" {
-		return values[1:]
+	var addresses []string
+	for _, value := range values {
+		if value != "--block-ping" && !strings.HasPrefix(value, "--clients=") {
+			addresses = append(addresses, value)
+		}
 	}
-	return values
+	return addresses
 }

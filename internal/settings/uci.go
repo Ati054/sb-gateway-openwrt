@@ -418,6 +418,15 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 	if err := config.Base.Validate(); err != nil {
 		return Config{}, err
 	}
+	// Without an explicit all-device list, leave unmatched clients on their
+	// normal WAN path instead of treating the first scoped list as global.
+	for _, policy := range config.Policies {
+		if len(policy.SourceCIDRs) == 0 {
+			config.Capture.ClientCIDRs = nil
+			break
+		}
+		config.Capture.ClientCIDRs = append(config.Capture.ClientCIDRs, policy.SourceCIDRs...)
+	}
 	if config.SubscriptionURL != "" {
 		if err := validateSubscriptionURL(config.SubscriptionURL); err != nil {
 			return Config{}, err

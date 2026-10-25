@@ -14,6 +14,7 @@ type Policy struct {
 	IPv6Mode        string
 	BlockPing       bool
 	DirectIPs       []string
+	ClientCIDRs     []string // Empty means an explicit all-device route list.
 	Automatic       Inventory
 }
 
@@ -97,6 +98,10 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 	if err != nil {
 		return "", err
 	}
+	clients, err := normalizeCombined(Policy{IPv6Mode: normalized.IPv6Mode, DirectIPs: policy.ClientCIDRs})
+	if err != nil {
+		return "", fmt.Errorf("invalid client scope: %w", err)
+	}
 	tunnelNames := []string{}
 	for _, name := range policy.Automatic.Interfaces {
 		if !interfaceName.MatchString(name) {
@@ -118,6 +123,22 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 		if v6 {
 			family, table, addr = "ip6", "resproxy6", "ip6"
 		}
+		sourceGuard := func() {
+			if len(clients.DirectIPs) == 0 {
+				return
+			}
+			var prefixes []string
+			for _, prefix := range clients.DirectIPs {
+				if strings.Contains(prefix, ":") == v6 {
+					prefixes = append(prefixes, prefix)
+				}
+			}
+			if len(prefixes) == 0 {
+				fmt.Fprintf(&b, "\t\tiifname %q return\n", iface)
+			} else {
+				fmt.Fprintf(&b, "\t\tiifname %q %s saddr != { %s } return\n", iface, addr, strings.Join(prefixes, ", "))
+			}
+		}
 		// The fw4 include must replace existing private tables on every reload.
 		fmt.Fprintf(&b, "add table %s %s\ndelete table %s %s\ntable %s %s {\n", family, table, family, table, family, table)
 		custom := []string{}
@@ -129,6 +150,7 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 		// DNS remains a separate managed service. Explicit destination exceptions
 		// also bypass its port-53 redirect. Direct/block IPv6 never redirects DNS.
 		b.WriteString("\tchain dns_prerouting {\n\t\ttype nat hook prerouting priority dstnat - 1; policy accept;\n")
+		sourceGuard()
 		if v6 {
 			fmt.Fprintf(&b, "\t\tiifname %q ip6 daddr ff00::/8 return\n", iface)
 		} else {
@@ -162,6 +184,7 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 			}
 		}
 		b.WriteString("\t}\n\tchain prerouting {\n\t\ttype filter hook prerouting priority mangle + 1; policy accept;\n")
+		sourceGuard()
 		icmpProtocol, icmpHeader := "icmp", "icmp"
 		if v6 {
 			icmpProtocol, icmpHeader = "ipv6-icmp", "icmpv6"
