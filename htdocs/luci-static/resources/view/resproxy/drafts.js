@@ -57,7 +57,7 @@ function attach(map, page) {
  function fields(fn) {
   map.children.forEach(function(section) {
    section.cfgsections().forEach(function(sid) {
-    section.children.forEach(function(field) { if (typeof field.formvalue === 'function' && typeof field.renderWidget === 'function') fn(field, sid); });
+    section.children.forEach(function(field) { if (!field._sbgOwnDraft && typeof field.formvalue === 'function' && typeof field.renderWidget === 'function') fn(field, sid); });
    });
   });
  }

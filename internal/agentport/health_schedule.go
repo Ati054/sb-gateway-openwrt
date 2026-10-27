@@ -10,7 +10,7 @@ func (controller *healthController) remainingProbeInterval(now time.Time, contra
 	for _, candidate := range contract.Candidates {
 		remaining := time.Duration(p.active)*time.Second - now.Sub(time.Unix(int64(item.LastProbeAt[candidate]), 0))
 		if item.LastProbeAt[candidate] == 0 || remaining <= 0 {
-			return time.Duration(p.liveness) * time.Second
+			return min(time.Duration(p.liveness)*time.Second, activeLivenessInterval)
 		}
 		if remaining < interval {
 			interval = remaining

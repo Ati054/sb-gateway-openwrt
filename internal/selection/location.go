@@ -36,6 +36,9 @@ func Candidates(nodes []catalog.Node, order []string, filter Filter) ([]string, 
 	if err := filter.Validate(); err != nil {
 		return nil, nil, err
 	}
+	// Parse once for the whole catalog, not once for every candidate.
+	include, _ := parseNameFilter(filter.Include)
+	exclude, _ := parseNameFilter(filter.Exclude)
 	result := make([]string, 0)
 	groups := make(map[string]int)
 	claimed := make(map[string]bool)
@@ -44,7 +47,7 @@ func Candidates(nodes []catalog.Node, order []string, filter Filter) ([]string, 
 			return nil, nil, err
 		}
 		for _, node := range nodes {
-			if !claimed[node.ID] && filter.Matches(node) && matches(selector, node) {
+			if !claimed[node.ID] && filter.matchesNames(node, include, exclude) && matches(selector, node) {
 				claimed[node.ID] = true
 				groups[node.ID] = group
 				result = append(result, node.ID)

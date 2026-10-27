@@ -30,7 +30,6 @@ import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"github.com/xtls/xray-core/common/geodata"
 	"github.com/xtls/xray-core/common/geodata/strmatcher"
-	"golang.org/x/sync/singleflight"
 )
 
 const maxDNSMessage = 4096
@@ -83,7 +82,8 @@ type server struct {
 	stateValid            bool
 	stateFileInfo         os.FileInfo
 	stateLease            time.Time
-	requestMemory         *memoryGate
+	requestsOnce          sync.Once
+	dnsRequests           *dnsRequests
 	clientMemory          *memoryGate
 	requestBudget         int64
 	clientBudget          int64
@@ -95,7 +95,6 @@ type server struct {
 	cacheBytes            int64
 	cacheBudget           int64
 	cacheEvictions        uint64
-	lookups               singleflight.Group
 	activeQueries         atomic.Int64
 	tcpClients            atomic.Int64
 	queries               atomic.Uint64
@@ -168,6 +167,10 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 	if config.DirectBootstrapIP != "" && net.ParseIP(config.DirectBootstrapIP) == nil {
 		return nil, nil, errors.New("invalid direct DNS bootstrap IP")
 	}
+	matchers, err := compilePolicyMatchers(config.Policies)
+	if err != nil {
+		return nil, nil, err
+	}
 	proxyTransport := proxyHTTPTransport(config.ProxyPort)
 	directTransport := &http.Transport{ForceAttemptHTTP2: true, MaxIdleConns: 8,
 		MaxIdleConnsPerHost: 4, IdleConnTimeout: 30 * time.Second}
@@ -187,9 +190,8 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 		cacheBudget:   dnsCacheBudget(totalRAM),
 		requestBudget: dnsWorkBudget(totalRAM),
 		clientBudget:  dnsWorkBudget(totalRAM),
-		matchers:      make(map[string]domainMatcher),
+		matchers:      matchers,
 	}
-	s.requestMemory = newMemoryGate(s.requestBudget, dnsRequestMemory)
 	s.clientMemory = newMemoryGate(s.clientBudget, dnsClientMemory)
 	if config.DirectBootstrapIP != "" {
 		_, port, _ := net.SplitHostPort(directEndpoint.Address)
@@ -203,11 +205,6 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 			transport := proxyHTTPTransport(port)
 			s.policyProxies[policy.ID] = newDoHClient(transport)
 		}
-		matcher, err := compileMatcher(policy)
-		if err != nil {
-			return nil, nil, fmt.Errorf("policy %s DNS routing: %w", policy.ID, err)
-		}
-		s.matchers[policy.ID] = matcher
 		for _, raw := range policy.SourceCIDRs {
 			prefix, err := netip.ParsePrefix(raw)
 			if err != nil {
@@ -245,6 +242,7 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 			cancel()
 			_ = udp.Close()
 			_ = tcp.Close()
+			s.requests().close()
 			s.workers.Wait()
 			s.proxy.CloseIdleConnections()
 			s.direct.CloseIdleConnections()
@@ -291,6 +289,9 @@ func (s *server) writeStatus(ctx context.Context) {
 			"exchange_timeout_headers": s.upstreamTimeoutPhases[3].Load(),
 			"exchange_timeout_body":    s.upstreamTimeoutPhases[4].Load(),
 		}
+		for key, value := range s.requests().stats() {
+			status[key] = value
+		}
 		s.cacheMu.Lock()
 		status["cache_entries"], status["cache_bytes"] = uint64(len(s.cache)), uint64(s.cacheBytes)
 		status["cache_budget_bytes"], status["cache_evictions"] = uint64(s.cacheBudget), s.cacheEvictions
@@ -307,13 +308,9 @@ func (s *server) writeStatus(ctx context.Context) {
 }
 
 func (s *server) updatePolicies(policies []Policy) error {
-	matchers := make(map[string]domainMatcher, len(policies))
-	for _, policy := range policies {
-		matcher, err := compileMatcher(policy)
-		if err != nil {
-			return fmt.Errorf("policy %s DNS routing: %w", policy.ID, err)
-		}
-		matchers[policy.ID] = matcher
+	matchers, err := compilePolicyMatchers(policies)
+	if err != nil {
+		return err
 	}
 	s.matcherMu.Lock()
 	// Publish under the matcher lock, so evidence cannot span the change.
@@ -684,19 +681,12 @@ func (s *server) serveUDP(ctx context.Context, conn net.PacketConn) {
 			}
 			return
 		}
-		if err := s.requestMemory.acquire(ctx); err != nil {
-			return
-		}
 		// A DoH request body can outlive an early transport error. Give every
 		// query independent backing storage instead of recycling its bytes.
 		query := append([]byte(nil), packet[:n]...)
-		s.workers.Add(1)
-		go func(query []byte, address net.Addr) {
-			defer s.workers.Done()
-			defer s.requestMemory.release()
-			response := s.resolve(ctx, query, addrIP(address))
+		s.resolveAsync(ctx, query, addrIP(address), func(response []byte) {
 			_, _ = conn.WriteTo(response, address)
-		}(query, address)
+		})
 	}
 }
 
@@ -761,11 +751,7 @@ func (s *server) handleTCP(ctx context.Context, conn net.Conn) {
 		if _, err := io.ReadFull(conn, query); err != nil {
 			return
 		}
-		if err := s.requestMemory.acquire(ctx); err != nil {
-			return
-		}
 		response := s.resolve(ctx, query, addrIP(conn.RemoteAddr()))
-		s.requestMemory.release()
 		binary.BigEndian.PutUint16(length[:], uint16(len(response)))
 		packet := append(length[:], response...)
 		if _, err := io.Copy(conn, bytes.NewReader(packet)); err != nil {
@@ -775,22 +761,34 @@ func (s *server) handleTCP(ctx context.Context, conn net.Conn) {
 }
 
 func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) []byte {
+	response := make(chan []byte, 1)
+	s.resolveAsync(ctx, query, source, func(body []byte) { response <- body })
+	return <-response
+}
+
+func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Addr, done func([]byte)) {
 	s.activeQueries.Add(1)
-	defer s.activeQueries.Add(-1)
+	finish := func(body []byte) { s.activeQueries.Add(-1); done(body) }
 	s.queries.Add(1)
 	name, valid := questionName(query)
 	if !valid {
 		s.failures.Add(1)
-		return servfail(query)
+		finish(servfail(query))
+		return
 	}
 	if isLocalName(name) {
 		s.localUse.Add(1)
-		response, err := s.askLocal(ctx, query)
-		if err == nil {
-			return response
+		err := s.requests().submit(ctx, "local", "local:"+string(query[2:]), query, func(lookupCtx context.Context) ([]byte, error) { return s.askLocal(lookupCtx, query) }, func(body []byte, err error) {
+			if err != nil {
+				s.failures.Add(1)
+			}
+			finish(body)
+		})
+		if err != nil {
+			s.failures.Add(1)
+			finish(servfail(query))
 		}
-		s.failures.Add(1)
-		return servfail(query)
+		return
 	}
 	policy, assigned := s.policyForSource(source)
 	routerQuery := source.IsLoopback()
@@ -812,7 +810,8 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 	}
 	if cached := s.cached(key, query[:2]); cached != nil {
 		s.cacheHits.Add(1)
-		return cached
+		finish(cached)
+		return
 	}
 	client, endpoint := s.proxy, s.config.ProxyURL
 	if specific := s.policyProxies[policy]; specific != nil {
@@ -835,13 +834,18 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 	parsed, err := ParseEndpoint(endpoint, viaWAN)
 	if err != nil {
 		s.failures.Add(1)
-		return servfail(query)
+		finish(servfail(query))
+		return
 	}
 	// Listener jobs share the service context and upstream's five-second
 	// deadline. Collapse a cold burst before opening duplicate TLS connections.
 	// The key includes the route and complete query except ID; proxy routes
 	// additionally include their policy and selected exit.
-	value, err, _ := s.lookups.Do(key, func() (any, error) {
+	path := "wan"
+	if !viaWAN {
+		path = "proxy:" + policy
+	}
+	err = s.requests().submit(ctx, path, key, query, func(lookupCtx context.Context) ([]byte, error) {
 		if cached := s.cached(key, query[:2]); cached != nil {
 			return cached, nil
 		}
@@ -849,12 +853,12 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 		var err error
 		s.upstreamExchanges.Add(1)
 		if parsed.Protocol == "doh" {
-			body, err = exchangeDoH(ctx, client, endpoint, query)
+			body, err = exchangeDoH(lookupCtx, client, endpoint, query)
 		} else {
 			if viaWAN && s.directAddress != "" {
 				parsed.Address = s.directAddress
 			}
-			body, err = exchangeWire(ctx, parsed, query, viaWAN, proxyPort)
+			body, err = exchangeWire(lookupCtx, parsed, query, viaWAN, proxyPort)
 		}
 		if err != nil {
 			var timeout *upstreamTimeoutPhase
@@ -872,31 +876,35 @@ func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) [
 			current = s.proxySelections["resproxy-"+policy] == selected
 			s.stateMu.RUnlock()
 		}
-		if current {
+		if current && lookupCtx.Err() == nil {
 			s.remember(key, body)
 		}
 		return body, nil
+	}, func(body []byte, err error) {
+		if err != nil {
+			s.failures.Add(1)
+			if errors.Is(err, errDNSQueued) {
+				finish(body)
+				return
+			}
+			var responseErr upstreamResponseError
+			var networkErr net.Error
+			switch {
+			case errors.As(err, &responseErr):
+				s.upstreamInvalid.Add(1)
+				s.upstreamHTTPStatus.Store(int64(responseErr.status))
+			case errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &networkErr) && networkErr.Timeout()):
+				s.upstreamTimeouts.Add(1)
+			default:
+				s.upstreamTransport.Add(1)
+			}
+		}
+		finish(body)
 	})
 	if err != nil {
 		s.failures.Add(1)
-		var responseErr upstreamResponseError
-		var networkErr net.Error
-		switch {
-		case errors.As(err, &responseErr):
-			s.upstreamInvalid.Add(1)
-			s.upstreamHTTPStatus.Store(int64(responseErr.status))
-		case errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &networkErr) && networkErr.Timeout()):
-			s.upstreamTimeouts.Add(1)
-		default:
-			s.upstreamTransport.Add(1)
-		}
-		return servfail(query)
+		finish(servfail(query))
 	}
-	// Each caller owns its response; rewriting one transaction ID must never
-	// mutate a response concurrently used by another client or the cache.
-	body := append([]byte(nil), value.([]byte)...)
-	copy(body[:2], query[:2])
-	return body
 }
 
 func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct bool, proxyPort int) ([]byte, error) {

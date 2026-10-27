@@ -9,7 +9,7 @@ import (
 )
 
 // Filter restricts live catalog membership; it never changes node order.
-// Name matching follows SB Gateway: all name fragments, any excluded word.
+// Comma-separated name fragments are alternatives. Exclusions take precedence.
 type Filter struct {
 	Subscription string   `json:"subscription"`
 	Countries    []string `json:"countries"`
@@ -41,12 +41,9 @@ func (f Filter) Validate() error {
 			}
 		}
 	}
-	for _, part := range strings.Split(f.Exclude, ",") {
-		word := normalizeName(part)
-		for _, r := range word {
-			if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
-				return errors.New("excluded node names must be whole words separated by commas")
-			}
+	for _, raw := range []string{f.Include, f.Exclude} {
+		if _, err := parseNameFilter(raw); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -69,6 +66,15 @@ func contains(values []string, value string) bool {
 }
 
 func (f Filter) Matches(node catalog.Node) bool {
+	include, err := parseNameFilter(f.Include)
+	if err != nil {
+		return false
+	}
+	exclude, err := parseNameFilter(f.Exclude)
+	return err == nil && f.matchesNames(node, include, exclude)
+}
+
+func (f Filter) matchesNames(node catalog.Node, include, exclude []nameTerm) bool {
 	if f.Subscription != "" && f.Subscription != "*" && f.Subscription != node.ProviderID {
 		return false
 	}
@@ -82,19 +88,5 @@ func (f Filter) Matches(node catalog.Node) bool {
 		return true
 	}
 	label := normalizeName(node.Label)
-	for _, part := range strings.Split(f.Include, ",") {
-		if token := normalizeName(part); token != "" && !strings.Contains(label, token) {
-			return false
-		}
-	}
-	if strings.TrimSpace(f.Exclude) == "" {
-		return true
-	}
-	words := strings.FieldsFunc(label, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
-	for _, part := range strings.Split(f.Exclude, ",") {
-		if word := normalizeName(part); word != "" && contains(words, word) {
-			return false
-		}
-	}
-	return true
+	return matchesNameTerms(label, include, true) && !matchesNameTerms(label, exclude, false)
 }

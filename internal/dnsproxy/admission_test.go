@@ -55,7 +55,7 @@ func listenerFixture(t *testing.T, delay time.Duration, workBytes int64) (*serve
 	configureUDPQueue(udp, workBytes)
 	s := &server{config: Config{DefaultPolicy: "main", DirectURL: upstream.URL + "/dns-query", ProxyURL: upstream.URL + "/dns-query"},
 		direct: client, proxy: client, cacheBudget: dnsCacheBudget(256 * resources.MiB),
-		requestMemory: newMemoryGate(workBytes, dnsRequestMemory), clientMemory: newMemoryGate(dnsWorkBudget(256*resources.MiB), dnsClientMemory)}
+		requestBudget: workBytes, clientMemory: newMemoryGate(dnsWorkBudget(256*resources.MiB), dnsClientMemory)}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.workers.Add(2)
 	go func() { defer s.workers.Done(); s.serveUDP(ctx, udp) }()
@@ -66,6 +66,7 @@ func listenerFixture(t *testing.T, delay time.Duration, workBytes int64) (*serve
 			cancel()
 			udp.Close()
 			tcp.Close()
+			s.requests().close()
 			s.workers.Wait()
 			upstream.CloseClientConnections()
 			upstream.Close()

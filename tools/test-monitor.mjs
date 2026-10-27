@@ -21,10 +21,10 @@ let result=await monitor.snapshot();
 assert.equal(result.status.running,true);assert.equal(result.status.nodes,842);assert.equal(result.status.dns.queries,42);assert.equal(result.status.subscriptions.real.nodes,842);assert.equal(result.status.subscriptions.removed.nodes,0);
 assert(!reads.some(name=>/selector-health|secrets|catalog\.json/.test(name)));
 let nodes=result.health[0].nodes;
-assert.equal(nodes[0].latency_delta_percent,0);assert(Math.abs(nodes[1].latency_delta_percent-100/3)<1e-10);
+assert.equal(nodes[0].latency_delta_percent,0);assert(Math.abs(nodes[1].latency_delta_percent+100/3)<1e-10);
 for(const n of nodes.slice(2))assert.equal(n.latency_delta_percent,null);
 fixtures['health-state/selector-runtime.json'].policies['resproxy-main'].runtime_selected='b';
-result=await monitor.snapshot();assert.equal(result.health[0].nodes[0].latency_delta_percent,-50);assert.equal(result.health[0].nodes[1].selected,true);
+result=await monitor.snapshot();assert.equal(result.health[0].nodes[0].latency_delta_percent,50);assert.equal(result.health[0].nodes[1].selected,true);
 fixtures['health-state/selector-runtime.json'].updated_at=new Date(now-21000).toISOString();
 result=await monitor.snapshot();assert.deepEqual(result.status.policies,{});assert(result.health[0].nodes.every(n=>!n.selected && n.latency_delta_percent===null));
 fixtures['health-state/selector-runtime.json'].updated_at=new Date(now).toISOString();running=false;
@@ -53,6 +53,22 @@ result=await monitor.snapshot();assert.equal(result.status.resources_fresh,false
 boot=900;
 result=await monitor.snapshot();assert.deepEqual(result.status.policies,{});assert.equal(result.status.resources_fresh,false,'future boot timestamp accepted');
 assert.equal(coldReads,0);
+// The controller owns paired Delta history. A later unmatched probe, a clock
+// skew or ordinary expiry must not recompute or erase the last valid pair.
+fixtures['health-state/monitor.json'].health[0].delta_version=1;
+const pair=(active,activeDelay,candidateDelay,activeAt,candidateAt)=>({active,active_delay_ms:activeDelay,candidate_delay_ms:candidateDelay,active_at:activeAt,candidate_at:candidateAt});
+const savedNodes=fixtures['health-state/monitor.json'].health[0].nodes;
+savedNodes[0].latency_comparison=pair('b',300,450,second-1000,second-1001);
+savedNodes[1].latency_comparison=pair('b',300,300,second-1000,second-1000);
+savedNodes[0].latest_delay_ms=999;
+savedNodes[0].latest_quality_at=second;
+runtime.updated_at=new Date(now).toISOString();runtime.updated_uptime_seconds=999;boot=1000;
+result=await monitor.snapshot();
+assert.equal(result.health[0].nodes[0].latency_delta_percent,50,'unpaired latest probe overwrote saved Delta');
+assert.equal(result.health[0].nodes[1].latency_delta_percent,0);
+assert.equal(result.health[0].nodes[2].latency_delta_percent,null,'missing pair was inferred from raw samples');
+runtime.policies['resproxy-main'].runtime_selected='a';
+result=await monitor.snapshot();assert(result.health[0].nodes.every(n=>n.latency_delta_percent===null),'old baseline survived selector publication');
 fixtures={};result=await monitor.snapshot();assert.equal(result.status.nodes,0);assert.deepEqual(result.health,[]);
 for(let i=0;i<5;i++)await monitor.snapshot();
 await monitor.sources();assert.equal(coldReads,1,'cold disabled service reloaded catalog during polling');

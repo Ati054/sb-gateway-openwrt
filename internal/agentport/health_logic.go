@@ -17,15 +17,20 @@ const (
 )
 
 type optimizationComparison struct {
-	At               string `json:"at"`
-	Candidate        string `json:"candidate"`
-	Result           string `json:"result"`
-	Reason           string `json:"reason"`
-	ActiveDelayMS    *int   `json:"active_delay_ms,omitempty"`
-	CandidateDelayMS *int   `json:"candidate_delay_ms,omitempty"`
+	At                string  `json:"at"`
+	Candidate         string  `json:"candidate"`
+	Result            string  `json:"result"`
+	Reason            string  `json:"reason"`
+	ActiveDelayMS     *int    `json:"active_delay_ms,omitempty"`
+	CandidateDelayMS  *int    `json:"candidate_delay_ms,omitempty"`
+	ActiveAt          float64 `json:"active_at,omitempty"`
+	CandidateAt       float64 `json:"candidate_at,omitempty"`
+	ThresholdMS       int     `json:"threshold_ms"`
+	ActiveMedianMS    *int    `json:"active_median_ms,omitempty"`
+	CandidateMedianMS *int    `json:"candidate_median_ms,omitempty"`
 }
 
-type latencyComparison struct {
+type LatencyComparison struct {
 	Active           string  `json:"active"`
 	ActiveDelayMS    int     `json:"active_delay_ms"`
 	CandidateDelayMS int     `json:"candidate_delay_ms"`
@@ -33,6 +38,8 @@ type latencyComparison struct {
 	CandidateAt      float64 `json:"candidate_at"`
 	ExpiresAt        float64 `json:"expires_at"`
 }
+
+type latencyComparison = LatencyComparison
 
 // Publish only qualified, fresh ordinary quality evidence used by soft selection.
 // This diagnostic does not probe nodes or change their ranking.
@@ -57,6 +64,9 @@ func currentLatencyComparisons(now time.Time, item *policyHealthState, candidate
 			continue
 		}
 		sample := item.Samples[candidate][len(item.Samples[candidate])-1]
+		if math.Abs(baseline.At-sample.At) > qualityPairWindow.Seconds() {
+			continue
+		}
 		result[candidate] = latencyComparison{
 			Active: active, ActiveDelayMS: *baseline.DelayMS, CandidateDelayMS: *sample.DelayMS,
 			ActiveAt: baseline.At, CandidateAt: sample.At, ExpiresAt: min(baseline.At, sample.At) + window,
@@ -311,9 +321,15 @@ func selectDesired(now time.Time, mode, selected string, candidates []string, gr
 		} else if mode != "priority" {
 			measuredStable := []string{}
 			for _, candidate := range stable {
+				if a, okA := latestQuality(item, selected); okA {
+					if b, okB := latestQuality(item, candidate); okB && *a.DelayMS-*b.DelayMS <= p.improvement {
+						continue
+					}
+				}
 				evidence, measuredNow := measured[candidate]
 				pending := candidate == item.OptimizationCandidate && item.OptimizationChecks > 0
-				if pending || measuredNow && evidence.OK && evidence.DelayMS != nil && !evidence.QualityUnmeasured {
+				_, activeMeasured := measured[selected]
+				if pending || measuredNow && evidence.OK && evidence.DelayMS != nil && !evidence.QualityUnmeasured || activeMeasured && item.qualityPeer == candidate && closeQualityPair(item, selected, candidate) {
 					measuredStable = append(measuredStable, candidate)
 				}
 			}
@@ -361,7 +377,7 @@ func qualitySampleAge(now time.Time, item *policyHealthState, candidate string) 
 		return 0, false
 	}
 	sample := samples[len(samples)-1]
-	age := float64(now.Unix()) - sample.At
+	age := float64(now.UnixNano())/1e9 - sample.At
 	return age, sample.At > 0 && age >= 0 && sample.OK && sample.DelayMS != nil && *sample.DelayMS > 0
 }
 
@@ -385,6 +401,9 @@ func gatePlannedOptimization(now time.Time, selected, desired, reason string, co
 		return selected, ""
 	}
 	if comparison.Result != optimizationWin || comparison.Candidate != desired {
+		if comparison.Result == optimizationInconclusive && comparison.Reason == "pair-too-far-apart" {
+			return selected, ""
+		}
 		clearOptimizationCandidate(item)
 		item.OptimizationLastResult = comparison
 		return selected, ""
@@ -396,7 +415,8 @@ func gatePlannedOptimization(now time.Time, selected, desired, reason string, co
 		item.OptimizationChecks = 0
 	}
 	// Reused evidence in a cycle cannot count as another independent win.
-	if previous != nil && previous.At == comparison.At {
+	if previous != nil && previous.Result == optimizationWin && previous.Candidate == comparison.Candidate && (previous.At == comparison.At || previous.ActiveAt > 0 &&
+		(comparison.ActiveAt <= previous.ActiveAt || comparison.CandidateAt <= previous.CandidateAt)) {
 		return selected, ""
 	}
 	item.OptimizationLastResult = comparison
@@ -417,37 +437,57 @@ func freshComparisonAt(now time.Time, comparison *optimizationComparison, p effe
 	return err == nil && age >= 0 && age <= time.Duration(maxInt(p.active*2, 120))*time.Second
 }
 
-// A candidate needs a new ordinary probe. At a one-slot limit the active
-// measurement may come from the preceding cycle, with the same freshness bound,
-// but it must have been renewed since the previous qualifying comparison.
+// Both completed measurements must be close in time and newer than the last
+// counted pair. A cached peer can finish a split batch, never another win alone.
 func regularOptimizationComparison(now time.Time, selected, candidate string, measured map[string]probeEvidence, item *policyHealthState, quality, available bool, p effectivePolicySettings) *optimizationComparison {
-	if _, fresh := measured[candidate]; !fresh {
+	_, activeMeasured := measured[selected]
+	_, candidateMeasured := measured[candidate]
+	if !activeMeasured && !candidateMeasured {
 		return nil
 	}
-	pair := map[string]probeEvidence{candidate: measured[candidate]}
-	activeAt := float64(now.Unix())
-	if active, ok := measured[selected]; ok {
-		pair[selected] = active
-	} else {
-		samples := item.Samples[selected]
-		if len(samples) > 0 {
+	pair := map[string]probeEvidence{}
+	times := map[string]float64{}
+	for _, id := range []string{selected, candidate} {
+		if evidence, ok := measured[id]; ok {
+			pair[id], times[id] = evidence, qualityTimestamp(now, evidence)
+		} else if samples := item.Samples[id]; len(samples) > 0 {
 			last := samples[len(samples)-1]
-			age := float64(now.Unix()) - last.At
+			age := float64(now.UnixNano())/1e9 - last.At
 			if last.At > 0 && age >= 0 && age <= float64(maxInt(p.active*2, 120)) {
-				pair[selected] = probeEvidence{OK: last.OK, DelayMS: last.DelayMS}
-				activeAt = last.At
+				pair[id] = probeEvidence{OK: last.OK, DelayMS: last.DelayMS}
+				times[id] = last.At
 			}
 		}
 	}
 	comparison := compareOptimization(now, selected, candidate, pair, quality, available, p)
+	comparison.ActiveAt, comparison.CandidateAt = times[selected], times[candidate]
+	comparison.ActiveMedianMS = recentQualityMedian(now, item.Samples[selected], p)
+	comparison.CandidateMedianMS = recentQualityMedian(now, item.Samples[candidate], p)
+	// Direct comparison callers may not yet have committed the new samples.
+	if comparison.ActiveMedianMS == nil {
+		comparison.ActiveMedianMS = pair[selected].DelayMS
+	}
+	if comparison.CandidateMedianMS == nil {
+		comparison.CandidateMedianMS = pair[candidate].DelayMS
+	}
+	if comparison.Result == optimizationWin && !freshOptimizationWin(selected, candidate, map[string]probeEvidence{
+		selected: {OK: true, DelayMS: comparison.ActiveMedianMS}, candidate: {OK: true, DelayMS: comparison.CandidateMedianMS},
+	}, p) {
+		comparison.Result, comparison.Reason = optimizationLoss, "median-not-better"
+	}
+	if comparison.Result == optimizationWin && math.Abs(comparison.ActiveAt-comparison.CandidateAt) > qualityPairWindow.Seconds() {
+		comparison.Result, comparison.Reason = optimizationInconclusive, "pair-too-far-apart"
+	}
 	previous := item.OptimizationLastResult
 	if comparison.Result == optimizationWin && item.OptimizationChecks > 0 &&
 		item.OptimizationBaseline == selected && item.OptimizationCandidate == candidate &&
 		freshComparisonAt(now, previous, p) {
-		at, _ := time.Parse(time.RFC3339, previous.At)
-		if activeAt <= float64(at.Unix()) {
-			// Keep the first confirmation while ordinary rotation renews the
-			// active sample. A candidate's new probe alone is not a new pair.
+		activeAt, candidateAt := previous.ActiveAt, previous.CandidateAt
+		if activeAt == 0 {
+			at, _ := time.Parse(time.RFC3339Nano, previous.At)
+			activeAt, candidateAt = float64(at.UnixNano())/1e9, float64(at.UnixNano())/1e9
+		}
+		if comparison.ActiveAt <= activeAt || comparison.CandidateAt <= candidateAt {
 			return nil
 		}
 	}
@@ -465,7 +505,7 @@ func freshOptimizationWin(selected, candidate string, measured map[string]probeE
 }
 
 func compareOptimization(now time.Time, selected, candidate string, measured map[string]probeEvidence, candidateQuality, candidateAvailable bool, p effectivePolicySettings) *optimizationComparison {
-	comparison := &optimizationComparison{At: now.UTC().Format(time.RFC3339), Candidate: candidate}
+	comparison := &optimizationComparison{At: now.UTC().Format(time.RFC3339Nano), Candidate: candidate, ThresholdMS: p.improvement}
 	active, activeMeasured := measured[selected]
 	reserve, candidateMeasured := measured[candidate]
 	comparison.ActiveDelayMS = active.DelayMS

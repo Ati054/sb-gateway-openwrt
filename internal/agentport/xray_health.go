@@ -876,7 +876,10 @@ const (
 
 func (runtime *xraySelectorRuntime) Probe(candidate string) (evidence probeEvidence) {
 	trace := beginHealthStage("quality_probe", runtime.stageLane(), "", candidate)
-	defer func() { trace.finish(evidence.OK) }()
+	defer func() {
+		evidence.ObservedAt = time.Now()
+		trace.finish(evidence.OK)
+	}()
 	return runtime.probe(candidate, xrayQualityProbe)
 }
 

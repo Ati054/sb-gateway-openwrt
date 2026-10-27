@@ -270,9 +270,8 @@ return view.extend({
                 return choices.concat(presetChoices(country, catalog).map(function(choice) { return Object.assign({ country:country }, choice); }));
             }, [{ key:'traffic:bittorrent', protocols:['bittorrent'] }]);
         }
-        function editVariant(key, variant) {
-            if (creating || map.readonly) return;
-            rememberDraft(); resetDraft(); editingVariant = { key:key, rules:variant.rules };
+        function loadVariant(key, variant) {
+            editingVariant = { key:key, rules:variant.rules };
             draftName = variant.name;
             var actions = Array.from(new Set(variant.rules.map(function(rule) { return rule.action; })));
             draftAction = actions.length === 1 ? actions[0] : 'keep';
@@ -290,7 +289,11 @@ return view.extend({
                 if (choice.mode) selection.geoip = true;
                 else (choice.packs || [choice.pack]).forEach(function(id) { selection.packs['pack:' + id] = true; });
             });
-            draftCountry = firstCountry || 'ru'; restoreDraft(key); creatorOpen = true; addPreset.inputtitle = _('Save changes'); persistDrafts();
+            draftCountry = firstCountry || 'ru'; restoreDraft(key); creatorOpen = true; addPreset.inputtitle = _('Save changes');
+        }
+        function editVariant(key, variant) {
+            if (creating || map.readonly) return;
+            rememberDraft(); resetDraft(); loadVariant(key, variant); persistDrafts();
             return refreshEditor(false, key);
         }
         function updateRouteReferences(oldRules, newIDs, addedIDs) {
@@ -844,11 +847,14 @@ return view.extend({
             var activeKey = cachedEditor.active;
             if (activeKey !== '_new') {
                 var activeRules = uci.sections('resproxy', 'rule').filter(function(rule) { return rule.preset_key && (rule.preset_variant || 'legacy') === activeKey; });
-                if (activeRules.length) { editingVariant = {key:activeKey, rules:activeRules}; addPreset.inputtitle = _('Save changes'); }
+                if (activeRules.length) loadVariant(activeKey, {name:activeRules[0].preset_variant_name || _('Ready-made rules'),rules:activeRules});
                 else activeKey = '_new';
             }
-            if (restoreDraft(activeKey)) creatorOpen = true;
+            if (activeKey === '_new' && restoreDraft(activeKey)) creatorOpen = true;
         }
+        // This editor owns a draft per variant. A second, page-wide snapshot
+        // must not restore virtual fields from another variant over that state.
+        settings.children.forEach(function(field) { field._sbgOwnDraft = true; });
         var draftSession = Drafts.attach(map, 'rulesets');
         return map.render().then(function(node) {
             draftSession.bind(node);

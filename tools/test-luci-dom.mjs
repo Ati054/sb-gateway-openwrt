@@ -11,6 +11,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const directory = path.join(root, 'htdocs/luci-static/resources/view/resproxy');
 const sources = {};
+const nameCases = JSON.parse(await readFile(path.join(root, 'internal/selection/testdata/name_filters.json'), 'utf8'));
 for (const name of await readdir(directory)) {
  if (!name.endsWith('.js')) continue;
  const source = await readFile(path.join(directory, name), 'utf8');
@@ -38,12 +39,13 @@ try {
  const errors = [];
  page.on('pageerror', error => errors.push(error.message));
  await page.goto(`http://127.0.0.1:${server.address().port}/`);
- const result = await page.evaluate(async ({ sources, stockDOM }) => {
+ const result = await page.evaluate(async ({ sources, stockDOM, nameCases }) => {
   const baseclass = { extend: value => value };
   const Class = { singleton: value => value };
   const dom = new Function('Class', 'domParser', stockDOM + ';return DOM;')(Class, new DOMParser());
   const safeDOM = new Function('baseclass', 'dom', sources.safe_dom)(baseclass, dom);
   const _ = value => value;
+  const nameFilter = new Function('baseclass', '_', sources.name_filter)(baseclass, _);
   String.prototype.format = function(...args) { let i = 0; return this.replace(/%[sd]/g, () => String(args[i++])); };
   const payload = '<img src="data:," onerror="window.__sbgXSS=(window.__sbgXSS||0)+1">';
   const negative = dom.create('div', {}, payload);
@@ -52,19 +54,75 @@ try {
   window.__sbgXSS = 0;
   const node = { id:'n', value:'location:fr:test', label:payload, subscription:payload, protocol:'vless', country:'fr', city:'Test', selected:true, available:true, last_probe_at:1,
    period_stats:{today:{samples:1, median_ms:20, availability_percent:100}} };
-  const health = new Function('baseclass', 'safeDOM', '_', sources.node_health)(baseclass, safeDOM, _);
+  const health = new Function('baseclass', 'safeDOM', 'nameFilter', '_', sources.node_health)(baseclass, safeDOM, nameFilter, _);
   const healthView = health.create([{id:payload, nodes:[node], candidate_count:1, healthy_reserves:0}]);
   document.body.append(healthView.node);
   if (!healthView.node.textContent.includes(payload)) throw Error('Health did not preserve literal label');
+  const filterNodes = [node,
+   {...node,id:'amsterdam',label:'Амстердам Premium',selected:false,latency_delta_percent:-25,latency_comparison:{active_at:1000,candidate_at:1001}},
+   {...node,id:'sweden',label:'Швеция Premium',selected:false,latency_delta_percent:25},
+   {...node,id:'trial',label:'Швеция тестовый',selected:false,latency_delta_percent:50},
+   {...node,id:'berlin',label:'Берлин',selected:false,latency_delta_percent:149.6}
+  ];
+  healthView.update([{id:payload,nodes:filterNodes,candidate_count:5,healthy_reserves:4}]);
+  const healthSearch = healthView.node.querySelector('input[type="search"]');
+  const healthRows = () => Array.from(healthView.node.querySelectorAll('tbody tr'));
+  healthSearch.value=' амстердам , ШВЕЦИЯ, , '; healthSearch.dispatchEvent(new Event('input'));
+  if(healthRows().length!==4 || healthRows().some(row=>row.textContent.includes('Берлин')))throw Error('Health comma search did not use case-insensitive alternatives');
+  const deltaCell=label=>healthRows().find(row=>row.cells[0].textContent===label).cells[4];
+  if(deltaCell('Амстердам Premium').textContent!=='-25.0%' || deltaCell('Швеция Premium').textContent!=='+25.0%')throw Error('Delta signs rendered incorrectly');
+  if(!deltaCell('Амстердам Premium').title.includes('Negative means lower latency'))throw Error('Delta tooltip contradicts signs');
+  if(!deltaCell('Амстердам Premium').title.includes(new Date(1000*1000).toLocaleString()) || !deltaCell('Амстердам Premium').title.includes(new Date(1001*1000).toLocaleString()))throw Error('Delta tooltip lost either completion time');
+  healthSearch.value='"Швеция Premium", "Берлин"'; healthSearch.dispatchEvent(new Event('input'));
+  if(healthRows().length!==3 || healthRows().some(row=>row.textContent.includes('Швеция тестовый')))throw Error('Health full-name search matched a partial label');
+  healthSearch.value='"Швеция';healthSearch.dispatchEvent(new Event('input'));
+  if(healthSearch.getAttribute('aria-invalid')!=='true' || healthView.node.querySelector('[role="alert"]').hidden)throw Error('Malformed search quotes have no visible error');
+  healthSearch.value=' , , ';healthSearch.dispatchEvent(new Event('input'));
+  if(healthRows().length!==5 || deltaCell('Берлин').textContent!=='+149.6%')throw Error('Empty fragments or slower-than-double delta lost');
+  healthSearch.value='';healthSearch.dispatchEvent(new Event('input'));
+  window.localStorage.removeItem('sb-gateway.node-health.v1');
   // Exercise the picker body directly; form/UCI persistence is outside this DOM test.
   const pickerSource = sources.location_picker.replace('return baseclass.extend({ Option: Option });', 'return picker;');
   if (pickerSource === sources.location_picker) throw Error('Picker test boundary changed');
-  const picker = new Function('baseclass', 'form', 'uci', 'safeDOM', '_', pickerSource)(baseclass, {Value:{extend:value=>value}}, {get:()=> 'best', sections:()=>[]}, safeDOM, _);
+  const picker = new Function('baseclass', 'form', 'uci', 'safeDOM', 'nameFilter', '_', pickerSource)(baseclass, {Value:{extend:value=>value}}, {get:()=> 'best', sections:()=>[]}, safeDOM, nameFilter, _);
   const state = {kind:'filter', order:[], view:'countries', source:'*', countries:[], protocols:[], include:'', exclude:''};
-  const option = {map:{readonly:false}, formvalue:()=>JSON.stringify(state), cbid:()=> 'fixture'};
-  const pickerView = picker(option, 'fixture', document.createElement('input'), state, {nodes:[node], regions:{europe:{fr:true}}, locations:[]});
+  const option = {map:{readonly:false}, formvalue:()=>JSON.stringify(state), cbid:()=> 'fixture',getUIElement:()=>null};
+  const pickerView = picker(option, 'fixture', document.createElement('input'), state, {nodes:filterNodes, regions:{europe:{fr:true}}, locations:[]});
   document.body.append(pickerView);
   if (!pickerView.textContent.includes(payload)) throw Error('Picker did not preserve literal label/subscription');
+  const include=pickerView.querySelector('input[aria-label="Include names"]');
+  const exclude=pickerView.querySelector('input[aria-label="Exclude names"]');
+  if(pickerView.querySelector('select[aria-label="Match exclusion as"]'))throw Error('Draft match-mode selector remains');
+  const setInput=(input,value)=>{input.value=value;input.dispatchEvent(new Event('input'));};
+  const preview=()=>pickerView.querySelector('.sbg-location-preview strong').textContent;
+  setInput(include,' амстердам , ШВЕЦИЯ, , ');
+  if(preview()!=='Matching nodes: 3')throw Error('Picker preview still requires all fragments');
+  setInput(exclude,'ТЕСТ, trial');
+  if(preview()!=='Matching nodes: 2')throw Error('Substring exclusion did not override inclusion');
+  setInput(exclude,'"ШВЕЦИЯ ТЕСТОВЫЙ", unused');
+  if(preview()!=='Matching nodes: 2')throw Error('Full-name mode failed');
+  setInput(exclude,'"тестовый"');
+  if(preview()!=='Matching nodes: 3')throw Error('Full-name mode treated a fragment as full name');
+  const nameModule=sources.location_picker.replace('return baseclass.extend({ Option: Option });','return {Option:Option,eligible:eligible};');
+  const savedUCI={};
+  const pickerModule=new Function('baseclass','form','uci','safeDOM','nameFilter','_',nameModule)(baseclass,{Value:{extend:value=>value}},
+   {get:(_c,_s,key)=>savedUCI[key],set:(_c,_s,key,value)=>{savedUCI[key]=value;},unset:(_c,_s,key)=>{delete savedUCI[key];}},safeDOM,nameFilter,_);
+  pickerModule.Option.write('fixture',JSON.stringify(state));
+  const restoredFilter=JSON.parse(pickerModule.Option.cfgvalue('fixture'));
+  if(restoredFilter.include!==state.include.trim() || restoredFilter.exclude!==state.exclude.trim())throw Error('Quoted filters lost on UCI save/reload');
+  for(const c of nameCases) {
+   const base={kind:'filter',source:'*',countries:[],protocols:[],include:'',exclude:''};
+   const parsed=nameFilter.parse(c.pattern);
+   if(!!parsed.error!==!!c.invalid)throw Error('Quote validation differs from backend: '+JSON.stringify(c));
+   if(c.invalid) {
+    if(pickerModule.Option.validate('fixture',JSON.stringify({...base,include:c.pattern}))===true || pickerModule.Option.validate('fixture',JSON.stringify({...base,exclude:c.pattern}))===true)throw Error('Malformed quotes can be saved');
+    if(pickerModule.eligible({...base,include:c.pattern},{label:c.label||''}) || pickerModule.eligible({...base,exclude:c.pattern},{label:c.label||''}))throw Error('Malformed quotes admitted candidates');
+    continue;
+   }
+   if(pickerModule.eligible({...base,include:c.pattern},{label:c.label})!==c.match ||
+    pickerModule.eligible({...base,exclude:c.pattern},{label:c.label})===c.match)throw Error('Picker matching differs from backend: '+JSON.stringify(c));
+  }
+  for(const tooLong of ['x'.repeat(513),'я'.repeat(257)])if(!nameFilter.parse(tooLong).error)throw Error('Oversized UTF-8 filter accepted');
   for (const field of ['runtime_error','error.message','failure','version','rule.name','variant.name']) {
    const element = safeDOM.create('p', {}, payload); element.dataset.fixture=field; document.body.append(element);
   }
@@ -161,8 +219,8 @@ try {
 	if(journalOutput.textContent.includes('system-only entry'))throw Error('Search restored lines from a failed old category');
   await new Promise(resolve => setTimeout(resolve, 50));
   if (document.querySelector('img,svg,script') || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
-  return {negativeControl:true, health:true, picker:true, scalarAndCallback:true, overviewMonitoring:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
- }, { sources, stockDOM });
+  return {negativeControl:true, health:true, picker:true, commaAlternatives:true, quotedNames:true, sharedNameCases:nameCases.length, exclusionPrecedence:true, deltaSigns:true, scalarAndCallback:true, overviewMonitoring:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
+ }, { sources, stockDOM, nameCases });
  assert.deepEqual(errors, []);
  console.log(JSON.stringify(result));
 } finally {

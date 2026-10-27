@@ -21,6 +21,9 @@ func invalidateChangedOutboundHealth(item *policyHealthState, candidates []strin
 			continue
 		}
 		changed = append(changed, id)
+		if pair := item.qualityPair; pair != nil && (pair.Active == id || pair.Candidate == id) {
+			item.qualityPair = nil
+		}
 		if id == item.Selected {
 			item.RuntimeConfirmed = false
 		}
@@ -60,6 +63,9 @@ func pruneRemovedCandidateHealth(item *policyHealthState, candidates []string) {
 	active := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
 		active[candidate] = true
+	}
+	if pair := item.qualityPair; pair != nil && (!active[pair.Active] || !active[pair.Candidate]) {
+		item.qualityPair = nil
 	}
 	pruneNodeMap(item.Failures, active)
 	pruneNodeMap(item.AvailabilityFailures, active)

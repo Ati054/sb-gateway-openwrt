@@ -2,12 +2,39 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
 	"github.com/Ati054/sb-gateway-openwrt/internal/daemon"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+func TestPreparedPairedDeltaSurvivesUnmatchedProbeAndExpiresOnActiveChange(t *testing.T) {
+	delay := func(v int) *int { return &v }
+	pair := func(candidate int) *agentport.LatencyComparison {
+		return &agentport.LatencyComparison{Active: "a", ActiveDelayMS: 600, CandidateDelayMS: candidate, ActiveAt: 1000, CandidateAt: 1001}
+	}
+	nodes := []nodeHealth{
+		{ID: "a", Selected: true, Available: true, LatestDelayMS: delay(999), LatestQualityAt: 2000, LatencyComparison: pair(600)},
+		{ID: "b", Available: true, LatestDelayMS: delay(800), LatestQualityAt: 2000, LatencyComparison: pair(400)},
+		{ID: "unpaired", Available: true, LatestDelayMS: delay(300), LatestQualityAt: 2000},
+	}
+	setFreshLatencyDeltas(nodes, time.Unix(2000, 0), 60, 120, true)
+	if nodes[1].LatencyDelta == nil || *nodes[1].LatencyDelta < -33.4 || *nodes[1].LatencyDelta > -33.3 {
+		t.Fatal("latest unmatched sample replaced saved Delta")
+	}
+	if nodes[2].LatencyDelta != nil {
+		t.Fatal("unpaired raw values became a Delta")
+	}
+	nodes[0].Selected, nodes[1].Selected = false, true
+	setFreshLatencyDeltas(nodes, time.Unix(2000, 0), 60, 120, true)
+	for _, node := range nodes {
+		if node.LatencyDelta != nil {
+			t.Fatal("saved Delta survived a changed baseline")
+		}
+	}
+}
 
 func TestHealthPublishesSuccessfulMeasurementTimesAfterFailedAttempt(t *testing.T) {
 	root := t.TempDir()
@@ -74,7 +101,7 @@ func TestFreshLatencyDisplayAfterActiveSwitchAndExpiry(t *testing.T) {
 		{ID: "future", Available: true, LatestDelayMS: delay(100), LatestQualityAt: 2010},
 	}
 	setFreshLatencyDeltas(nodes, now, 60, 180)
-	if nodes[0].LatencyDelta == nil || *nodes[0].LatencyDelta != 0 || nodes[1].LatencyDelta == nil || *nodes[1].LatencyDelta < 33.3 || *nodes[1].LatencyDelta > 33.4 {
+	if nodes[0].LatencyDelta == nil || *nodes[0].LatencyDelta != 0 || nodes[1].LatencyDelta == nil || *nodes[1].LatencyDelta > -33.3 || *nodes[1].LatencyDelta < -33.4 {
 		t.Fatal(nodes)
 	}
 	for _, n := range nodes[2:] {
@@ -85,7 +112,7 @@ func TestFreshLatencyDisplayAfterActiveSwitchAndExpiry(t *testing.T) {
 	nodes[0].Selected = false
 	nodes[1].Selected = true
 	setFreshLatencyDeltas(nodes, now, 60, 180)
-	if nodes[0].LatencyDelta == nil || *nodes[0].LatencyDelta != -50 || *nodes[1].LatencyDelta != 0 {
+	if nodes[0].LatencyDelta == nil || *nodes[0].LatencyDelta != 50 || *nodes[1].LatencyDelta != 0 {
 		t.Fatal("comparison retained old active", nodes)
 	}
 	setFreshLatencyDeltas(nodes, now.Add(121*time.Second), 60, 180)
@@ -139,7 +166,7 @@ func TestHealthUsesPreparedViewWithoutParsingRetainedHistory(t *testing.T) {
 	if err := json.NewDecoder(r).Decode(&policies); err != nil {
 		t.Fatal(err)
 	}
-	if len(policies) != 1 || policies[0].Nodes[1].LatencyDelta == nil || *policies[0].Nodes[1].LatencyDelta != 25 {
+	if len(policies) != 1 || policies[0].Nodes[1].LatencyDelta == nil || *policies[0].Nodes[1].LatencyDelta != -25 {
 		t.Fatal(policies)
 	}
 }

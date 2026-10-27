@@ -1,6 +1,7 @@
 'use strict';
 'require baseclass';
 'require view.resproxy.safe_dom as safeDOM';
+'require view.resproxy.name_filter as nameFilter';
 
 var E = safeDOM.create;
 
@@ -29,10 +30,11 @@ return baseclass.extend({
   var period = E('select', { 'class': 'cbi-input-select', 'aria-label': _('Rating period') }, [
    E('option', { value: 'today' }, _('Today (UTC)')), E('option', { value: '7d' }, _('7 days'))
   ]);
-  var search = E('input', { 'class': 'cbi-input-text', type: 'search', placeholder: _('Find a node'), 'aria-label': _('Find a node') });
+  var search = E('input', { 'class': 'cbi-input-text', type: 'search', placeholder: _('Name fragments, separated by commas'), 'aria-label': _('Find a node') });
   period.value = saved.period === '7d' ? '7d' : 'today';
   search.value = typeof saved.search === 'string' ? saved.search : '';
   var body = E('tbody'), summary = E('p', { 'class': 'sbg-muted' });
+  var searchError = E('p', { role:'alert', hidden:'' });
   var table = E('table', { 'class': 'table sbg-health-table' }, [
    E('thead', {}, E('tr', {}, [_('Node'), _('Status'), _('Availability / HTTPS errors'), _('Median latency'), _('Delta, %'), _('Checks'), _('Last check')]
     .map(function(title) { return E('th', { scope: 'col' }, title); }))), body
@@ -53,8 +55,10 @@ return baseclass.extend({
    summary.textContent = policy.pending ? _('Waiting for checks') : _('%d candidates · %d healthy reserves').format(policy.candidate_count, policy.healthy_reserves);
    if (policy.history_budget_kib) summary.textContent += ' · '+_('History budget: %d / %d KiB across all route lists').format(policy.history_usage_kib || 0, policy.history_budget_kib);
    if (policy.history_truncated) summary.textContent += ' · '+_('Older history removed to stay within the RAM budget');
-   var query = search.value.toLocaleLowerCase();
-   var visible = policy.nodes.filter(function(n) { return n.selected || !query || n.label.toLocaleLowerCase().includes(query); });
+   var query = nameFilter.parse(search.value);
+   searchError.textContent = nameFilter.errorMessage(query.error); searchError.hidden = !query.error;
+   search.setAttribute('aria-invalid', query.error ? 'true' : 'false');
+   var visible = policy.nodes.filter(function(n) { return n.selected || nameFilter.matches(n.label, query, true); });
    visible.sort(function(a,b) {
     var aa = (a.period_stats || {})[period.value] || {}, bb = (b.period_stats || {})[period.value] || {};
     if (!!a.selected !== !!b.selected) return a.selected ? -1 : 1;
@@ -65,8 +69,14 @@ return baseclass.extend({
    visible.slice(0, rowLimit).forEach(function(n) {
     var s = (n.period_stats || {})[period.value] || {};
     var state = nodeState(n);
-    var deltaTitle = n.latency_delta_percent != null ? _('Compared with the active node using fresh HTTPS measurements. Positive means faster.') :
+    var deltaTitle = n.latency_delta_percent != null ? _('Compared with the active node using fresh HTTPS measurements. Negative means lower latency; positive means higher latency.') :
      n.latency_delta_reason === 'active-measurement-missing-or-stale' ? _('No fresh successful HTTPS measurement for the active node.') : _('No fresh successful HTTPS measurement for this node.');
+    if (n.latency_comparison && n.latency_delta_percent != null) {
+     deltaTitle = _('Last paired HTTPS comparison. Negative means lower latency; positive means higher latency.') + '\n' +
+      _('Active node') + ': ' + new Date(n.latency_comparison.active_at*1000).toLocaleString() + '\n' +
+      _('Candidate') + ': ' + new Date(n.latency_comparison.candidate_at*1000).toLocaleString();
+    } else if (n.latency_delta_reason === 'paired-measurement-missing' || n.latency_delta_reason === 'measurements-too-far-apart')
+     deltaTitle = _('Waiting for HTTPS measurements completed within 10 seconds of each other.');
     var availability = s.availability_percent == null ? '—' : Number(s.availability_percent).toFixed(1)+'%';
     var loss = s.https_error_percent == null ? '' : ' / '+Number(s.https_error_percent).toFixed(1)+'%';
     fragment.appendChild(E('tr', { 'class': n.selected ? 'tr sbg-node-active' : 'tr' }, [
@@ -89,7 +99,9 @@ return baseclass.extend({
    E('summary', {}, _('Node health')),
    E('div', { 'class': 'sbg-health-controls' }, [
     [ _('Route list'), picker ], [ _('Rating period'), period ], [ _('Find a node'), search ]
-   ].map(function(pair) { return E('label', {}, [E('span', {}, pair[0]),pair[1]]); })), summary, E('div', { 'class': 'sbg-table-scroll', tabindex: '0', 'aria-label': _('Node health') }, table)
+   ].map(function(pair) { return E('label', {}, [E('span', {}, pair[0]),pair[1]]); })), searchError, summary,
+   E('p', { 'class':'sbg-muted' }, _('Delta: negative means lower latency; positive means higher latency than the active node.')),
+   E('div', { 'class': 'sbg-table-scroll', tabindex: '0', 'aria-label': _('Node health') }, table)
   ]);
   function remember() {
    saved = { policy:picker.value || saved.policy || '', period:period.value, search:search.value, open:root.open };

@@ -73,6 +73,10 @@ type healthPolicy = healthcontract.Policy
 type healthState map[string]*policyHealthState
 
 type policyHealthState struct {
+	qualityPair                *qualityPairContinuation
+	qualityPeer                string
+	qualityFinishedAt          time.Time
+	displayComparisons         map[string]displayLatencyComparison
 	activeTimeoutCPUOverloaded bool                              // Current-process evidence only; never restored.
 	LatencyMeasurement         string                            `json:"latency_measurement,omitempty"`
 	Selected                   string                            `json:"selected"`
@@ -353,9 +357,20 @@ func (controller *healthController) nextIntervalAt(now time.Time) time.Duration 
 	if len(controller.transitions) > 0 && (interval <= 0 || interval > time.Second) {
 		interval = time.Second
 	}
-	for _, item := range controller.state {
+	busy := controller.opts.BackgroundBusy != nil && controller.opts.BackgroundBusy()
+	for id, item := range controller.state {
 		if item == nil {
 			continue
+		}
+		qualityReady := !busy && item.Mode == "best" && item.RuntimeConfirmed && item.Selected != "block" && item.AvailabilityFailures[item.Selected] == 0
+		if qualityReady && pairContinuationValid(now, item) && (interval <= 0 || interval > time.Second) {
+			interval = time.Second
+		}
+		if next := controller.regularNext[id]; qualityReady && next.After(now) {
+			remaining := max(time.Second, next.Sub(now))
+			if interval <= 0 || remaining < interval {
+				interval = remaining
+			}
 		}
 		liveness := configuredHealthDuration(item.ProbeLimits.LivenessSeconds, activeLivenessInterval)
 		failureRetry := configuredHealthDuration(item.ProbeLimits.FailureRetrySeconds, failureRetryInterval)
@@ -522,6 +537,7 @@ func (controller *healthController) Tick(now time.Time) error {
 				continue
 			}
 			clearOptimizationCandidate(item)
+			item.qualityPair = nil
 			contract, managed := pool.HealthPolicies[policyID]
 			if !managed {
 				continue
@@ -597,12 +613,16 @@ func (controller *healthController) Tick(now time.Time) error {
 		// Finish a pending fast proof before due quality work. A confirmed outage
 		// still enters tickPolicy immediately to probe reserves, not the active.
 		if controller.transitions[policyID] != nil || warmWork ||
-			(!deferQuality && !controller.forceLiveness[policyID] && !confirmingFailure && !now.Before(controller.regularNext[policyID])) || item.Selected == "block" {
+			(!deferQuality && !controller.forceLiveness[policyID] && !confirmingFailure && (pairContinuationValid(now, item) || !now.Before(controller.regularNext[policyID]))) || item.Selected == "block" {
 			delete(controller.forceLiveness, policyID)
 			delete(controller.probeBudget.DeferredPolicies, policyID)
 			err = controller.tickPolicy(now, policyID, contract, item)
 			if !errors.Is(err, errHealthYield) {
-				controller.regularNext[policyID] = now.Add(controller.remainingProbeInterval(now, contract, item))
+				finishedAt := now
+				if item.qualityFinishedAt.After(finishedAt) {
+					finishedAt = item.qualityFinishedAt
+				}
+				controller.regularNext[policyID] = finishedAt.Add(controller.remainingProbeInterval(finishedAt, contract, item))
 			}
 			dirty = true
 		} else {
@@ -722,6 +742,8 @@ func newPolicyHealthState() *policyHealthState {
 }
 
 func (controller *healthController) tickPolicy(now time.Time, policyID string, contract healthPolicyContract, item *policyHealthState) (tickErr error) {
+	item.qualityPeer = ""
+	item.qualityFinishedAt = now
 	item.LatencyComparisons = nil
 	item.OutageBatchStartedAt = time.Time{}
 	trace := beginHealthStage("policy_tick", "controller", policyID, item.Selected)
@@ -742,6 +764,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		item.QualityOK = nil
 		clearOptimizationCandidate(item)
 		item.OptimizationLastResult = nil
+		item.qualityPair, item.displayComparisons = nil, nil
 	}
 	previousSelected, previousConfirmed := item.RuntimeSelected, item.RuntimeConfirmed
 	if len(candidates) == 0 {
@@ -951,6 +974,27 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		}
 	}
 
+	intendedTargets := append([]string(nil), probeTargets...)
+	continuingPair := pairContinuationValid(now, item)
+	if !outage && !warm && contract.Mode == "best" {
+		if len(probeTargets) == 1 && probeTargets[0] == selected {
+			oldest := ""
+			for _, node := range candidates {
+				if node != selected && (oldest == "" || item.LastProbeAt[node] < item.LastProbeAt[oldest]) &&
+					float64(now.Unix())-item.LastProbeAt[node] >= float64(p.active) {
+					oldest = node
+				}
+			}
+			if oldest != "" {
+				intendedTargets = append(intendedTargets, oldest)
+			}
+		}
+		pairSettings := p
+		if runtime, ok := controller.runtime.(interface{ qualityProbeParallelism() int }); ok {
+			pairSettings.batch = minInt(p.batch, maxInt(1, runtime.qualityProbeParallelism()))
+		}
+		probeTargets = qualityBatchTargets(now, selected, probeTargets, item, pairSettings)
+	}
 	if !outage {
 		var deferred []string
 		probeTargets, deferred = controller.claimProbeTargets(policyID, contract, probeTargets, false)
@@ -1104,9 +1148,9 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 
 	// Commit timestamps with the batch results, never for an interrupted batch.
 	for candidate, evidence := range measured {
-		item.LastProbeAt[candidate] = float64(now.Unix())
+		item.LastProbeAt[candidate] = qualityTimestamp(now, evidence)
 		if evidence.OK {
-			item.LastGoodAt[candidate] = float64(now.Unix())
+			item.LastGoodAt[candidate] = qualityTimestamp(now, evidence)
 		}
 	}
 
@@ -1134,10 +1178,13 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	for _, candidate := range candidates {
 		samples := append([]healthSample(nil), item.Samples[candidate]...)
 		if evidence, ok := measured[candidate]; ok && !unconfirmedCPUTimeout(evidence) && (!evidence.OK || evidence.DelayMS != nil || evidence.QualityUnmeasured) {
-			samples = append(samples, healthSample{At: float64(now.Unix()), OK: evidence.OK, DelayMS: evidence.DelayMS})
+			at := qualityTimestamp(now, evidence)
+			if len(samples) == 0 || at > samples[len(samples)-1].At {
+				samples = append(samples, healthSample{At: at, OK: evidence.OK, DelayMS: evidence.DelayMS})
+			}
 		}
-		if len(samples) > 1 {
-			samples = samples[len(samples)-1:]
+		if len(samples) > 3 {
+			samples = samples[len(samples)-3:]
 		}
 		item.Samples[candidate] = samples
 		failed := 0
@@ -1154,13 +1201,9 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 			loss = float64(failed) * 100 / float64(len(samples))
 		}
 		losses[candidate] = roundOne(loss)
-		var typical *int
-		if len(delays) > 0 {
-			value := medianInt(delays)
-			typical = &value
-		}
+		typical := recentQualityMedian(qualityEvaluationTime(now, measured), samples, p)
 		medians[candidate] = typical
-		qualityOK[candidate] = typical != nil && failed == 0
+		qualityOK[candidate] = typical != nil
 		if evidence, ok := measured[candidate]; ok && !unconfirmedCPUTimeout(evidence) {
 			if evidence.OK {
 				delete(item.FailureClass, candidate)
@@ -1213,7 +1256,14 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		}
 	}
 
-	desired, reason := selectDesired(now, contract.Mode, selected, candidates, groupIndex, dailyStats, medians, measured, qualityOK, availabilityOK, item, p)
+	evaluationAt := qualityEvaluationTime(now, measured)
+	item.qualityFinishedAt = evaluationAt
+	if !outage && !emergencySwitched && !warm && contract.Mode == "best" {
+		planQualityContinuation(evaluationAt, selected, intendedTargets, probeTargets, measured, item, continuingPair)
+	} else {
+		item.qualityPair = nil
+	}
+	desired, reason := selectDesired(evaluationAt, contract.Mode, selected, candidates, groupIndex, dailyStats, medians, measured, qualityOK, availabilityOK, item, p)
 	if reason == "local-cpu-busy" {
 		// Reserves were still probed and any fresh success takes precedence. All
 		// timeout results during local saturation cannot prove a remote outage.
@@ -1249,12 +1299,12 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	}
 	var comparison *optimizationComparison
 	if contract.Mode == "best" && reason == "meaningfully-faster" {
-		comparison = regularOptimizationComparison(now, selected, desired, measured, item, qualityOK[desired], availabilityOK[desired], p)
+		comparison = regularOptimizationComparison(evaluationAt, selected, desired, measured, item, qualityOK[desired], availabilityOK[desired], p)
 	} else if contract.Mode == "best" && item.OptimizationCandidate != "" {
 		candidate := item.OptimizationCandidate
-		comparison = regularOptimizationComparison(now, selected, candidate, measured, item, qualityOK[candidate], availabilityOK[candidate], p)
+		comparison = regularOptimizationComparison(evaluationAt, selected, candidate, measured, item, qualityOK[candidate], availabilityOK[candidate], p)
 	}
-	desired, reason = gatePlannedOptimization(now, selected, desired, reason, comparison, item, p)
+	desired, reason = gatePlannedOptimization(evaluationAt, selected, desired, reason, comparison, item, p)
 	serviceStatus := make(map[string]serviceHealthStatus)
 	if contract.Mode == "priority" && len(contract.Policy.CandidateServiceIDs) > 0 {
 		desiredGroup := groupSelector[desired]
@@ -1300,7 +1350,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	item.PeriodStats = map[string]map[string]healthStats{"24h": dailyStats, "7d": period7, "30d": period30}
 	item.DelayMS, item.MedianDelayMS, item.PacketLossPercent = delayMap, medians, losses
 	item.QualityOK, item.AvailabilityOK = qualityOK, availabilityOK
-	item.LatencyComparisons = currentLatencyComparisons(now, item, candidates, p)
+	item.LatencyComparisons = currentLatencyComparisons(evaluationAt, item, candidates, p)
 	shortlist = workingShortlist(now, item.Selected, candidates, contract.Mode, groupIndex, item, p)
 	reserves := len(without(shortlist, []string{item.Selected}))
 	item.CandidateLabels, item.CandidateGroups, item.GroupLabels = labels, groupIndex, groupLabels
@@ -1321,7 +1371,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		item.OutageBatchStartedAt = emergencyBatchStartedAt
 	}
 	item.QualityThresholds = qualityThresholds{SwitchImprovementMS: p.improvement, FailureConfirmations: p.failureThreshold, RecoveryConfirmations: p.recoveryThreshold}
-	item.CheckedAt = now.UTC().Format(time.RFC3339)
+	item.CheckedAt = evaluationAt.UTC().Format(time.RFC3339Nano)
 	rememberWorkingSelection(contract, item)
 	return nil
 }

@@ -14,6 +14,15 @@ import (
 
 var errHealthYield = errors.New("background probe yielded to active path or runtime change")
 
+// A quality batch must not hide many sequential probes behind one lane: its
+// early measurements would already be incomparable when the batch returns.
+func (runtime *responsiveSelectorRuntime) qualityProbeParallelism() int {
+	if !runtime.parallelEnabled {
+		return 1
+	}
+	return maxInt(1, len(runtime.backgrounds))
+}
+
 // The controller remains the sole owner of health state and routing choices.
 // Quality and emergency availability use independent loopback selector lanes.
 // Background workers publish evidence through the controller callback and never
@@ -397,7 +406,9 @@ func (runtime *responsiveSelectorRuntime) probeParallel(candidates []string, onR
 				} else {
 					evidence = lane.ProbeAvailability(candidate)
 				}
-				evidence.ObservedAt = time.Now()
+				if evidence.ObservedAt.IsZero() {
+					evidence.ObservedAt = time.Now()
+				}
 				select {
 				case results <- result{candidate: candidate, evidence: evidence}:
 				case <-ctx.Done():

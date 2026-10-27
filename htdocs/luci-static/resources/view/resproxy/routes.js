@@ -222,9 +222,6 @@ return view.extend({
 		return Promise.all([
 			uci.load('resproxy'),
 			fs.exec_direct('/usr/libexec/resproxy-locations', [], 'json'),
-			fs.exec('/usr/libexec/resproxy-rulesets').then(function(result) {
-				return JSON.parse(result.stdout || '{}');
-			}).catch(function() { return {}; }),
 			readSavedRules(),
 			uci.load('dhcp').then(function() { return staticClients.choices(uci.sections('dhcp', 'host')); }).catch(function() { return []; })
 		]).then(function(data) {
@@ -327,13 +324,13 @@ return view.extend({
 		sources.datatype = 'cidr';
 		sources.placeholder = '192.168.1.20/32';
 		sources.rmempty = false;
-		data[4].forEach(function(client) {
+		data[3].forEach(function(client) {
 			sources.value(client.cidr, E('span', {}, [client.name, ' · ', client.ip]));
 		});
         var refs = field(policies, 'direct', RulePicker, 'rule_refs', _('Rules — top to bottom'));
         refs.rmempty = true;
         refs.description = _('Select rules. The first match decides the route.');
-        refs.rules = data[3];
+        refs.rules = data[2];
 
 		sharedMonitor.addTo(map);
 		var drafts = Drafts.attach(map, 'routes');

@@ -18,6 +18,7 @@ type MonitorSnapshot struct {
 }
 
 type MonitorPolicy struct {
+	DeltaVersion     int           `json:"delta_version"`
 	HistoryTruncated bool          `json:"history_truncated,omitempty"`
 	HistoryBudgetKiB int           `json:"history_budget_kib,omitempty"`
 	HistoryUsageKiB  int           `json:"history_usage_kib,omitempty"`
@@ -33,18 +34,19 @@ type MonitorPolicy struct {
 }
 
 type MonitorNode struct {
-	ID              string                  `json:"id"`
-	Label           string                  `json:"label"`
-	Order           *int                    `json:"candidate_order,omitempty"`
-	Selected        bool                    `json:"selected"`
-	Available       bool                    `json:"available"`
-	LastProbeAt     float64                 `json:"last_probe_at,omitempty"`
-	FailureClass    string                  `json:"failure_class,omitempty"`
-	CurrentMedianMS *int                    `json:"current_median_ms"`
-	LastGoodAt      float64                 `json:"last_good_at,omitempty"`
-	LatestDelayMS   *int                    `json:"latest_delay_ms"`
-	LatestQualityAt float64                 `json:"latest_quality_at,omitempty"`
-	PeriodStats     map[string]MonitorStats `json:"period_stats"`
+	LatencyComparison *LatencyComparison      `json:"latency_comparison"`
+	ID                string                  `json:"id"`
+	Label             string                  `json:"label"`
+	Order             *int                    `json:"candidate_order,omitempty"`
+	Selected          bool                    `json:"selected"`
+	Available         bool                    `json:"available"`
+	LastProbeAt       float64                 `json:"last_probe_at,omitempty"`
+	FailureClass      string                  `json:"failure_class,omitempty"`
+	CurrentMedianMS   *int                    `json:"current_median_ms"`
+	LastGoodAt        float64                 `json:"last_good_at,omitempty"`
+	LatestDelayMS     *int                    `json:"latest_delay_ms"`
+	LatestQualityAt   float64                 `json:"latest_quality_at,omitempty"`
+	PeriodStats       map[string]MonitorStats `json:"period_stats"`
 }
 
 type MonitorStats struct {
@@ -75,7 +77,8 @@ func monitorSnapshot(state healthState, runtime RuntimeSnapshot) MonitorSnapshot
 		if item == nil {
 			continue
 		}
-		entry := MonitorPolicy{ID: strings.TrimPrefix(id, "resproxy-"), Mode: item.Mode, Selected: item.RuntimeSelected,
+		refreshDisplayComparisons(runtime.UpdatedAt, item)
+		entry := MonitorPolicy{DeltaVersion: 1, ID: strings.TrimPrefix(id, "resproxy-"), Mode: item.Mode, Selected: item.RuntimeSelected,
 			HealthyReserves: item.HealthyReserves, CandidateCount: item.CandidateCount, CheckedAt: item.CheckedAt,
 			UnderlayFailure: item.UnderlayFailure, HistoryTruncated: item.HistoryTruncated,
 			HistoryBudgetKiB: item.HistoryBudgetKiB, HistoryUsageKiB: item.HistoryUsageKiB,
@@ -88,6 +91,11 @@ func monitorSnapshot(state healthState, runtime RuntimeSnapshot) MonitorSnapshot
 			node := MonitorNode{ID: id, Label: label, Selected: item.RuntimeConfirmed && id == item.RuntimeSelected,
 				Available: item.AvailabilityOK[id], LastProbeAt: item.LastProbeAt[id], FailureClass: item.FailureClass[id],
 				PeriodStats: map[string]MonitorStats{}}
+			if saved, ok := item.displayComparisons[id]; ok && item.RuntimeConfirmed && item.AvailabilityOK[id] &&
+				item.AvailabilityFailures[id] == 0 && item.AvailabilityOK[item.RuntimeSelected] && item.AvailabilityFailures[item.RuntimeSelected] == 0 {
+				pair := saved.Pair
+				node.LatencyComparison = &pair
+			}
 			if rank, ok := order[id]; ok {
 				node.Order = &rank
 			}

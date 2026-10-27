@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -326,20 +327,21 @@ func printStatus(paths daemon.Paths) error {
 }
 
 type nodeHealth struct {
-	LatestDelayMS   *int                       `json:"latest_delay_ms"`
-	LatestQualityAt float64                    `json:"latest_quality_at,omitempty"`
-	LatencyDelta    *float64                   `json:"latency_delta_percent"`
-	DeltaReason     string                     `json:"latency_delta_reason,omitempty"`
-	CurrentMedianMS *int                       `json:"current_median_ms"`
-	LastGoodAt      float64                    `json:"last_good_at,omitempty"`
-	ID              string                     `json:"id"`
-	Label           string                     `json:"label"`
-	Order           *int                       `json:"candidate_order,omitempty"`
-	Selected        bool                       `json:"selected"`
-	Available       bool                       `json:"available"`
-	LastProbeAt     float64                    `json:"last_probe_at,omitempty"`
-	FailureClass    string                     `json:"failure_class,omitempty"`
-	PeriodStats     map[string]nodeHealthStats `json:"period_stats"`
+	LatencyComparison *agentport.LatencyComparison `json:"latency_comparison"`
+	LatestDelayMS     *int                         `json:"latest_delay_ms"`
+	LatestQualityAt   float64                      `json:"latest_quality_at,omitempty"`
+	LatencyDelta      *float64                     `json:"latency_delta_percent"`
+	DeltaReason       string                       `json:"latency_delta_reason,omitempty"`
+	CurrentMedianMS   *int                         `json:"current_median_ms"`
+	LastGoodAt        float64                      `json:"last_good_at,omitempty"`
+	ID                string                       `json:"id"`
+	Label             string                       `json:"label"`
+	Order             *int                         `json:"candidate_order,omitempty"`
+	Selected          bool                         `json:"selected"`
+	Available         bool                         `json:"available"`
+	LastProbeAt       float64                      `json:"last_probe_at,omitempty"`
+	FailureClass      string                       `json:"failure_class,omitempty"`
+	PeriodStats       map[string]nodeHealthStats   `json:"period_stats"`
 }
 
 type nodeHealthStats struct {
@@ -350,7 +352,8 @@ type nodeHealthStats struct {
 }
 
 type policyHealth struct {
-	ProbeLimits struct {
+	DeltaVersion int `json:"delta_version"`
+	ProbeLimits  struct {
 		ActiveSeconds int `json:"active_seconds"`
 		BackupSeconds int `json:"backup_seconds"`
 	} `json:"probe_limits,omitempty"`
@@ -370,7 +373,7 @@ type policyHealth struct {
 // UI comparisons describe the last ordinary successful HTTPS measurements. They
 // do not require recovery confirmations and never qualify a node for switching.
 // Recalculate against the confirmed active node, including just after a switch.
-func setFreshLatencyDeltas(nodes []nodeHealth, now time.Time, activeSeconds, backupSeconds int) {
+func setFreshLatencyDeltas(nodes []nodeHealth, now time.Time, activeSeconds, backupSeconds int, stored ...bool) {
 	if activeSeconds <= 0 {
 		activeSeconds = 60
 	}
@@ -392,13 +395,28 @@ func setFreshLatencyDeltas(nodes []nodeHealth, now time.Time, activeSeconds, bac
 	for i := range nodes {
 		n := &nodes[i]
 		n.LatencyDelta = nil
+		if pair := n.LatencyComparison; pair != nil {
+			if active != nil && pair.Active == active.ID && pair.ActiveDelayMS > 0 && n.Available && active.Available {
+				delta := 100 * float64(pair.CandidateDelayMS-pair.ActiveDelayMS) / float64(pair.ActiveDelayMS)
+				n.LatencyDelta, n.DeltaReason = &delta, ""
+			} else {
+				n.DeltaReason = "active-measurement-missing-or-stale"
+			}
+			continue
+		}
+		if len(stored) > 0 && stored[0] {
+			n.DeltaReason = "paired-measurement-missing"
+			continue
+		}
 		switch {
 		case active == nil || !fresh(*active) || *active.LatestDelayMS <= 0:
 			n.DeltaReason = "active-measurement-missing-or-stale"
 		case !fresh(*n):
 			n.DeltaReason = "node-measurement-missing-or-stale"
+		case math.Abs(n.LatestQualityAt-active.LatestQualityAt) > 10:
+			n.DeltaReason = "measurements-too-far-apart"
 		default:
-			delta := 100 * float64(*active.LatestDelayMS-*n.LatestDelayMS) / float64(*active.LatestDelayMS)
+			delta := 100 * float64(*n.LatestDelayMS-*active.LatestDelayMS) / float64(*active.LatestDelayMS)
 			n.LatencyDelta = &delta
 			n.DeltaReason = ""
 		}
@@ -417,7 +435,7 @@ func printHealth(paths daemon.Paths) error {
 		}
 		for i := range snapshot.Health {
 			policy := &snapshot.Health[i]
-			setFreshLatencyDeltas(policy.Nodes, time.Now(), policy.ProbeLimits.ActiveSeconds, policy.ProbeLimits.BackupSeconds)
+			setFreshLatencyDeltas(policy.Nodes, time.Now(), policy.ProbeLimits.ActiveSeconds, policy.ProbeLimits.BackupSeconds, policy.DeltaVersion >= 1)
 		}
 		return json.NewEncoder(os.Stdout).Encode(snapshot.Health)
 	} else if !errors.Is(err, os.ErrNotExist) {

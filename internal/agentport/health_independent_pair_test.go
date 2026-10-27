@@ -30,7 +30,7 @@ func TestURLTestSecondConfirmationRequiresNewActiveMeasurement(t *testing.T) {
 				item.Samples["active"][0].At = 1000
 				want = "active"
 			case "new-cached-active":
-				item.Samples["active"][0].At = 1030
+				item.Samples["active"][0].At = 1059
 			case "new-paired-active":
 				measured["active"] = successfulEvidence(600)
 			}
@@ -41,7 +41,7 @@ func TestURLTestSecondConfirmationRequiresNewActiveMeasurement(t *testing.T) {
 				if item.OptimizationChecks != 1 {
 					t.Fatal("waiting for new active evidence must retain the first confirmation")
 				}
-				item.Samples["active"][0].At = 1090
+				item.Samples["active"][0].At = 1119
 				if got := check(1120, map[string]probeEvidence{"reserve": successfulEvidence(400)}); got != "reserve" {
 					t.Fatal("a new split pair did not complete confirmation")
 				}

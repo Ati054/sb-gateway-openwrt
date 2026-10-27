@@ -3,12 +3,12 @@
 'require form';
 'require uci';
 'require view.resproxy.safe_dom as safeDOM';
+'require view.resproxy.name_filter as nameFilter';
 
 var E = safeDOM.create;
 
 function list(value) { return Array.isArray(value) ? value.slice() : (value ? String(value).trim().split(/\s+/) : []); }
 function name(value) { return String(value || '').toLowerCase().trim().replace(/[\uFE0E\uFE0F]/g, ''); }
-function parts(value) { return String(value || '').split(',').map(name).filter(Boolean); }
 function city(value) { return String(value || '').trim().replace(/\s+/g, ' ').replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase(); }
 function nodeLabel(node) {
  var title = String(node.label || ''), protocol = String(node.protocol || '').toLowerCase();
@@ -34,21 +34,22 @@ function matches(token, node, regions) {
  }
  return false;
 }
-function eligible(state, node) {
+function eligible(state, node, parsed) {
  if (state.kind !== 'filter') return true;
  if (state.source !== '*' && state.source !== node.subscription) return false;
  if (state.countries.length && state.countries.indexOf(node.country) < 0) return false;
  if (state.protocols.length && state.protocols.indexOf(node.protocol) < 0) return false;
- var label = name(node.label), words = label.split(/[^\p{L}\p{Nd}]+/u);
- return parts(state.include).every(function(part) { return label.indexOf(part) >= 0; }) &&
-  !parts(state.exclude).some(function(part) { return words.indexOf(part) >= 0; });
+ parsed = parsed || { include:nameFilter.parse(state.include), exclude:nameFilter.parse(state.exclude) };
+ return !parsed.include.error && !parsed.exclude.error && nameFilter.matches(node.label, parsed.include, true) &&
+  !nameFilter.matches(node.label, parsed.exclude, false);
 }
 function candidates(state, inventory) {
  var claimed = {}, result = [];
+ var parsed = { include:nameFilter.parse(state.include), exclude:nameFilter.parse(state.exclude) };
  var order = state.kind === 'filter' ? ['all:*'] : state.order;
  order.forEach(function(token) {
   inventory.nodes.forEach(function(node) {
-   if (!claimed[node.id] && matches(token, node, inventory.regions) && eligible(state, node)) {
+   if (!claimed[node.id] && matches(token, node, inventory.regions) && eligible(state, node, parsed)) {
     claimed[node.id] = true; result.push(node);
    }
   });
@@ -79,7 +80,7 @@ function picker(option, section, hidden, state, inventory) {
  var chosen = E('div', { 'class': 'sbg-location-chosen' });
  var preview = E('div', { 'class': 'sbg-location-preview', 'aria-live': 'polite' });
  var search = E('input', { type: 'search', placeholder: _('Country, city or node name'), 'aria-label': _('Find in list') });
- var query = '', expanded = {};
+ var query = '', queryFilter = nameFilter.parse(''), expanded = {};
  root.addEventListener('sbg-selection-mode', function(event) { selectionMode = event.detail; renderChosen(); });
  function sync() {
   var element = option.getUIElement(section);
@@ -139,10 +140,10 @@ function picker(option, section, hidden, state, inventory) {
      E('thead', {}, E('tr', {}, [_('Node'), _('Subscription'), _('Protocol')].map(function(title) { return E('th', { scope:'col' }, title); }))), body
     ]));
    function rows() {
-    var query = name(lookup.value);
+    var query = nameFilter.parse(lookup.value);
     body.replaceChildren();
     found.forEach(function(node) {
-     if (query && name([node.label, node.subscription, node.protocol].join(' ')).indexOf(query) < 0) return;
+     if (!nameFilter.matches(node.label, query, true, [node.subscription, node.protocol].join(' '))) return;
      body.appendChild(E('tr', { 'data-node-id':node.id }, [E('td', {}, node.label), E('td', {}, node.subscription),
       E('td', {}, node.protocol === 'hysteria2' ? 'Hysteria 2' : String(node.protocol || '').toUpperCase())]));
     });
@@ -181,7 +182,7 @@ function picker(option, section, hidden, state, inventory) {
  function detail(key, title, children) {
   return E('details', { 'data-group': key, open: expanded[key] || query ? '' : null }, [E('summary', {}, title)].concat(children));
  }
- function visible(node) { return !query || name([node.label, node.country, countryLabel(node.country), regionTitles[countryRegion(node.country)], node.city, node.subscription].join(' ')).indexOf(query) >= 0; }
+ function visible(node) { return nameFilter.matches(node.label, queryFilter, true, [node.country, countryLabel(node.country), regionTitles[countryRegion(node.country)], node.city, node.subscription].join(' ')); }
  function nodeOption(node) { return checkbox(node.value, nodeLabel(node), [node]); }
  function renderBrowser() {
   browser.replaceChildren(); browser.hidden = state.kind !== 'manual'; search.parentNode.hidden = browser.hidden; view.parentNode.hidden = browser.hidden;
@@ -304,15 +305,15 @@ function picker(option, section, hidden, state, inventory) {
  filterPrimary.appendChild(filterSection(_('Protocols'), _('All protocols'), 'protocols', function(value) {
   var choice = protocolChoices.find(function(item) { return item[0] === value; }); return choice ? choice[1] : value;
  }, checkList(protocolChoices, 'protocols')));
- [['include', _('Name or emoji contains'), _('All comma-separated fragments must occur in the node name.')], ['exclude', _('Exclude whole words'), _('Comma-separated words. For example, test does not exclude fastest.')]].forEach(function(item) {
-  var input = E('input', { type: 'text', maxlength: 128, value: state[item[0]], 'aria-label': item[1] });
+ [['include', _('Include names'), _('Any comma-separated fragment may match. Double quotes require the full name: Sweden, "Amsterdam Premium 01".')], ['exclude', _('Exclude names'), _('Same syntax as inclusion. Any match excludes the node, even if it matches inclusion.')]].forEach(function(item) {
+  var input = E('input', { type: 'text', maxlength: 512, value: state[item[0]], 'aria-label': item[1] });
   input.addEventListener('input', function() { state[item[0]] = input.value; sync(); });
   filterBox.appendChild(control(item[1], input, item[2]));
  });
  filterBox.appendChild(E('p', {}, _('Filter membership is recalculated when subscriptions update. Matching nodes keep their subscription order.')));
  root.appendChild(filterBox);
  root.appendChild(preview);
- search.addEventListener('input', function() { query = name(search.value); renderBrowser(); });
+ search.addEventListener('input', function() { query = name(search.value); queryFilter = nameFilter.parse(search.value); renderBrowser(); });
  renderChosen(); renderBrowser(); renderPreview(); renderFilterSummaries();
  return root;
 }
@@ -342,7 +343,7 @@ var Option = form.Value.extend({
  validate: function(section, value) {
   var state = JSON.parse(value);
   var error = state.kind === 'manual' && !state.order.length ? _('Select at least one country, city or node, or configure a filter.') :
-   state.kind === 'filter' && parts(state.exclude).some(function(word) { return /[^\p{L}\p{Nd}]/u.test(word); }) ? _('Exclusions must be whole words separated by commas.') : '';
+   state.kind === 'filter' ? nameFilter.errorMessage(nameFilter.parse(state.include).error || nameFilter.parse(state.exclude).error) : '';
   if (this.messages && this.messages[section]) { this.messages[section].textContent = error; this.messages[section].hidden = !error; }
   return error || true;
  },

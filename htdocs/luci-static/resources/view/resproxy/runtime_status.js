@@ -40,9 +40,18 @@ function deltas(policies,now) {
   var selected=policy.nodes.find(function(node) {return node.selected;});
   policy.nodes.forEach(function(node) {
    node.latency_delta_percent=null;
+   if (policy.delta_version>=1) {
+    var pair=node.latency_comparison;
+    if (pair && selected && pair.active===selected.id && pair.active_delay_ms>0 && node.available && selected.available) {
+     node.latency_delta_percent=100*(pair.candidate_delay_ms-pair.active_delay_ms)/pair.active_delay_ms;
+     node.latency_delta_reason='';
+    } else node.latency_delta_reason='paired-measurement-missing';
+    return;
+   }
    if (!selected || !fresh(selected) || selected.latest_delay_ms<=0) node.latency_delta_reason='active-measurement-missing-or-stale';
    else if (!fresh(node)) node.latency_delta_reason='node-measurement-missing-or-stale';
-   else {node.latency_delta_percent=100*(selected.latest_delay_ms-node.latest_delay_ms)/selected.latest_delay_ms;node.latency_delta_reason='';}
+   else if (Math.abs(node.latest_quality_at-selected.latest_quality_at)>10) node.latency_delta_reason='measurements-too-far-apart';
+   else {node.latency_delta_percent=100*(node.latest_delay_ms-selected.latest_delay_ms)/selected.latest_delay_ms;node.latency_delta_reason='';}
   });
  });
  return policies;

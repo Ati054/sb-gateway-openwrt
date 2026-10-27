@@ -85,3 +85,8 @@ jobs:
           curl -fsSL --retry 2 --max-time 60 -o /tmp/luci.js https://raw.githubusercontent.com/openwrt/luci/128a7812f4be233c5dd7f7466f534fd888785caf/modules/luci-base/htdocs/luci-static/resources/luci.js
           echo 'a8fd2e9100249f54e64def80bf96d43a03b5af6a3f86a9f151d898994a1e1966  /tmp/luci.js' | sha256sum -c -
           node tools/test-luci-dom.mjs /tmp/luci.js
+          curl -fsSL --retry 2 --max-time 60 -o /tmp/form.js https://raw.githubusercontent.com/openwrt/luci/128a7812f4be233c5dd7f7466f534fd888785caf/modules/luci-base/htdocs/luci-static/resources/form.js
+          curl -fsSL --retry 2 --max-time 60 -o /tmp/ui.js https://raw.githubusercontent.com/openwrt/luci/128a7812f4be233c5dd7f7466f534fd888785caf/modules/luci-base/htdocs/luci-static/resources/ui.js
+          echo 'ead132eb037b4484ad6119f238ad3906ec376a8e2138fc7ac0775b264728c4b7  /tmp/form.js' | sha256sum -c -
+          echo '9a5ac3817b450a1f36b2a28f0db4717f7ac4c5357856ea47873b48b3d6caf707  /tmp/ui.js' | sha256sum -c -
+          node tools/test-settings-dom.mjs /tmp/luci.js /tmp/form.js /tmp/ui.js

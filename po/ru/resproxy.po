@@ -1118,17 +1118,17 @@ msgstr "Страны — без отметок любые"
 msgid "Protocols — empty means any"
 msgstr "Протоколы — без отметок любые"
 
-msgid "Name or emoji contains"
-msgstr "Части названия или эмодзи"
+msgid "Include names"
+msgstr "Включить названия"
 
-msgid "All comma-separated fragments must occur in the node name."
-msgstr "Через запятую. Все указанные части должны быть в названии узла."
+msgid "Any comma-separated fragment may match. Double quotes require the full name: Sweden, \"Amsterdam Premium 01\"."
+msgstr "Части названия через запятую — достаточно любой. В двойных кавычках — полное название: Швеция, \"Амстердам Premium 01\"."
 
-msgid "Exclude whole words"
-msgstr "Исключить слова"
+msgid "Exclude names"
+msgstr "Исключить названия"
 
-msgid "Comma-separated words. For example, test does not exclude fastest."
-msgstr "Целые слова через запятую. Например, test не исключает fastest."
+msgid "Same syntax as inclusion. Any match excludes the node, even if it matches inclusion."
+msgstr "Те же правила, что во включении. Любое совпадение исключает узел, даже если он подходит под включение."
 
 msgid "Filter membership is recalculated when subscriptions update. Matching nodes keep their subscription order."
 msgstr "Состав фильтра пересчитывается при обновлении подписок. Узлы сохраняют порядок из подписки."
@@ -1136,8 +1136,20 @@ msgstr "Состав фильтра пересчитывается при обн
 msgid "Select at least one country, city or node, or configure a filter."
 msgstr "Выберите хотя бы одну страну, город или узел либо настройте фильтр."
 
-msgid "Exclusions must be whole words separated by commas."
-msgstr "Исключения — целые слова через запятую."
+msgid "Close the double quotes around the full name."
+msgstr "Закройте двойные кавычки вокруг полного названия."
+
+msgid "A quoted full name cannot be empty."
+msgstr "Полное название в кавычках не может быть пустым."
+
+msgid "Separate names with a comma or | after a closing quote."
+msgstr "После закрывающей кавычки разделите названия запятой или |."
+
+msgid "Name filters cannot contain control characters."
+msgstr "Фильтры названий не могут содержать управляющие символы."
+
+msgid "The name filter is too long. Shorten the list."
+msgstr "Фильтр названий слишком длинный. Сократите список."
 
 msgid "Display order does not change selection priority."
 msgstr "Представление не меняет приоритет выбора."
@@ -1579,8 +1591,14 @@ msgstr "Общий лимит для маршрутных листов. Авар
 msgid "Switch after two fresh confirmations of this HTTPS latency improvement."
 msgstr "Переключение после двух свежих подтверждений такого улучшения HTTPS-задержки."
 
-msgid "Compared with the active node using fresh HTTPS measurements. Positive means faster."
-msgstr "Сравнение с активным узлом по свежим HTTPS-замерам. Положительное значение означает меньшую задержку."
+msgid "Compared with the active node using fresh HTTPS measurements. Negative means lower latency; positive means higher latency."
+msgstr "Сравнение с активным узлом по свежим HTTPS-замерам. Минус — задержка меньше, плюс — больше."
+
+msgid "Delta: negative means lower latency; positive means higher latency than the active node."
+msgstr "Delta: минус — задержка меньше, плюс — больше относительно активного узла."
+
+msgid "Name fragments, separated by commas"
+msgstr "Части названия через запятую"
 
 msgid "Services without country restriction"
 msgstr "Сервисы без привязки к стране"
@@ -1734,3 +1752,15 @@ msgstr "Ядро остановило Xray из-за нехватки памят
 
 msgid "Finish configuring route lists before enabling SB Gateway."
 msgstr "Завершите настройку маршрутных листов перед включением SB Gateway."
+
+msgid "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
+msgstr "Последнее парное сравнение HTTPS. Минус означает меньшую задержку, плюс — большую."
+
+msgid "Waiting for HTTPS measurements completed within 10 seconds of each other."
+msgstr "Ожидание замеров HTTPS, завершённых с разницей не более 10 секунд."
+
+msgid "Candidate"
+msgstr "Кандидат"
+
+msgid "Active node"
+msgstr "Активный узел"

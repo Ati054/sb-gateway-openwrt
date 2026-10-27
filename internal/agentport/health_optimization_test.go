@@ -14,7 +14,7 @@ func TestSingleProbeLaneRequiresTwoCompleteLatencyPairs(t *testing.T) {
 	contract := runtime.pool.HealthPolicies["europe"]
 	contract.Policy.ProbeBatchSize = 1
 	runtime.pool.HealthPolicies["europe"] = contract
-	for _, at := range []int64{1_060, 1_120, 1_180, 1_240} {
+	for _, at := range []int64{1_060, 1_061, 1_120, 1_121} {
 		before := len(runtime.probeCalls)
 		if err := controller.Tick(time.Unix(at, 0)); err != nil {
 			t.Fatal(err)
@@ -22,7 +22,7 @@ func TestSingleProbeLaneRequiresTwoCompleteLatencyPairs(t *testing.T) {
 		if len(runtime.probeCalls)-before > 1 {
 			t.Fatalf("single-lane tick at %d exceeded its batch", at)
 		}
-		if at < 1_240 && item.Selected != "active" {
+		if at < 1_121 && item.Selected != "active" {
 			t.Fatalf("incomplete latency confirmation switched at %d", at)
 		}
 	}

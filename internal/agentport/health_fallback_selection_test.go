@@ -92,7 +92,9 @@ func TestSplitLatencyPairUsesQualitySampleTimeNotAvailabilityTime(t *testing.T) 
 		want string
 	}{
 		{"fresh", 999, optimizationWin},
-		{"boundary", 880, optimizationWin},
+		{"pair-boundary", 990, optimizationWin},
+		{"outside-pair", 989, optimizationInconclusive},
+		{"freshness-boundary", 880, optimizationInconclusive},
 		{"stale", 879, optimizationInconclusive},
 		{"missing", 0, optimizationInconclusive},
 		{"future", 1001, optimizationInconclusive},
