@@ -82,7 +82,7 @@ To update, open **Package update → Check for updates → Update from GitHub**.
 
 ## Building
 
-Use the OpenWrt 25.12 SDK for your ARM64 target and Go 1.27.2. Place the repository in `SDK/package/resproxy` and run:
+Use the OpenWrt 25.12 SDK for your ARM64 target and Go 1.27.3. Place the repository in `SDK/package/resproxy` and run:
 
 ```sh
 make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s

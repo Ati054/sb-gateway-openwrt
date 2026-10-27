@@ -82,7 +82,7 @@ ssh root@192.168.1.1 "wget -O /tmp/sb-gateway-install.sh https://raw.githubuserc
 
 ## Сборка
 
-Используйте OpenWrt 25.12 SDK для нужной ARM64-цели и Go 1.27.2. Поместите репозиторий в `SDK/package/resproxy` и выполните:
+Используйте OpenWrt 25.12 SDK для нужной ARM64-цели и Go 1.27.3. Поместите репозиторий в `SDK/package/resproxy` и выполните:
 
 ```sh
 make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s
