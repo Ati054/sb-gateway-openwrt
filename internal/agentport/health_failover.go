@@ -104,6 +104,8 @@ func clearUnderlayFailure(item *policyHealthState) bool {
 	return changed
 }
 
+// Cached quality orders the current availability checks; old availability and
+// recovery counters do not authorize or disqualify an emergency selection.
 func freshEmergencyReserves(now time.Time, selected string, candidates []string, mode string, groups map[string]int, item *policyHealthState, p effectivePolicySettings) []string {
 	if item == nil {
 		return nil
@@ -112,9 +114,7 @@ func freshEmergencyReserves(now time.Time, selected string, candidates []string,
 	delays := make(map[string]*int)
 	for _, candidate := range candidates {
 		age, valid := qualitySampleAge(now, item, candidate)
-		if candidate == selected || !valid || age > float64(p.backup) ||
-			!item.AvailabilityOK[candidate] || !item.QualityOK[candidate] ||
-			item.AvailabilityFailures[candidate] != 0 || item.Recoveries[candidate] < p.recoveryThreshold {
+		if candidate == selected || !valid || age > float64(p.backup) {
 			continue
 		}
 		fresh = append(fresh, candidate)
@@ -122,6 +122,30 @@ func freshEmergencyReserves(now time.Time, selected string, candidates []string,
 		delays[candidate] = samples[len(samples)-1].DelayMS
 	}
 	return rankCandidates(fresh, mode, groups, nil, delays)
+}
+
+// Emergency preference uses recent primary HTTPS quality. Recovery streaks and
+// smoothed quality govern planned changes; a current availability success is
+// still required separately before an emergency candidate can be selected.
+func emergencyRankingDelays(now time.Time, candidates []string, measured map[string]probeEvidence, item *policyHealthState, p effectivePolicySettings) map[string]*int {
+	delays := make(map[string]*int, len(candidates))
+	for _, candidate := range candidates {
+		evidence, current := measured[candidate]
+		if current && evidence.PrimaryQualityFailed {
+			continue
+		}
+		if current && evidence.OK && !evidence.QualityUnmeasured && evidence.DelayMS != nil && *evidence.DelayMS > 0 {
+			at := qualityTime(now, evidence)
+			if !at.After(now) && now.Sub(at) <= time.Duration(p.backup)*time.Second {
+				delays[candidate] = evidence.DelayMS
+				continue
+			}
+		}
+		if age, valid := qualitySampleAge(now, item, candidate); valid && age <= float64(p.backup) {
+			delays[candidate] = item.Samples[candidate][len(item.Samples[candidate])-1].DelayMS
+		}
+	}
+	return delays
 }
 
 func knownFreshReserve(now time.Time, selected string, candidates []string, mode string, groups map[string]int, item *policyHealthState, p effectivePolicySettings) string {
