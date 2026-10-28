@@ -154,3 +154,47 @@ func TestEmergencyControllerKeepsFastRecoveringReserveFirst(t *testing.T) {
 		})
 	}
 }
+
+func TestAvailabilityProofKeepsEmergencyHTTPS(t *testing.T) {
+	for _, delay := range []*int{nil, emergencyDelay(50)} {
+		t.Run(fmt.Sprintf("availability-delay=%t", delay != nil), func(t *testing.T) {
+			testAvailabilityProofKeepsEmergencyHTTPS(t, delay)
+		})
+	}
+}
+
+func testAvailabilityProofKeepsEmergencyHTTPS(t *testing.T, availabilityDelay *int) {
+	t.Helper()
+	c, r, item := livenessFixture(t, "best")
+	contract := r.pool.HealthPolicies["europe"]
+	contract.Candidates = []string{"de", "nl", "fr"}
+	contract.Nodes["fr"] = healthNode{Label: "Reserve"}
+	contract.Policy.ProbeBatchSize = 3
+	r.pool.HealthPolicies["europe"] = contract
+	item.CandidateSignature = "de\nnl\nfr"
+	for node, delay := range map[string]int{"nl": 400, "fr": 640} {
+		v := delay
+		item.Samples[node] = []healthSample{{At: 1000, OK: true, DelayMS: &v}}
+		item.LastProbeAt[node] = 1000
+		item.AvailabilityOK[node], item.QualityOK[node] = true, true
+		item.Recoveries[node] = 1
+		r.probes[node] = probeEvidence{OK: true, QualityUnmeasured: true, DelayMS: availabilityDelay}
+	}
+	r.probes["de"] = probeEvidence{Failure: probeFailureTimeout}
+	c.runtime = &reverseParallelRuntime{r}
+	for _, second := range []int64{1010, 1012} {
+		if err := c.Tick(time.Unix(second, 0)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if item.Selected != "nl" {
+		t.Fatalf("unexpected selected=%s", item.Selected)
+	}
+	samples := item.Samples["fr"]
+	if len(samples) != 1 || samples[0].DelayMS == nil || *samples[0].DelayMS != 640 || samples[0].At != 1000 {
+		t.Fatalf("availability-only check overwrote fresh primary HTTPS: %+v", samples)
+	}
+	if item.Failures["fr"] != 0 || item.Recoveries["fr"] != 0 {
+		t.Fatal("availability success counted as primary-quality failure or recovery confirmation")
+	}
+}

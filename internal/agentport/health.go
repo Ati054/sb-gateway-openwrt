@@ -1177,7 +1177,8 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	medians := make(map[string]*int)
 	for _, candidate := range candidates {
 		samples := append([]healthSample(nil), item.Samples[candidate]...)
-		if evidence, ok := measured[candidate]; ok && !unconfirmedCPUTimeout(evidence) && (!evidence.OK || evidence.DelayMS != nil || evidence.QualityUnmeasured) {
+		if evidence, ok := measured[candidate]; ok && !unconfirmedCPUTimeout(evidence) &&
+			(!evidence.OK || evidence.PrimaryQualityFailed || evidence.DelayMS != nil && !evidence.QualityUnmeasured) {
 			at := qualityTimestamp(now, evidence)
 			if len(samples) == 0 || at > samples[len(samples)-1].At {
 				samples = append(samples, healthSample{At: at, OK: evidence.OK, DelayMS: evidence.DelayMS})
@@ -1216,7 +1217,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 			// Count independent bad probes. A good current response clears
 			// the pending degradation streak; history never controls selection.
 			probeQuality := evidence.OK && evidence.DelayMS != nil && !evidence.QualityUnmeasured
-			if probeQuality || evidence.OK && evidence.DelayMS == nil && !evidence.PrimaryQualityFailed {
+			if probeQuality || evidence.OK && !evidence.PrimaryQualityFailed {
 				item.Failures[candidate] = 0
 			} else {
 				item.Failures[candidate]++
