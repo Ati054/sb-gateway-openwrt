@@ -129,7 +129,7 @@ return view.extend({
      _('%d downloaded · %d cached · %d unavailable').format(loaded,stale,unavailable) +
       (database.checked_at ? ' · '+new Date(database.checked_at).toLocaleString() : '');
     packs.forEach(function(p) {
-     var state={ updated:_('Downloaded'),unchanged:_('Unchanged'),stale:_('Last good copy'),unavailable:_('Not loaded') }[p.state] || p.state;
+     var state={ updated:_('Updated'),unchanged:_('Unchanged'),stale:_('Last good copy'),unavailable:_('Not loaded') }[p.state] || p.state;
      dbBody.appendChild(E('tr', {},[cell(names[p.id] || p.id),cell(state),cell(String(p.entries || 0)),cell(p.error || '—')]));
     });
     var failedPacks=packs.filter(function(p) { return !!p.error; }).length;
