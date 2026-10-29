@@ -43,6 +43,16 @@ type responsiveSelectorRuntime struct {
 	currentPool     healthPool
 	signals         <-chan xrayFailureSignal
 	acceptSignal    func(xrayFailureSignal) bool
+	backgroundDone  <-chan struct{}
+}
+
+func (runtime *responsiveSelectorRuntime) backgroundJobComplete() bool {
+	select {
+	case <-runtime.backgroundDone:
+		return true
+	default:
+		return false
+	}
 }
 
 func (runtime *responsiveSelectorRuntime) Reload() (healthPool, bool, error) {
@@ -239,6 +249,13 @@ func awaitProbeJobWithSignals(ctx context.Context, cadence time.Duration, check 
 			<-done
 			return probeJobResult{err: ctx.Err()}
 		case <-timer.C:
+			// A periodic callback may outlive the worker. Consume its finished
+			// result before starting another network pass.
+			select {
+			case result := <-done:
+				return result
+			default:
+			}
 			if err := check(); err != nil {
 				cancel()
 				<-done
@@ -272,7 +289,12 @@ func (runtime *responsiveSelectorRuntime) run(operation func() probeJobResult) p
 		}
 		return runtime.check()
 	}
+	completed := make(chan struct{})
+	previous := runtime.backgroundDone
+	runtime.backgroundDone = completed
+	defer func() { runtime.backgroundDone = previous }()
 	result := awaitProbeJobWithSignals(runtime.ctx, time.Second, check, func(ctx context.Context) probeJobResult {
+		defer close(completed)
 		runtime.background.probeContext = ctx
 		if _, _, err := runtime.background.Reload(); err != nil {
 			return probeJobResult{err: err, abort: true}
@@ -418,6 +440,9 @@ func (runtime *responsiveSelectorRuntime) probeParallel(candidates []string, onR
 		}()
 	}
 	done := make(chan struct{})
+	previous := runtime.backgroundDone
+	runtime.backgroundDone = done
+	defer func() { runtime.backgroundDone = previous }()
 	go func() {
 		workers.Wait()
 		close(done)
@@ -537,6 +562,13 @@ func (controller *healthController) checkDuringProbe(now time.Time, pool healthP
 	dirty := false
 	var result error
 	for _, id := range ids {
+		if urgentRank(id) == 2 {
+			if worker, ok := controller.runtime.(interface{ backgroundJobComplete() bool }); ok && worker.backgroundJobComplete() {
+				// Forced and pending-failure proofs run first. Due healthy paths
+				// resume in the main loop after consuming the completed batch.
+				break
+			}
+		}
 		item := controller.state[id]
 		if item == nil || !item.RuntimeConfirmed || item.RuntimeSelected != item.Selected || item.Selected == "" || item.Selected == "block" {
 			continue

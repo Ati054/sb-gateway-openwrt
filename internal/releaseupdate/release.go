@@ -149,11 +149,19 @@ func (s *Source) readJSON(ctx context.Context, address string, limit int64, resu
 	return nil
 }
 
+func supportedArchitecture(arch string) bool {
+	switch arch {
+	case "aarch64_generic", "aarch64_cortex-a53", "x86_64":
+		return true
+	}
+	return false
+}
+
 func (s *Source) Check(ctx context.Context, installed Installed) (Choice, error) {
 	if installed.Name != "sb-gateway-openwrt" || !versionPattern.MatchString(installed.Version) {
 		return Choice{}, errors.New("Installed package metadata unavailable")
 	}
-	if installed.Arch != "aarch64_generic" && installed.Arch != "aarch64_cortex-a53" {
+	if !supportedArchitecture(installed.Arch) {
 		return Choice{}, errors.New("No GitHub APK for this architecture")
 	}
 	var releases []githubRelease
@@ -241,7 +249,7 @@ func (s *Source) Check(ctx context.Context, installed Installed) (Choice, error)
 }
 func (s *Source) Download(ctx context.Context, choice Choice, destination string) error {
 	a := choice.Asset
-	if !choice.Available || !versionPattern.MatchString(choice.Version) || !tagPattern.MatchString(choice.Tag) || (a.Arch != "aarch64_generic" && a.Arch != "aarch64_cortex-a53") || a.Name != "sb-gateway-openwrt-"+choice.Version+"-"+a.Arch+".apk" || choice.URL != assetURL(choice.Tag, a.Name) || a.Size <= 0 || a.Size > maxAPK || !shaPattern.MatchString(a.SHA256) {
+	if !choice.Available || !versionPattern.MatchString(choice.Version) || !tagPattern.MatchString(choice.Tag) || !supportedArchitecture(a.Arch) || a.Name != "sb-gateway-openwrt-"+choice.Version+"-"+a.Arch+".apk" || choice.URL != assetURL(choice.Tag, a.Name) || a.Size <= 0 || a.Size > maxAPK || !shaPattern.MatchString(a.SHA256) {
 		return errors.New("Update metadata is invalid; check for updates again")
 	}
 	response, e := s.get(ctx, choice.URL)

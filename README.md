@@ -28,7 +28,7 @@
 
 ## Установка
 
-**OpenWrt 25.12 с APK, ARM64.** Архитектура пакетов указана в `/etc/apk/arch`:
+**OpenWrt 25.12 с APK, ARM64 и x86_64.** Архитектура пакетов указана в `/etc/apk/arch`:
 
 Рекомендуется от 256 МБ ОЗУ. На роутерах со 128 МБ flash доступное место зависит от прошивки; установщик проверяет его перед установкой.
 
@@ -36,6 +36,7 @@
 |---|---|
 | `aarch64_generic` | Сборка ARM64 Generic |
 | `aarch64_cortex-a53` | Сборка Cortex-A53 / Filogic |
+| `x86_64` | Сборка x86-64 |
 
 Выполните в терминале ПК, в том числе в Windows PowerShell. Замените `192.168.1.1` на IP роутера:
 
@@ -82,7 +83,7 @@ ssh root@192.168.1.1 "wget -O /tmp/sb-gateway-install.sh https://raw.githubuserc
 
 ## Сборка
 
-Используйте OpenWrt 25.12 SDK для нужной ARM64-цели и Go 1.27.3. Поместите репозиторий в `SDK/package/resproxy` и выполните:
+Используйте OpenWrt 25.12 SDK для нужной цели ARM64 или x86/64 и Go 1.27.3. Поместите репозиторий в `SDK/package/resproxy` и выполните:
 
 ```sh
 make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s

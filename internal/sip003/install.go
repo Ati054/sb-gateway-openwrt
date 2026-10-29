@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -35,6 +34,36 @@ var pins = map[string]packagePin{
 	"obfs-local":   {"simple-obfs-client-0.0.5-r3.apk", 31894, "d5c262ef2e8b8383aa9311dcae02d3ae46d1eb11cb8e088276d542094bf0df74"},
 }
 
+func pinnedPackage(arch, name string) (string, int64, packagePin, error) {
+	pin, ok := pins[name]
+	if !ok {
+		return "", 0, packagePin{}, errors.New("unknown plugin")
+	}
+	switch arch {
+	case "aarch64_generic":
+		return archiveURL, archiveSize, pin, nil
+	case "aarch64_cortex-a53":
+		if name == "v2ray-plugin" {
+			pin.Size = 6165908
+			pin.SHA = "7a985c5ebdd4062990e0cf974816690510a9f15f2a5383c872322dfeb9c73ca1"
+		} else {
+			pin.Size = 31809
+			pin.SHA = "7a5db0eb7e8436bf00ed7004267f8d55d69ce0cd328de25fba55e2166fb900e2"
+		}
+		return releaseURL + "packages_apk_aarch64_cortex-a53.zip", 23427404, pin, nil
+	case "x86_64":
+		if name == "v2ray-plugin" {
+			pin.Size = 6839188
+			pin.SHA = "2d80a779989fab632d920e6ffcc46843c4c109c4f94f822a08644c415aea9a7e"
+		} else {
+			pin.Size = 30969
+			pin.SHA = "3e7e4b7f0020c604c8d2c46912b117a77800d665abe5e99db449a82bcd73963a"
+		}
+		return releaseURL + "packages_apk_x86_64.zip", 24858843, pin, nil
+	}
+	return "", 0, packagePin{}, errors.New("unsupported router architecture")
+}
+
 type InstallState struct {
 	Name  string `json:"name,omitempty"`
 	Phase string `json:"phase,omitempty"`
@@ -49,7 +78,7 @@ type PluginStatus struct {
 }
 
 func Status() PluginStatus {
-	result := PluginStatus{Installed: map[string]bool{}, Supported: runtime.GOOS == "linux" && runtime.GOARCH == "arm64", Source: "Passwall · 26.10.1-2"}
+	result := PluginStatus{Installed: map[string]bool{}, Supported: runtime.GOOS == "linux" && (runtime.GOARCH == "arm64" || runtime.GOARCH == "amd64"), Source: "Passwall · 26.10.1-2"}
 	for name := range pins {
 		info, err := os.Stat(Binary(name))
 		result.Installed[name] = err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0111 != 0
@@ -147,8 +176,7 @@ func BeginInstall(name string) error {
 	return nil
 }
 func InstallWorker(name string) (result error) {
-	pin, ok := pins[name]
-	if !ok {
+	if _, ok := pins[name]; !ok {
 		return errors.New("unknown plugin")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
@@ -183,23 +211,19 @@ func InstallWorker(name string) (result error) {
 	defer file.Close()
 	client := &http.Client{Timeout: 45 * time.Second, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DisableCompression: true}}
 	defer client.CloseIdleConnections()
-	downloadURL, size := archiveURL, archiveSize
 	metadata, err := exec.CommandContext(ctx, "apk", "query", "--fields", "arch", "--format", "json", "--installed", "sb-gateway-openwrt").Output()
 	if err != nil {
 		return errors.New("installed package architecture unavailable")
 	}
-	if strings.Contains(string(metadata), "aarch64_cortex-a53") {
-		downloadURL = releaseURL + "packages_apk_aarch64_cortex-a53.zip"
-		size = 23427404
-		if name == "v2ray-plugin" {
-			pin.Size = 6165908
-			pin.SHA = "7a985c5ebdd4062990e0cf974816690510a9f15f2a5383c872322dfeb9c73ca1"
-		} else {
-			pin.Size = 31809
-			pin.SHA = "7a5db0eb7e8436bf00ed7004267f8d55d69ce0cd328de25fba55e2166fb900e2"
-		}
-	} else if !strings.Contains(string(metadata), "aarch64_generic") {
-		return errors.New("unsupported router architecture")
+	var installed []struct {
+		Arch string `json:"arch"`
+	}
+	if json.Unmarshal(metadata, &installed) != nil || len(installed) != 1 {
+		return errors.New("installed package architecture unavailable")
+	}
+	downloadURL, size, pin, err := pinnedPackage(installed[0].Arch, name)
+	if err != nil {
+		return err
 	}
 	reader := &rangeReader{ctx: ctx, client: client, url: downloadURL, size: size, start: -1}
 	if err = extractPackage(reader, size, pin, file); err != nil {

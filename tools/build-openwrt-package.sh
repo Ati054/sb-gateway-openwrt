@@ -4,6 +4,7 @@ set -eu
 case "$1" in
  generic) sdk=/root/sdk/openwrt-sdk-25.12.5-armsr-armv8_gcc-14.3.0_musl.Linux-x86_64; arch=aarch64_generic;;
  filogic) sdk=/root/sdk/openwrt-sdk-25.12.5-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64; arch=aarch64_cortex-a53;;
+ x86_64) sdk=/root/sdk/openwrt-sdk-25.12.5-x86-64_gcc-14.3.0_musl.Linux-x86_64; arch=x86_64;;
  *) exit 2;;
 esac
 # Serialize SDK source replacement and package database writes.
@@ -32,6 +33,14 @@ if [ -d "$sdk/package/resproxy" ];then
  mv "$sdk/package/resproxy" "$previous/source"
 fi
 mv "$stage" "$sdk/package/resproxy"
+# A fresh SDK has no package selection for a newly staged feed entry.
+# Regenerate metadata before compiling so a disabled package cannot turn the
+# compile target into a successful no-op.
+if ! grep -Eq '^CONFIG_PACKAGE_sb-gateway-openwrt=[ym]$' "$sdk/.config"; then
+ sed -i '/^# CONFIG_PACKAGE_sb-gateway-openwrt is not set$/d; /^CONFIG_PACKAGE_sb-gateway-openwrt=/d' "$sdk/.config"
+ printf '\nCONFIG_PACKAGE_sb-gateway-openwrt=m\n' >> "$sdk/.config"
+fi
+make -C "$sdk" defconfig V=s
 make -C "$sdk/package/resproxy" TOPDIR="$sdk" clean V=s
 make -C "$sdk/package/resproxy" TOPDIR="$sdk" compile V=s
 mkdir -p "$source/dist"

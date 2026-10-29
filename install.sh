@@ -7,7 +7,7 @@ repo=https://github.com/Ati054/sb-gateway-openwrt
 command -v apk >/dev/null || { echo 'OpenWrt with APK is required.' >&2; exit 1; }
 command -v jsonfilter >/dev/null || { echo 'Install jsonfilter: apk add jsonfilter' >&2; exit 1; }
 arch=$(cat /etc/apk/arch 2>/dev/null || :)
-case "$arch" in aarch64_generic|aarch64_cortex-a53) ;; *) echo "No APK for architecture $arch." >&2; exit 1;;esac
+case "$arch" in aarch64_generic|aarch64_cortex-a53|x86_64) ;; *) echo "No APK for architecture $arch." >&2; exit 1;;esac
 work=$(mktemp -d /tmp/sb-gateway-install.XXXXXX)
 bootstrap_key_added=0
 fetch_pid=

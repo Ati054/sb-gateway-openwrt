@@ -28,7 +28,7 @@ Keep the router powered during an update. When flash space is low, compact insta
 
 ## Installation
 
-**OpenWrt 25.12 with APK, ARM64.** The package architecture is listed in `/etc/apk/arch`:
+**OpenWrt 25.12 with APK, ARM64 and x86_64.** The package architecture is listed in `/etc/apk/arch`:
 
 At least 256 MB RAM is recommended. On routers with 128 MB flash, available space depends on the firmware; the installer checks it before installation.
 
@@ -36,6 +36,7 @@ At least 256 MB RAM is recommended. On routers with 128 MB flash, available spac
 |---|---|
 | `aarch64_generic` | ARM64 Generic build |
 | `aarch64_cortex-a53` | Cortex-A53 / Filogic build |
+| `x86_64` | x86-64 build |
 
 Run this in a terminal on your PC, including Windows PowerShell. Replace `192.168.1.1` with your router's IP address:
 
@@ -82,7 +83,7 @@ To update, open **Package update → Check for updates → Update from GitHub**.
 
 ## Building
 
-Use the OpenWrt 25.12 SDK for your ARM64 target and Go 1.27.3. Place the repository in `SDK/package/resproxy` and run:
+Use the OpenWrt 25.12 SDK for your ARM64 or x86/64 target and Go 1.27.3. Place the repository in `SDK/package/resproxy` and run:
 
 ```sh
 make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s
