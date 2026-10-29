@@ -577,6 +577,9 @@ func (controller *healthController) Tick(now time.Time) error {
 		if urgent(policyIDs[i]) != urgent(policyIDs[j]) {
 			return urgent(policyIDs[i])
 		}
+		if first, second := pairContinuationValid(now, controller.state[policyIDs[i]]), pairContinuationValid(now, controller.state[policyIDs[j]]); first != second {
+			return first
+		}
 		first, second := controller.probeBudget.DeferredPolicies[policyIDs[i]], controller.probeBudget.DeferredPolicies[policyIDs[j]]
 		firstDue := !first.IsZero() && !now.Before(controller.regularNext[policyIDs[i]])
 		secondDue := !second.IsZero() && !now.Before(controller.regularNext[policyIDs[j]])
@@ -587,6 +590,7 @@ func (controller *healthController) Tick(now time.Time) error {
 	})
 	var failures []error
 	dirty := historyTrimmed || runtimeReset || len(pool.HealthPolicies) != len(controller.state)
+	pairPending := false
 	for _, policyID := range policyIDs {
 		if policyID == controller.priorityPolicy {
 			controller.priorityPolicy = ""
@@ -598,6 +602,7 @@ func (controller *healthController) Tick(now time.Time) error {
 		}
 		controller.state[policyID] = item
 		beforeSelected, beforeSwitchAt := item.Selected, item.LastSwitchAt
+		beforePair := item.qualityPair
 		var err error
 		activeFailures := item.AvailabilityFailures[item.Selected]
 		confirmingFailure := activeFailures > 0 && activeFailures < policySettings(contract.Policy, contract.Mode).failureThreshold
@@ -686,8 +691,14 @@ func (controller *healthController) Tick(now time.Time) error {
 				Comparison: switchOptimizationEvidence(item, item.Selected, item.LastSwitchReason)})
 		}
 		managed[policyID] = item
-		if controller.yielded {
-			// Do not start another policy's slow job before handling this failure.
+		pairAt := now
+		if item.qualityFinishedAt.After(pairAt) {
+			pairAt = item.qualityFinishedAt
+		}
+		pairPending = item.qualityPair != beforePair && pairContinuationValid(pairAt, item)
+		if controller.yielded || pairPending {
+			// Consume the next ordinary slot for this pair before another list's
+			// slow routine check can expire it. Failure handling still runs first.
 			for _, id := range policyIDs {
 				if value := controller.state[id]; value != nil {
 					managed[id] = value
@@ -707,7 +718,7 @@ func (controller *healthController) Tick(now time.Time) error {
 		}
 	}
 	controller.state = managed
-	if len(controller.probeBudget.Used) > 0 {
+	if len(controller.probeBudget.Used) > 0 && !pairPending {
 		controller.probeBudget.Cursor++
 	}
 	for id := range controller.transitions {

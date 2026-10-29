@@ -65,6 +65,9 @@ func recentQualityMedian(now time.Time, samples []healthSample, p effectivePolic
 }
 
 func pairContinuationValid(now time.Time, item *policyHealthState) bool {
+	if item == nil {
+		return false
+	}
 	pair := item.qualityPair
 	return pair != nil && pair.Active == item.Selected &&
 		!now.Before(pair.StartedAt) && now.Sub(pair.StartedAt) <= qualityPairWindow

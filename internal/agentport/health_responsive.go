@@ -94,17 +94,59 @@ func (runtime *responsiveSelectorRuntime) ProbeAvailabilityConfirmation(candidat
 }
 
 func (runtime *responsiveSelectorRuntime) probeActiveAvailability(candidate string, confirm bool) probeEvidence {
+	return runtime.activeAvailabilityOperation(func() probeEvidence {
+		if confirmation, ok := runtime.selectorRuntime.(activeConfirmationRuntime); confirm && ok {
+			return confirmation.ProbeAvailabilityConfirmation(candidate)
+		}
+		return runtime.selectorRuntime.ProbeAvailability(candidate)
+	})
+}
+
+// Only an ordinary background liveness check may yield to a finished quality
+// job. The probe joins its HTTP workers before returning the selector, and a
+// canceled check provides neither failure evidence nor a new liveness time.
+func (runtime *responsiveSelectorRuntime) ProbeBackgroundAvailability(candidate string) probeEvidence {
+	probe, ok := runtime.selectorRuntime.(interface {
+		ProbeAvailabilityContext(context.Context, string) probeEvidence
+	})
+	if !ok || runtime.backgroundDone == nil {
+		return runtime.ProbeAvailability(candidate)
+	}
+	return runtime.activeAvailabilityOperation(func() probeEvidence {
+		parent := runtime.ctx
+		if parent == nil {
+			parent = context.Background()
+		}
+		ctx, cancel := context.WithCancel(parent)
+		stop, joined := make(chan struct{}), make(chan struct{})
+		go func() {
+			defer close(joined)
+			select {
+			case <-runtime.backgroundDone:
+				cancel()
+			case <-stop:
+			case <-ctx.Done():
+			}
+		}()
+		evidence := probe.ProbeAvailabilityContext(ctx, candidate)
+		close(stop)
+		<-joined
+		deferred := ctx.Err() != nil && parent.Err() == nil && runtime.backgroundJobComplete()
+		cancel()
+		if deferred {
+			return probeEvidence{Deferred: true}
+		}
+		return evidence
+	})
+}
+
+func (runtime *responsiveSelectorRuntime) activeAvailabilityOperation(probe func() probeEvidence) probeEvidence {
 	stamp := generationStamp(runtime.generationPaths)
 	if stamp != runtime.generation || (runtime.ctx != nil && runtime.ctx.Err() != nil) {
 		runtime.interrupted = errHealthYield
 		return probeEvidence{LocalFailure: true}
 	}
-	var evidence probeEvidence
-	if confirmation, ok := runtime.selectorRuntime.(activeConfirmationRuntime); confirm && ok {
-		evidence = confirmation.ProbeAvailabilityConfirmation(candidate)
-	} else {
-		evidence = runtime.selectorRuntime.ProbeAvailability(candidate)
-	}
+	evidence := probe()
 	if generationStamp(runtime.generationPaths) != stamp || (runtime.ctx != nil && runtime.ctx.Err() != nil) {
 		runtime.interrupted = errHealthYield
 		return probeEvidence{LocalFailure: true}

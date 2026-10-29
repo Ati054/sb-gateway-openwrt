@@ -27,8 +27,50 @@ type parallelQualityRuntime interface {
 	ProbeQualityParallel([]string) map[string]probeEvidence
 }
 
+// Sharing raw samples must not split a best-mode comparison across different
+// observation windows. A missing peer cannot finish before now; an attempted
+// but unavailable peer cannot be retried until the next ordinary budget.
+func (controller *healthController) incoherentSharedComparison(policyID string, contract healthPolicyContract, nodes []string, now time.Time) bool {
+	if contract.Mode != "best" || len(nodes) < 2 || controller.probeBudget == nil {
+		return false
+	}
+	var oldest, latest time.Time
+	pending := false
+	for _, node := range nodes {
+		key := controller.probeKey(policyID, node, contract)
+		cached, ok := controller.probeBudget.Quality[key]
+		if ok && now.Sub(cached.At) <= sharedProbeLifetime {
+			at := cached.Evidence.ObservedAt
+			if at.IsZero() {
+				at = cached.At
+			}
+			if oldest.IsZero() || at.Before(oldest) {
+				oldest = at
+			}
+			if at.After(latest) {
+				latest = at
+			}
+		} else if controller.probeBudget.QualityAttempted[key] {
+			return true
+		} else {
+			pending = true
+		}
+	}
+	if pending && now.After(latest) {
+		latest = now
+	}
+	return !oldest.IsZero() && latest.Sub(oldest) > qualityPairWindow
+}
+
 func (controller *healthController) sharedQualityBatch(policyID string, contract healthPolicyContract, nodes []string) map[string]probeEvidence {
 	result := make(map[string]probeEvidence, len(nodes))
+	if controller.incoherentSharedComparison(policyID, contract, nodes, time.Now()) {
+		controller.deferSharedProbe(policyID)
+		for _, node := range nodes {
+			result[node] = probeEvidence{Deferred: true}
+		}
+		return result
+	}
 	pending := []string{}
 	for _, node := range nodes {
 		key := controller.probeKey(policyID, node, contract)
@@ -131,6 +173,10 @@ func (controller *healthController) claimProbeTargets(policyID string, contract 
 		if _, exists := budget.DeferredPolicies[policyID]; !exists {
 			budget.DeferredPolicies[policyID] = now
 		}
+	}
+	if controller.incoherentSharedComparison(policyID, contract, targets, now) {
+		markDeferred()
+		return nil, targets
 	}
 	newKeys := map[string]bool{}
 	for _, node := range targets {

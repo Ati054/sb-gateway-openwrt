@@ -889,6 +889,13 @@ func (runtime *xraySelectorRuntime) ProbeAvailability(candidate string) (evidenc
 	return runtime.probe(candidate, xrayAvailabilityProbe)
 }
 
+func (runtime *xraySelectorRuntime) ProbeAvailabilityContext(ctx context.Context, candidate string) probeEvidence {
+	previous := runtime.probeContext
+	runtime.probeContext = ctx
+	defer func() { runtime.probeContext = previous }()
+	return runtime.ProbeAvailability(candidate)
+}
+
 func (runtime *xraySelectorRuntime) ProbeEmergencyAvailability(candidate string) (evidence probeEvidence) {
 	trace := beginHealthStage("emergency_availability_probe", runtime.stageLane(), "", candidate)
 	defer func() { trace.finish(evidence.OK) }()

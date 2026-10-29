@@ -60,11 +60,16 @@ func (controller *healthController) checkActiveAvailability(now time.Time, polic
 	var evidence probeEvidence
 	if confirmation, ok := controller.runtime.(activeConfirmationRuntime); ok && item.AvailabilityFailures[selected] > 0 && item.FailureClass[selected] == string(probeFailureTimeout) {
 		evidence = confirmation.ProbeAvailabilityConfirmation(selected)
+	} else if background, ok := controller.runtime.(interface{ ProbeBackgroundAvailability(string) probeEvidence }); ok && !recoverNow && !forced && item.AvailabilityFailures[selected] == 0 {
+		evidence = background.ProbeBackgroundAvailability(selected)
 	} else {
 		evidence = controller.runtime.ProbeAvailability(selected)
 	}
 	if err := takeProbeInterruption(controller.runtime); err != nil {
 		return savedChanged || statusChanged, err
+	}
+	if evidence.Deferred {
+		return savedChanged || statusChanged, nil
 	}
 	controller.livenessAt[policyID] = now
 	if evidence.LocalFailure {
