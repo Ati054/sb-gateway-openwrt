@@ -122,8 +122,8 @@ github.com/pion/transport/v4/netctx
 github.com/pion/transport/v4/replaydetector
 github.com/pion/transport/v4/stdnet
 github.com/pion/transport/v4/utils/xor
-# github.com/pires/go-proxyproto v0.15.0
-## explicit; go 1.25.0
+# github.com/pires/go-proxyproto v0.16.0
+## explicit; go 1.26.9
 github.com/pires/go-proxyproto
 # github.com/quic-go/qpack v0.6.0
 ## explicit; go 1.24

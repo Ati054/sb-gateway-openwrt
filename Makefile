@@ -51,7 +51,7 @@ else ifeq ($(DUMP),)
 endif
 define Build/Compile
 	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.3 GOMAXPROCS=2 \
-		GOOS=linux GOARCH=$(RESPROXY_GOARCH) CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=1b1647cd9ddf0abc34b981d4611fc03bcac1ca74' \
+		GOOS=linux GOARCH=$(RESPROXY_GOARCH) CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=0afec66085a85191e9dd2a4a6646c7c9a94688d1' \
 		-o $(PKG_BUILD_DIR)/resproxyd ./cmd/resproxyd
 endef
 
