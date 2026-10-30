@@ -497,6 +497,11 @@ func resolveDNSProvider(protocol, provider, customURL string, direct bool) (stri
 		if endpoint == "" {
 			return "", fmt.Errorf("unknown DNS provider %q", provider)
 		}
+		if direct && protocol == "doh" && provider == "cloudflare" {
+			// The IP endpoint also avoids resolving the resolver's hostname
+			// before handing router DNS over to this service.
+			endpoint = "https://1.1.1.1/dns-query"
+		}
 	}
 	parsed, err := dnsproxy.ParseEndpoint(endpoint, direct)
 	if err != nil {

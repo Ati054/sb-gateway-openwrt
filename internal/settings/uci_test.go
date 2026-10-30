@@ -212,6 +212,27 @@ func TestReadUCIDNSProviderPresetsAndLegacyURL(t *testing.T) {
 	}
 }
 
+func TestReadUCICloudflareWANUsesCertificateValidatedIPEndpoint(t *testing.T) {
+	config, err := ReadUCI(context.Background(), fake(map[string]string{
+		"resproxy.main.dns_proxy_protocol":  "doh",
+		"resproxy.main.dns_proxy_provider":  "cloudflare",
+		"resproxy.main.dns_direct_protocol": "doh",
+		"resproxy.main.dns_direct_provider": "cloudflare",
+	}))
+	if err != nil || config.DNSDirectURL != "https://1.1.1.1/dns-query" ||
+		config.DNSProxyURL != "https://cloudflare-dns.com/dns-query" {
+		t.Fatalf("Cloudflare endpoints not resolved by path: %+v %v", config, err)
+	}
+	custom, err := ReadUCI(context.Background(), fake(map[string]string{
+		"resproxy.main.dns_direct_protocol": "doh",
+		"resproxy.main.dns_direct_provider": "custom",
+		"resproxy.main.dns_direct_url":      "https://cloudflare-dns.com/dns-query",
+	}))
+	if err != nil || custom.DNSDirectURL != "https://cloudflare-dns.com/dns-query" {
+		t.Fatalf("custom WAN endpoint replaced: %+v %v", custom, err)
+	}
+}
+
 func TestReadUCIIgnoresRemovedBootstrapDNSOptions(t *testing.T) {
 	config, err := ReadUCI(context.Background(), fake(map[string]string{
 		"resproxy.main.dns_bootstrap_enabled": "1",
