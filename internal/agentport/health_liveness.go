@@ -83,6 +83,10 @@ func (controller *healthController) checkActiveAvailability(now time.Time, polic
 			controller.emitHealthEvent(healthEvent{At: now.UTC().Format(time.RFC3339Nano), Event: "probe-recovered", Policy: policyID, Node: selected, Targets: probeTargetResults(evidence)})
 		}
 		item.AvailabilityFailures[selected] = 0
+		if item.Failures[selected] > 0 && primaryOriginAvailable(evidence) {
+			item.Failures[selected] = 0
+			savedChanged = true
+		}
 		delete(item.FailureClass, selected)
 		savedChanged = clearUnderlayFailure(item) || savedChanged
 		savedChanged = rememberWorkingSelection(contract, item) || savedChanged

@@ -965,7 +965,10 @@ func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) 
 	}
 	evidence = runtime.probeAvailabilityTargets(evidence, false)
 	evidence.QualityUnmeasured = true
-	evidence.PrimaryQualityFailed = true
+	// A rejected or interrupted HEAD is not persistent primary-origin failure
+	// when the existing fallback GET proves that very origin still works.
+	// Keep its GET duration out of the HEAD ranking in either case.
+	evidence.PrimaryQualityFailed = !primaryOriginAvailable(evidence)
 	if evidence.OK {
 		evidence.DelayMS = nil
 	}

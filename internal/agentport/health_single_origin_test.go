@@ -45,7 +45,8 @@ func TestSingleOriginQualityHEADAndFallback(t *testing.T) {
 					t.Fatalf("healthy HEAD queried other origins: %+v calls=%d", evidence, calls.Load())
 				}
 			} else {
-				if evidence.OK != (outcome != "all-failed") || evidence.DelayMS != nil || !evidence.QualityUnmeasured || !evidence.PrimaryQualityFailed {
+				primaryFailed := outcome != "head-rejected"
+				if evidence.OK != (outcome != "all-failed") || evidence.DelayMS != nil || !evidence.QualityUnmeasured || evidence.PrimaryQualityFailed != primaryFailed {
 					t.Fatalf("fallback supplied ranking latency or wrong availability: %+v", evidence)
 				}
 				if calls.Load() > 4 {

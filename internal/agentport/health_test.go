@@ -951,6 +951,8 @@ func TestPrimaryQualityFailureRequiresFreshQualifiedReserve(t *testing.T) {
 		{"missing quality timestamp", "best", 3, 0, "de"},
 		{"future quality timestamp", "best", 3, 1001, "de"},
 		{"reserve with recent availability failure", "best", 3, 999, "de"},
+		{"reserve outside pair window", "best", 3, 989, "de"},
+		{"reserve at pair boundary", "best", 3, 990, "nl"},
 		{"fresh qualified reserve", "best", 3, 999, "nl"},
 		{"priority fresh qualified reserve", "priority", 3, 999, "nl"},
 	} {
@@ -958,6 +960,7 @@ func TestPrimaryQualityFailureRequiresFreshQualifiedReserve(t *testing.T) {
 			item := newPolicyHealthState()
 			item.Failures["de"] = 3
 			item.Recoveries["nl"] = test.recoveries
+			item.Samples["de"] = []healthSample{{At: 1000, OK: true, PrimaryQualityFailed: true}}
 			item.LastProbeAt["nl"] = test.lastProbe
 			if test.name == "reserve with recent availability failure" {
 				item.AvailabilityFailures["nl"] = 1

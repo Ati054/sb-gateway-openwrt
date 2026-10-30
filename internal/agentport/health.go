@@ -137,9 +137,10 @@ type policyHealthState struct {
 }
 
 type healthSample struct {
-	At      float64 `json:"at,omitempty"`
-	OK      bool    `json:"ok"`
-	DelayMS *int    `json:"delay_ms"`
+	At                   float64 `json:"at,omitempty"`
+	OK                   bool    `json:"ok"`
+	PrimaryQualityFailed bool    `json:"primary_quality_failed,omitempty"`
+	DelayMS              *int    `json:"delay_ms"`
 }
 
 func (item *policyHealthState) UnmarshalJSON(body []byte) error {
@@ -362,7 +363,7 @@ func (controller *healthController) nextIntervalAt(now time.Time) time.Duration 
 		if item == nil {
 			continue
 		}
-		qualityReady := !busy && item.Mode == "best" && item.RuntimeConfirmed && item.Selected != "block" && item.AvailabilityFailures[item.Selected] == 0
+		qualityReady := !busy && (item.Mode == "best" || primaryDegradationPending(item, item.Selected)) && item.RuntimeConfirmed && item.Selected != "block" && item.AvailabilityFailures[item.Selected] == 0
 		if qualityReady && pairContinuationValid(now, item) && (interval <= 0 || interval > time.Second) {
 			interval = time.Second
 		}
@@ -987,7 +988,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 
 	intendedTargets := append([]string(nil), probeTargets...)
 	continuingPair := pairContinuationValid(now, item)
-	if !outage && !warm && contract.Mode == "best" {
+	if !outage && !warm && (contract.Mode == "best" || primaryDegradationPending(item, selected)) {
 		if len(probeTargets) == 1 && probeTargets[0] == selected {
 			oldest := ""
 			for _, node := range candidates {
@@ -1188,11 +1189,13 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 	medians := make(map[string]*int)
 	for _, candidate := range candidates {
 		samples := append([]healthSample(nil), item.Samples[candidate]...)
+		qualityRecorded := false
 		if evidence, ok := measured[candidate]; ok && !unconfirmedCPUTimeout(evidence) &&
 			(!evidence.OK || evidence.PrimaryQualityFailed || evidence.DelayMS != nil && !evidence.QualityUnmeasured) {
 			at := qualityTimestamp(now, evidence)
 			if len(samples) == 0 || at > samples[len(samples)-1].At {
-				samples = append(samples, healthSample{At: at, OK: evidence.OK, DelayMS: evidence.DelayMS})
+				samples = append(samples, healthSample{At: at, OK: evidence.OK, DelayMS: evidence.DelayMS, PrimaryQualityFailed: evidence.PrimaryQualityFailed})
+				qualityRecorded = true
 			}
 		}
 		if len(samples) > 3 {
@@ -1228,9 +1231,9 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 			// Count independent bad probes. A good current response clears
 			// the pending degradation streak; history never controls selection.
 			probeQuality := evidence.OK && evidence.DelayMS != nil && !evidence.QualityUnmeasured
-			if probeQuality || evidence.OK && !evidence.PrimaryQualityFailed {
+			if probeQuality && qualityRecorded || !probeQuality && evidence.OK && !evidence.PrimaryQualityFailed {
 				item.Failures[candidate] = 0
-			} else {
+			} else if qualityRecorded {
 				item.Failures[candidate]++
 			}
 			if evidence.OK {
@@ -1246,7 +1249,9 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 				// Availability is not a new confirmation of primary-origin quality.
 				item.Recoveries[candidate] = 0
 			} else if probeQuality {
-				item.Recoveries[candidate]++
+				if qualityRecorded {
+					item.Recoveries[candidate]++
+				}
 			} else {
 				item.Recoveries[candidate] = 0
 			}
@@ -1270,7 +1275,7 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 
 	evaluationAt := qualityEvaluationTime(now, measured)
 	item.qualityFinishedAt = evaluationAt
-	if !outage && !emergencySwitched && !warm && contract.Mode == "best" {
+	if !outage && !emergencySwitched && !warm && (contract.Mode == "best" || primaryDegradationPending(item, selected)) {
 		planQualityContinuation(evaluationAt, selected, intendedTargets, probeTargets, measured, item, continuingPair)
 	} else {
 		item.qualityPair = nil

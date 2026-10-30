@@ -37,6 +37,41 @@ func closeQualityPair(item *policyHealthState, active, candidate string) bool {
 	return goodA && goodB && math.Abs(a.At-b.At) <= qualityPairWindow.Seconds()
 }
 
+func primaryDegradationPending(item *policyHealthState, active string) bool {
+	samples := item.Samples[active]
+	if len(samples) == 0 {
+		return false
+	}
+	sample := samples[len(samples)-1]
+	return item.Failures[active] > 0 && sample.OK && sample.PrimaryQualityFailed && sample.At > 0
+}
+
+// Only a response from the primary itself clears its degradation streak;
+// availability through another origin says nothing about primary recovery.
+func primaryOriginAvailable(evidence probeEvidence) bool {
+	if !evidence.OK || len(healthTargets) == 0 {
+		return false
+	}
+	label := healthTargets[0].label
+	delay := evidence.Targets[label]
+	_, failed := evidence.TargetFailures[label]
+	return delay != nil && *delay > 0 && !failed
+}
+
+// Missing HEAD timing must not turn a reachable route into an emergency.
+// Old snapshots have no primary-failure marker and cannot authorize a switch.
+func closeDegradedPair(now time.Time, item *policyHealthState, active, candidate string) bool {
+	if !primaryDegradationPending(item, active) {
+		return false
+	}
+	a := item.Samples[active][len(item.Samples[active])-1]
+	b, good := latestQuality(item, candidate)
+	at := float64(now.UnixNano()) / 1e9
+	return good && !b.PrimaryQualityFailed && at >= a.At && at >= b.At &&
+		at-a.At <= qualityPairWindow.Seconds() && at-b.At <= qualityPairWindow.Seconds() &&
+		math.Abs(a.At-b.At) <= qualityPairWindow.Seconds()
+}
+
 func recentQualityMedian(now time.Time, samples []healthSample, p effectivePolicySettings) *int {
 	if len(samples) == 0 || !samples[len(samples)-1].OK || samples[len(samples)-1].DelayMS == nil {
 		return nil
@@ -99,7 +134,7 @@ func planQualityContinuation(now time.Time, selected string, intended, targets [
 		// A deferred slot can be retried while the original pair is still fresh.
 		if pair := item.qualityPair; pair != nil {
 			if _, attempted := measured[pair.Node]; attempted || !pairContinuationValid(now, item) {
-				if attempted && closeQualityPair(item, selected, pair.Candidate) {
+				if attempted && (closeQualityPair(item, selected, pair.Candidate) || closeDegradedPair(now, item, selected, pair.Candidate)) {
 					item.qualityPeer = pair.Candidate
 				}
 				item.qualityPair = nil
@@ -109,14 +144,15 @@ func planQualityContinuation(now time.Time, selected string, intended, targets [
 	}
 	for _, node := range intended {
 		if node != selected && !contains(targets, node) {
-			if evidence, ok := measured[selected]; ok && evidence.OK && evidence.DelayMS != nil {
+			if evidence, ok := measured[selected]; ok && evidence.OK && !evidence.LocalFailure {
 				item.qualityPair = &qualityPairContinuation{Active: selected, Node: node, Candidate: node, StartedAt: qualityTime(now, evidence)}
 				return
 			}
 		}
 	}
 	for _, node := range targets {
-		if evidence, ok := measured[node]; node != selected && ok && evidence.OK && evidence.DelayMS != nil && !closeQualityPair(item, selected, node) {
+		if evidence, ok := measured[node]; node != selected && ok && evidence.OK && evidence.DelayMS != nil &&
+			!closeQualityPair(item, selected, node) && !closeDegradedPair(now, item, selected, node) {
 			item.qualityPair = &qualityPairContinuation{Active: selected, Node: selected, Candidate: node, StartedAt: qualityTime(now, evidence)}
 			return
 		}

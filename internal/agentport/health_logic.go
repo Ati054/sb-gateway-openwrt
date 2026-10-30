@@ -301,9 +301,18 @@ func selectDesired(now time.Time, mode, selected string, candidates []string, gr
 			}
 		}
 		if item.Failures[selected] >= p.failureThreshold && len(stable) > 0 {
-			// Primary quality failure is not necessarily an availability outage.
-			// Only leave it for a freshly qualified reserve.
-			desired, reason = rank(stable)[0], "active-degraded"
+			// This is not an availability outage. Both the failed primary and
+			// its replacement must be proved close together, including when a
+			// one-slot continuation completed the other side of the pair.
+			paired := []string{}
+			for _, candidate := range stable {
+				if closeDegradedPair(now, item, selected, candidate) {
+					paired = append(paired, candidate)
+				}
+			}
+			if len(paired) > 0 {
+				desired, reason = rank(paired)[0], "active-degraded"
+			}
 		} else if priorityReturn != "" {
 			desired, reason = priorityReturn, "higher-priority-recovered"
 		} else if mode != "priority" {
