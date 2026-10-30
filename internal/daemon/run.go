@@ -153,6 +153,10 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	if err := agentport.WritePool(poolPath, nodes, config.Policies); err != nil {
 		return err
 	}
+	preferredSelections := filepath.Join(paths.DataRoot, "preferred-selections.json")
+	if err := agentport.RestoreColdSelections(filepath.Join(paths.RunRoot, "health-state"), preferredSelections, poolPath); err != nil {
+		log.Printf("resproxy: preferred servers could not be restored; using fresh selection: %v", err)
+	}
 	if err := store.Prune(3); err != nil {
 		log.Printf("resproxy: subscription storage pruning skipped: %v", err)
 	}
@@ -301,8 +305,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		BackgroundBusy:  resources.NewBackgroundBusy(),
 		XrayProcessName: engine.processName, RunXrayCommand: supervisor.Command,
 		PrepareOutbound: plugins.Prepare, ReleaseOutbound: plugins.Release,
-		StateRoot:  filepath.Join(paths.RunRoot, "health-state"),
-		XrayBinary: paths.Binary, XrayAPIServer: manager.Server,
+		StateRoot:               filepath.Join(paths.RunRoot, "health-state"),
+		PreferredSelectionsFile: preferredSelections,
+		XrayBinary:              paths.Binary, XrayAPIServer: manager.Server,
 		XrayReadyFile: readyPath, HealthInterval: 60 * time.Second,
 		HealthPoolFile: poolPath, DNSGenerationFile: filepath.Join(paths.RunRoot, "dns-generation.json"), HotRuntimeReadyFile: filepath.Join(paths.RunRoot, "hot-ready.json"),
 		PassiveSocket: passiveSocket,

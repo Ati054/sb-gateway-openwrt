@@ -61,6 +61,7 @@ func (controller *healthController) publishState(path string, state healthState,
 	if err := writeJSONAtomic(path, state); err != nil {
 		return err
 	}
+	controller.persistPreferredSelections(state, now)
 	return controller.publishMonitor(path, state, now)
 }
 

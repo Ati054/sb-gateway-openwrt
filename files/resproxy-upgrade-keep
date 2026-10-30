@@ -1,3 +1,4 @@
 /etc/resproxy/dnsmasq-handoff.json
 /etc/resproxy/dns-handoff.json
+/etc/resproxy/preferred-selections.json
 /etc/uci-defaults/90-sb-gateway-dns-recover

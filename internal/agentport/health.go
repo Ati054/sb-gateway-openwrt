@@ -254,6 +254,9 @@ type healthController struct {
 	reconciled          map[string]policyReconciliation
 	state               healthState
 	stateLoaded         bool
+	preferredSelections map[string]preferredSelection
+	preferredLoaded     bool
+	preferredRetryAt    time.Time
 	monitorDay          string
 	monitorRuntimeAt    time.Time
 	historyLimitBytes   int

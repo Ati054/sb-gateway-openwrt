@@ -16,24 +16,25 @@ import (
 // RouterOS/container telemetry and service supervision are intentionally
 // outside this OpenWrt port.
 type Options struct {
-	BackgroundBusy      func() bool
-	OnProgress          func()
-	XrayProcessName     string
-	RunXrayCommand      func(context.Context, string, ...string) ([]byte, error)
-	StateRoot           string
-	XrayBinary          string
-	XrayAPIServer       string
-	XrayReadyFile       string
-	HealthInterval      time.Duration
-	HealthPoolFile      string
-	DNSGenerationFile   string
-	HotRuntimeReadyFile string
-	XrayFailureSocket   string
-	PassiveSocket       string
-	ProbeURL            string
-	ProbeBasePort       int
-	PrepareOutbound     func(context.Context, map[string]any) error
-	ReleaseOutbound     func(string)
+	BackgroundBusy          func() bool
+	OnProgress              func()
+	XrayProcessName         string
+	RunXrayCommand          func(context.Context, string, ...string) ([]byte, error)
+	StateRoot               string
+	PreferredSelectionsFile string
+	XrayBinary              string
+	XrayAPIServer           string
+	XrayReadyFile           string
+	HealthInterval          time.Duration
+	HealthPoolFile          string
+	DNSGenerationFile       string
+	HotRuntimeReadyFile     string
+	XrayFailureSocket       string
+	PassiveSocket           string
+	ProbeURL                string
+	ProbeBasePort           int
+	PrepareOutbound         func(context.Context, map[string]any) error
+	ReleaseOutbound         func(string)
 }
 
 func (opts Options) xrayProcessName() string {
