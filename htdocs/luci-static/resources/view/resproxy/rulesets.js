@@ -168,7 +168,12 @@ return view.extend({
 			uci.load('resproxy'),
             fs.exec('/usr/libexec/resproxy-rulesets').then(function(result) {
                 if (result.code !== 0) throw new Error(result.stderr || _('Catalog read failed.'));
-                return JSON.parse(result.stdout);
+                var catalog = JSON.parse(result.stdout);
+                (catalog.choices || []).forEach(function(pack) {
+                    pack.name = _(pack.name);
+                    if (pack.description) pack.description = _(pack.description);
+                });
+                return catalog;
             }).catch(function() { return {}; })
 		]).then(function(data) {
 			return data;

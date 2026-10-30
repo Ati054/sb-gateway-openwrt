@@ -12,7 +12,7 @@ function preferences() {
   return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
  } catch (error) { return {}; }
 }
-function stamp(value) { return value ? new Date(value * 1000).toLocaleString() : '—'; }
+function stamp(value) { return value ? new Date(value * 1000).toLocaleString((document.documentElement.lang || 'en').replace(/_/g, '-'), {calendar:'gregory'}) : '—'; }
 function metric(value, suffix) { return value == null ? '—' : String(value) + (suffix || ''); }
 function measured(value, suffix, at) {
  if (value == null || !at) return '—';
@@ -73,19 +73,19 @@ return baseclass.extend({
      n.latency_delta_reason === 'active-measurement-missing-or-stale' ? _('No fresh successful HTTPS measurement for the active node.') : _('No fresh successful HTTPS measurement for this node.');
     if (n.latency_comparison && n.latency_delta_percent != null) {
      deltaTitle = _('Last paired HTTPS comparison. Negative means lower latency; positive means higher latency.') + '\n' +
-      _('Active node') + ': ' + new Date(n.latency_comparison.active_at*1000).toLocaleString() + '\n' +
-      _('Candidate') + ': ' + new Date(n.latency_comparison.candidate_at*1000).toLocaleString();
+      _('Active node') + ': ' + stamp(n.latency_comparison.active_at) + '\n' +
+      _('Candidate') + ': ' + stamp(n.latency_comparison.candidate_at);
     } else if (n.latency_delta_reason === 'paired-measurement-missing' || n.latency_delta_reason === 'measurements-too-far-apart')
      deltaTitle = _('Waiting for HTTPS measurements completed within 10 seconds of each other.');
     var availability = s.availability_percent == null ? '—' : Number(s.availability_percent).toFixed(1)+'%';
     var loss = s.https_error_percent == null ? '' : ' / '+Number(s.https_error_percent).toFixed(1)+'%';
     fragment.appendChild(E('tr', { 'class': n.selected ? 'tr sbg-node-active' : 'tr' }, [
-     E('td', { 'class': 'td' }, n.label),
+     E('td', { 'class': 'td', dir:'auto' }, n.label),
      E('td', { 'class': 'td' }, E('span', { 'class': 'sbg-node-state '+(n.last_probe_at ? n.available ? 'sbg-up' : 'sbg-down' : 'sbg-unknown') }, state)),
-     E('td', { 'class': 'td' }, availability+loss),
-     E('td', { 'class': 'td' }, metric(s.median_ms, ' '+_('ms'))),
-     E('td', { 'class': 'td', title: deltaTitle }, n.latency_delta_percent == null ? '—' : (n.latency_delta_percent > 0 ? '+' : '')+Number(n.latency_delta_percent).toFixed(1)+'%'),
-     E('td', { 'class': 'td' }, metric(s.samples)), E('td', { 'class': 'td' }, stamp(n.last_probe_at))
+     E('td', { 'class': 'td', dir:'ltr' }, availability+loss),
+     E('td', { 'class': 'td', dir:'ltr' }, metric(s.median_ms, ' '+_('ms'))),
+     E('td', { 'class': 'td', dir:'ltr', title: deltaTitle }, n.latency_delta_percent == null ? '—' : (n.latency_delta_percent > 0 ? '+' : '')+Number(n.latency_delta_percent).toFixed(1)+'%'),
+     E('td', { 'class': 'td', dir:'ltr' }, metric(s.samples)), E('td', { 'class': 'td' }, stamp(n.last_probe_at))
     ]));
    });
    if (!visible.length) fragment.appendChild(E('tr', {}, E('td', { colspan: 7 }, policy.pending ? _('No health data yet.') : _('No matching nodes.'))));

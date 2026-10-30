@@ -2,7 +2,7 @@
 
 [Русский](README.md) | English
 
-Route devices and services through proxies with automatic node selection. Configure and monitor everything in LuCI; Xray is included. The interface supports English and Russian.
+Route devices and services through proxies with automatic node selection. Configure and monitor everything in LuCI; Xray is included. The interface supports English, Russian, Simplified and Traditional Chinese, and Persian.
 
 **Subscription updates, node switching, and monitoring interval changes take effect without restarting the service.**
 

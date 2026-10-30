@@ -1,0 +1,2330 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: en\nPlural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Resilient Proxy"
+msgstr "Resilient Proxy"
+
+msgid "SB Gateway for OpenWrt"
+msgstr "SB Gateway for OpenWrt"
+
+msgid "Package update"
+msgstr "Package update"
+
+msgid "Package update failed."
+msgstr "Package update failed."
+
+msgid "Installed version"
+msgstr "Installed version"
+
+msgid "Update state"
+msgstr "Update state"
+
+msgid "No update in progress"
+msgstr "No update in progress"
+
+msgid "Preparing update"
+msgstr "Preparing update"
+
+msgid "Installing package"
+msgstr "Installing package"
+
+msgid "Starting service"
+msgstr "Starting service"
+
+msgid "Completed"
+msgstr "Completed"
+
+msgid "Update failed"
+msgstr "Update failed"
+
+msgid "Package updated successfully."
+msgstr "Package updated successfully."
+
+msgid "Update failed. Check the system log for details."
+msgstr "Update failed. Check the system log for details."
+
+msgid "Installing version %s…"
+msgstr "Installing version %s…"
+
+msgid "Choose APK and update"
+msgstr "Choose APK and update"
+
+msgid "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgstr "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+
+msgid "New source"
+msgstr "New source"
+
+msgid "New route list"
+msgstr "New route list"
+
+msgid "Keep this name after the first import."
+msgstr "Keep this name after the first import."
+
+msgid "Subscription update"
+msgstr "Subscription update"
+
+msgid "Update"
+msgstr "Update"
+
+msgid "APK SHA-256: "
+msgstr "APK SHA-256: "
+
+msgid "Overview"
+msgstr "Overview"
+
+msgid "Subscription"
+msgstr "Subscription"
+
+msgid "Subscriptions"
+msgstr "Subscriptions"
+
+msgid "Each source has its own schedule and fetch path. A successful refresh publishes new nodes to the running Xray core without restarting it. Applying configuration changes can restart the service."
+msgstr "Each source has its own schedule and fetch path. A successful refresh publishes new nodes to the running Xray core without restarting it. Applying configuration changes can restart the service."
+
+msgid "Sources"
+msgstr "Sources"
+
+msgid "Add HTTPS client subscriptions. Keep their URLs private: they may contain access tokens. Applying the removal of a source also removes its nodes from the active catalog."
+msgstr "Add HTTPS client subscriptions. Keep their URLs private: they may contain access tokens. Applying the removal of a source also removes its nodes from the active catalog."
+
+msgid "Source ID"
+msgstr "Source ID"
+
+msgid "Source name"
+msgstr "Source name"
+
+msgid "This name identifies the source and its nodes. Do not rename it after importing nodes."
+msgstr "This name identifies the source and its nodes. Do not rename it after importing nodes."
+
+msgid "Use 1–32 Latin letters, digits, spaces or hyphens; start with a letter."
+msgstr "Use 1–32 Latin letters, digits, spaces or hyphens; start with a letter."
+
+msgid "Stable source identity. Do not change it during routine updates."
+msgstr "Stable source identity. Do not change it during routine updates."
+
+msgid "Fetch path"
+msgstr "Fetch path"
+
+msgid "Current proxy, then direct"
+msgstr "Current proxy, then direct"
+
+msgid "Direct, then current proxy"
+msgstr "Direct, then current proxy"
+
+msgid "Current proxy only"
+msgstr "Current proxy only"
+
+msgid "Direct only"
+msgstr "Direct only"
+
+msgid "Proxy-only cannot bootstrap without an existing working catalog. Direct fallback may expose the subscription request to the WAN."
+msgstr "Proxy-only cannot bootstrap without an existing working catalog. Direct fallback may expose the subscription request to the WAN."
+
+msgid "Request source refresh"
+msgstr "Request source refresh"
+
+msgid "Save and apply changes first. The journal shows the result."
+msgstr "Save and apply changes first. The journal shows the result."
+
+msgid "Save a valid source ID first."
+msgstr "Save a valid source ID first."
+
+msgid "Refresh requested. The previous route remains active until validation and publication complete."
+msgstr "Refresh requested. The previous route remains active until validation and publication complete."
+
+msgid "Existing single source"
+msgstr "Existing single source"
+
+msgid "This older source is used only while no sources are configured above. When migrating, reuse its Provider ID to preserve node identity, then clear the older URL."
+msgstr "This older source is used only while no sources are configured above. When migrating, reuse its Provider ID to preserve node identity, then clear the older URL."
+
+msgid "Europe"
+msgstr "Europe"
+
+msgid "Asia"
+msgstr "Asia"
+
+msgid "Americas"
+msgstr "Americas"
+
+msgid "Africa"
+msgstr "Africa"
+
+msgid "Oceania"
+msgstr "Oceania"
+
+msgid "Other regions"
+msgstr "Other regions"
+
+msgid "Choose available countries or cities from the catalog, or enter a selector manually. In priority mode the order determines reserves. A city label can change when the provider renames it; country filters remain broader."
+msgstr "Choose available countries or cities from the catalog, or enter a selector manually. In priority mode the order determines reserves. A city label can change when the provider renames it; country filters remain broader."
+
+msgid "Route lists"
+msgstr "Route lists"
+
+msgid "Journal"
+msgstr "Journal"
+
+msgid "Stopped"
+msgstr "Stopped"
+
+msgid "Running"
+msgstr "Running"
+
+msgid "none"
+msgstr "none"
+
+msgid "confirmed in Xray"
+msgstr "confirmed in Xray"
+
+msgid "not confirmed in Xray"
+msgstr "not confirmed in Xray"
+
+msgid "Runtime error"
+msgstr "Runtime error"
+
+msgid "No route status is available yet."
+msgstr "No route status is available yet."
+
+msgid "Client-only proxy. Subscription refreshes do not restart the running Xray core."
+msgstr "Client-only proxy. Subscription refreshes do not restart the running Xray core."
+
+msgid "Current state"
+msgstr "Current state"
+
+msgid "Service"
+msgstr "Service"
+
+msgid "Active catalog"
+msgstr "Active catalog"
+
+msgid "%d nodes"
+msgstr "%d nodes"
+
+msgid "Selected routes"
+msgstr "Selected routes"
+
+msgid "Service and LAN routing"
+msgstr "Service and LAN routing"
+
+msgid "Enable service"
+msgstr "Enable service"
+
+msgid "Route LAN through proxy"
+msgstr "Route LAN through proxy"
+
+msgid "LAN bridge to capture"
+msgstr "LAN bridge to capture"
+
+msgid "Add an HTTPS client subscription and choose automatic or manual refresh. Saving changed settings can restart the service; routine refreshes add usable nodes to the running Xray core without restarting it."
+msgstr "Add an HTTPS client subscription and choose automatic or manual refresh. Saving changed settings can restart the service; routine refreshes add usable nodes to the running Xray core without restarting it."
+
+msgid "Source"
+msgstr "Source"
+
+msgid "Subscription URL"
+msgstr "Subscription URL"
+
+msgid "HTTPS only. Keep this address private: it may contain an access token. This version supports one subscription source."
+msgstr "HTTPS only. Keep this address private: it may contain an access token. This version supports one subscription source."
+
+msgid "Provider ID"
+msgstr "Provider ID"
+
+msgid "Stable source identity used when reconciling renamed or updated nodes. Do not change it during a routine refresh."
+msgstr "Stable source identity used when reconciling renamed or updated nodes. Do not change it during a routine refresh."
+
+msgid "Refresh schedule"
+msgstr "Refresh schedule"
+
+msgid "Update method"
+msgstr "Update method"
+
+msgid "Automatic and on request"
+msgstr "Automatic and on request"
+
+msgid "Only on request"
+msgstr "Only on request"
+
+msgid "Automatic interval (seconds)"
+msgstr "Automatic interval (seconds)"
+
+msgid "Maximum imported nodes"
+msgstr "Maximum imported nodes"
+
+msgid "Update now"
+msgstr "Update now"
+
+msgid "Request subscription refresh"
+msgstr "Request subscription refresh"
+
+msgid "First save and apply any changed settings. This button queues a refresh; check the journal for its result."
+msgstr "First save and apply any changed settings. This button queues a refresh; check the journal for its result."
+
+msgid "Refresh request failed."
+msgstr "Refresh request failed."
+
+msgid "Refresh requested. The previous route remains active until the new catalog is validated and published."
+msgstr "Refresh requested. The previous route remains active until the new catalog is validated and published."
+
+msgid "Route lists for devices"
+msgstr "Route lists for devices"
+
+msgid "Each route list selects locations and a failover mode for its client IP addresses. The first list is the default for unmatched devices. Changing route lists changes Xray routing configuration and requires a service restart when applied."
+msgstr "Each route list selects locations and a failover mode for its client IP addresses. The first list is the default for unmatched devices. Changing route lists changes Xray routing configuration and requires a service restart when applied."
+
+msgid "Create up to eight lists. Put more specific device rules before broader subnets. An empty location selection fails closed."
+msgstr "Create up to eight lists. Put more specific device rules before broader subnets. An empty location selection fails closed."
+
+msgid "Servers and mode"
+msgstr "Servers and mode"
+
+msgid "Devices"
+msgstr "Devices"
+
+msgid "Health checks"
+msgstr "Health checks"
+
+msgid "Route list ID"
+msgstr "Route list ID"
+
+msgid "Use 1–32 lowercase Latin letters, digits, or hyphens; start with a letter."
+msgstr "Use 1–32 lowercase Latin letters, digits, or hyphens; start with a letter."
+
+msgid "Selection mode"
+msgstr "Selection mode"
+
+msgid "Best available"
+msgstr "Best available"
+
+msgid "Priority / reserve"
+msgstr "Priority / reserve"
+
+msgid "Selected locations in order"
+msgstr "Selected locations in order"
+
+msgid "Examples: country:CA, region:europe, city:CA:Toronto. In priority mode, order is used for reserve selection."
+msgstr "Examples: country:CA, region:europe, city:CA:Toronto. In priority mode, order is used for reserve selection."
+
+msgid "Client IP addresses or subnets"
+msgstr "Client IP addresses or subnets"
+
+msgid "Examples: 192.168.1.20/32 for one device, 192.168.1.0/24 for a subnet. Leave empty for the default list. Give devices fixed DHCP leases so the mapping remains stable."
+msgstr "Examples: 192.168.1.20/32 for one device, 192.168.1.0/24 for a subnet. Leave empty for the default list. Give devices fixed DHCP leases so the mapping remains stable."
+
+msgid "Active liveness (seconds)"
+msgstr "Active liveness (seconds)"
+
+msgid "Failure retry (seconds)"
+msgstr "Failure retry (seconds)"
+
+msgid "All-down recovery (seconds)"
+msgstr "All-down recovery (seconds)"
+
+msgid "Active check (seconds)"
+msgstr "Active check (seconds)"
+
+msgid "Backup check (seconds)"
+msgstr "Backup check (seconds)"
+
+msgid "Full scan (seconds)"
+msgstr "Full scan (seconds)"
+
+msgid "Parallel probe batch"
+msgstr "Parallel probe batch"
+
+msgid "Maximum active candidates"
+msgstr "Maximum active candidates"
+
+msgid "Unable to read the journal."
+msgstr "Unable to read the journal."
+
+msgid "No Resilient Proxy events are in the system journal."
+msgstr "No Resilient Proxy events are in the system journal."
+
+msgid "Resilient Proxy journal"
+msgstr "Resilient Proxy journal"
+
+msgid "Refresh journal"
+msgstr "Refresh journal"
+
+msgid "The latest 200 proxy events and errors from the OpenWrt system journal. Routine probe traffic is hidden; this page does not create a separate disk log."
+msgstr "The latest 200 proxy events and errors from the OpenWrt system journal. Routine probe traffic is hidden; this page does not create a separate disk log."
+
+msgid "Proxy internet traffic from LAN devices"
+msgstr "Proxy internet traffic from LAN devices"
+
+msgid "LAN bridge"
+msgstr "LAN bridge"
+
+msgid "Direct WAN"
+msgstr "Direct WAN"
+
+msgid "Domains without proxy"
+msgstr "Domains without proxy"
+
+msgid "Enter a lowercase domain, for example example.com. Use Punycode for Cyrillic names."
+msgstr "Enter a lowercase domain, for example example.com. Use Punycode for Cyrillic names."
+
+msgid "IP addresses and networks without proxy"
+msgstr "IP addresses and networks without proxy"
+
+msgid "Detected BitTorrent through WAN"
+msgstr "Detected BitTorrent through WAN"
+
+msgid "Encrypted or obfuscated P2P traffic may not be recognized by Xray."
+msgstr "Encrypted or obfuscated P2P traffic may not be recognized by Xray."
+
+msgid "Domains .ru and .рф through WAN"
+msgstr "Domains .ru and .рф through WAN"
+
+msgid "Matches domain names in these two zones, not every Russian-hosted service."
+msgstr "Matches domain names in these two zones, not every Russian-hosted service."
+
+msgid "Node health"
+msgstr "Node health"
+
+msgid "Unable to read node health."
+msgstr "Unable to read node health."
+
+msgid "Route list"
+msgstr "Route list"
+
+msgid "Find a node"
+msgstr "Find a node"
+
+msgid "Node"
+msgstr "Node"
+
+msgid "Availability"
+msgstr "Availability"
+
+msgid "Median latency"
+msgstr "Median latency"
+
+msgid "Last check"
+msgstr "Last check"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "No health data yet."
+msgstr "No health data yet."
+
+msgid "%d candidates · %d healthy reserves · checked %s"
+msgstr "%d candidates · %d healthy reserves · checked %s"
+
+msgid "never"
+msgstr "never"
+
+msgid "Active"
+msgstr "Active"
+
+msgid "Reserve"
+msgstr "Reserve"
+
+msgid "Refresh"
+msgstr "Refresh"
+
+msgid "Availability is based on recorded checks. Nodes without samples are not rated."
+msgstr "Availability is based on recorded checks. Nodes without samples are not rated."
+
+msgid "No matching events."
+msgstr "No matching events."
+
+msgid "Journal category"
+msgstr "Journal category"
+
+msgid "Proxy events"
+msgstr "Proxy events"
+
+msgid "Errors and warnings"
+msgstr "Errors and warnings"
+
+msgid "Xray messages"
+msgstr "Xray messages"
+
+msgid "System journal"
+msgstr "System journal"
+
+msgid "Maximum lines"
+msgstr "Maximum lines"
+
+msgid "Find in loaded lines"
+msgstr "Find in loaded lines"
+
+msgid "Journal output"
+msgstr "Journal output"
+
+msgid "This page reads the bounded OpenWrt logd buffer. Resilient Proxy does not create a separate disk log."
+msgstr "This page reads the bounded OpenWrt logd buffer. Resilient Proxy does not create a separate disk log."
+
+msgid "Rating period"
+msgstr "Rating period"
+
+msgid "24 hours"
+msgstr "24 hours"
+
+msgid "7 days"
+msgstr "7 days"
+
+msgid "30 days"
+msgstr "30 days"
+
+msgid "Checks"
+msgstr "Checks"
+
+msgid "Available"
+msgstr "Available"
+
+msgid "Unavailable"
+msgstr "Unavailable"
+
+msgid "Not checked"
+msgstr "Not checked"
+
+msgid "Russian services through WAN"
+msgstr "Russian services through WAN"
+
+msgid "Choose service groups separately. The catalog updates without restarting Xray."
+msgstr "Choose service groups separately. The catalog updates without restarting Xray."
+
+msgid "Domain zones through WAN"
+msgstr "Domain zones through WAN"
+
+msgid "Do not bypass by domain zone"
+msgstr "Do not bypass by domain zone"
+
+msgid ".ru only"
+msgstr ".ru only"
+
+msgid ".рф only"
+msgstr ".рф only"
+
+msgid ".ru and .рф"
+msgstr ".ru and .рф"
+
+msgid "Domain zones are separate from the updateable Russian service catalog."
+msgstr "Domain zones are separate from the updateable Russian service catalog."
+
+msgid "Russian service catalog"
+msgstr "Russian service catalog"
+
+msgid "Rule databases"
+msgstr "Rule databases"
+
+msgid "Updates of selected rules"
+msgstr "Updates of selected rules"
+
+msgid "Only groups selected in route lists are updated. Russian service groups are optional; they are not required for other countries."
+msgstr "Only groups selected in route lists are updated. Russian service groups are optional; they are not required for other countries."
+
+msgid "Catalog updates"
+msgstr "Catalog updates"
+
+msgid "Request catalog update"
+msgstr "Request catalog update"
+
+msgid "Catalog update request failed."
+msgstr "Catalog update request failed."
+
+msgid "Catalog update requested. Current routes remain active."
+msgstr "Catalog update requested. Current routes remain active."
+
+msgid "Updated"
+msgstr "Updated"
+
+msgid "Unchanged"
+msgstr "Unchanged"
+
+msgid "Last good copy"
+msgstr "Last good copy"
+
+msgid "Built in"
+msgstr "Built in"
+
+msgid "No catalog update yet."
+msgstr "No catalog update yet."
+
+msgid "Current catalog state"
+msgstr "Current catalog state"
+
+msgid "Service group"
+msgstr "Service group"
+
+msgid "State"
+msgstr "State"
+
+msgid "Rules"
+msgstr "Rules"
+
+msgid "Error"
+msgstr "Error"
+
+msgid "%s · %d rules"
+msgstr "%s · %d rules"
+
+msgid "Route monitoring"
+msgstr "Route monitoring"
+
+msgid "Shared settings for all route lists"
+msgstr "Shared settings for all route lists"
+
+msgid "Older per-list intervals remain active until you apply these shared settings."
+msgstr "Older per-list intervals remain active until you apply these shared settings."
+
+msgid "Active availability (seconds)"
+msgstr "Active availability (seconds)"
+
+msgid "Retry after failure (seconds)"
+msgstr "Retry after failure (seconds)"
+
+msgid "Other nodes when all are down (seconds)"
+msgstr "Other nodes when all are down (seconds)"
+
+msgid "Active quality (seconds)"
+msgstr "Active quality (seconds)"
+
+msgid "Reserve check (seconds)"
+msgstr "Reserve check (seconds)"
+
+msgid "Maximum nodes per check"
+msgstr "Maximum nodes per check"
+
+msgid "Automatic: best 2, priority 3"
+msgstr "Automatic: best 2, priority 3"
+
+msgid "Switching rules"
+msgstr "Switching rules"
+
+msgid "Nodes in active pool"
+msgstr "Nodes in active pool"
+
+msgid "Quality sample window"
+msgstr "Quality sample window"
+
+msgid "Maximum packet loss (%)"
+msgstr "Maximum packet loss (%)"
+
+msgid "HTTPS median limit (ms)"
+msgstr "HTTPS median limit (ms)"
+
+msgid "0 disables this limit."
+msgstr "0 disables this limit."
+
+msgid "Ordinary failure confirmations"
+msgstr "Ordinary failure confirmations"
+
+msgid "Recovery confirmations"
+msgstr "Recovery confirmations"
+
+msgid "Response improvement (ms)"
+msgstr "Response improvement (ms)"
+
+msgid "Speed improvement (%)"
+msgstr "Speed improvement (%)"
+
+msgid "A speed-led switch may add at most 50 ms of HTTPS latency."
+msgstr "A speed-led switch may add at most 50 ms of HTTPS latency."
+
+msgid "Switch cooldown (seconds)"
+msgstr "Switch cooldown (seconds)"
+
+msgid "Reusable rule groups"
+msgstr "Reusable rule groups"
+
+msgid "Create a group here, then select it in a route list. Group order within a route list determines precedence."
+msgstr "Create a group here, then select it in a route list. Group order within a route list determines precedence."
+
+msgid "Rule ID"
+msgstr "Rule ID"
+
+msgid "Action"
+msgstr "Action"
+
+msgid "Proxy through this route list"
+msgstr "Proxy through this route list"
+
+msgid "Domains — one per line"
+msgstr "Domains — one per line"
+
+msgid "IP networks — one per line"
+msgstr "IP networks — one per line"
+
+msgid "At least one domain or IP network is required. Domain and IP matches are alternatives, not a combined condition."
+msgstr "At least one domain or IP network is required. Domain and IP matches are alternatives, not a combined condition."
+
+msgid "Routing rules"
+msgstr "Routing rules"
+
+msgid "Rule groups in priority order"
+msgstr "Rule groups in priority order"
+
+msgid "The first matching group decides the route. Select groups created under Rule databases."
+msgstr "The first matching group decides the route. Select groups created under Rule databases."
+
+msgid "Add at least one domain or IP network."
+msgstr "Add at least one domain or IP network."
+
+msgid "Only country data selected by route lists is stored and loaded. Routine updates do not restart Xray."
+msgstr "Only country data selected by route lists is stored and loaded. Routine updates do not restart Xray."
+
+msgid "Update rules"
+msgstr "Update rules"
+
+msgid "Create a group here, then select it in a route list. Each group can combine custom domains, IP networks and one country. Domain and IP matches are alternatives."
+msgstr "Create a group here, then select it in a route list. Each group can combine custom domains, IP networks and one country. Domain and IP matches are alternatives."
+
+msgid "Add domains, IP networks or a country with a Geo mode."
+msgstr "Add domains, IP networks or a country with a Geo mode."
+
+msgid "Country"
+msgstr "Country"
+
+msgid "No country"
+msgstr "No country"
+
+msgid "Russia (RU)"
+msgstr "Russia (RU)"
+
+msgid "China (CN)"
+msgstr "China (CN)"
+
+msgid "Iran (IR)"
+msgstr "Iran (IR)"
+
+msgid "Country data"
+msgstr "Country data"
+
+msgid "GeoSite — domains"
+msgstr "GeoSite — domains"
+
+msgid "GeoIP — IP networks"
+msgstr "GeoIP — IP networks"
+
+msgid "GeoSite and GeoIP"
+msgstr "GeoSite and GeoIP"
+
+msgid "GeoSite matches domains; GeoIP matches destination IP addresses. They can be used together. The selected data is fetched after Apply; until it is ready, custom entries continue to work."
+msgstr "GeoSite matches domains; GeoIP matches destination IP addresses. They can be used together. The selected data is fetched after Apply; until it is ready, custom entries continue to work."
+
+msgid "Optional. Add a country above to use GeoSite, GeoIP or both."
+msgstr "Optional. Add a country above to use GeoSite, GeoIP or both."
+
+msgid "Additional domain lists"
+msgstr "Additional domain lists"
+
+msgid "Optional reviewed lists; currently the catalog contains Russian services. These update without restarting Xray."
+msgstr "Optional reviewed lists; currently the catalog contains Russian services. These update without restarting Xray."
+
+msgid "Ready-made rules"
+msgstr "Ready-made rules"
+
+msgid "Available presets"
+msgstr "Available presets"
+
+msgid "Other country — custom rules"
+msgstr "Other country — custom rules"
+
+msgid "Custom rules"
+msgstr "Custom rules"
+
+msgid "For another country, create your own domain and IP rules in “Advanced rule groups”, then add the group to a route list."
+msgstr "For another country, create your own domain and IP rules in “Advanced rule groups”, then add the group to a route list."
+
+msgid "Open custom rule groups"
+msgstr "Open custom rule groups"
+
+msgid "Thematic lists"
+msgstr "Thematic lists"
+
+msgid "Selected presets"
+msgstr "Selected presets"
+
+msgid "Add selected to route list"
+msgstr "Add selected to route list"
+
+msgid "Select at least one preset and a route list."
+msgstr "Select at least one preset and a route list."
+
+msgid "Selected presets are already in this route list."
+msgstr "Selected presets are already in this route list."
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "Rule"
+msgstr "Rule"
+
+msgid "Add ready-made rule"
+msgstr "Add ready-made rule"
+
+msgid "Add to route list"
+msgstr "Add to route list"
+
+msgid "Then use Apply to activate the rule. Only data used by route lists is downloaded."
+msgstr "Then use Apply to activate the rule. Only data used by route lists is downloaded."
+
+msgid "Select a rule and a route list first."
+msgstr "Select a rule and a route list first."
+
+msgid "The limit of 32 rule groups has been reached."
+msgstr "The limit of 32 rule groups has been reached."
+
+msgid "This rule is already in the selected route list."
+msgstr "This rule is already in the selected route list."
+
+msgid "Added to route lists"
+msgstr "Added to route lists"
+
+msgid "Not assigned"
+msgstr "Not assigned"
+
+msgid "Remove"
+msgstr "Remove"
+
+msgid "No ready-made rules have been added."
+msgstr "No ready-made rules have been added."
+
+msgid "Advanced rule groups"
+msgstr "Advanced rule groups"
+
+msgid "Selection"
+msgstr "Selection"
+
+msgid "New rule group"
+msgstr "New rule group"
+
+msgid "Rule name"
+msgstr "Rule name"
+
+msgid "Rule ID: %s"
+msgstr "Rule ID: %s"
+
+msgid "Generated automatically. Renaming a rule keeps its route-list references."
+msgstr "Generated automatically. Renaming a rule keeps its route-list references."
+
+msgid "Enter a name of up to 120 characters."
+msgstr "Enter a name of up to 120 characters."
+
+msgid "This rule name already exists."
+msgstr "This rule name already exists."
+
+msgid "Create selected rules"
+msgstr "Create selected rules"
+
+msgid "Select at least one preset."
+msgstr "Select at least one preset."
+
+msgid "Selected rules already exist."
+msgstr "Selected rules already exist."
+
+msgid "The limit of 128 rules has been reached."
+msgstr "The limit of 128 rules has been reached."
+
+msgid "Created rules"
+msgstr "Created rules"
+
+msgid "No preset rules created yet."
+msgstr "No preset rules created yet."
+
+msgid "Create a named rule, then select it in a route list. Domain and IP matches are alternatives; protocol, network, ports and source restrict each match."
+msgstr "Create a named rule, then select it in a route list. Domain and IP matches are alternatives; protocol, network, ports and source restrict each match."
+
+msgid "For another country, create a named domain and IP rule under “Custom rules”, then select it in a route list."
+msgstr "For another country, create a named domain and IP rule under “Custom rules”, then select it in a route list."
+
+msgid "Inbound connection"
+msgstr "Inbound connection"
+
+msgid "Transparent proxy"
+msgstr "Transparent proxy"
+
+msgid "SOCKS proxy"
+msgstr "SOCKS proxy"
+
+msgid "Leave unchecked to match both. SOCKS listens locally on port %s."
+msgstr "Leave unchecked to match both. SOCKS listens locally on port %s."
+
+msgid "Network"
+msgstr "Network"
+
+msgid "TCP and UDP"
+msgstr "TCP and UDP"
+
+msgid "Source IP or subnet"
+msgstr "Source IP or subnet"
+
+msgid "IPv4, IPv6, CIDR, or geoip:private for local/private source addresses."
+msgstr "IPv4, IPv6, CIDR, or geoip:private for local/private source addresses."
+
+msgid "Destination ports"
+msgstr "Destination ports"
+
+msgid "Source ports"
+msgstr "Source ports"
+
+msgid "Use ports 1–65535 separated by commas, or ranges such as 1000-2000."
+msgstr "Use ports 1–65535 separated by commas, or ranges such as 1000-2000."
+
+msgid "Saved country and lists"
+msgstr "Saved country and lists"
+
+msgid "Optional. A rule may match only ports, source addresses or a detected protocol. Leave domains and IP empty in that case."
+msgstr "Optional. A rule may match only ports, source addresses or a detected protocol. Leave domains and IP empty in that case."
+
+msgid "Add a domain, IP network or traffic condition."
+msgstr "Add a domain, IP network or traffic condition."
+
+msgid "The first matching rule decides the route. Create rules independently under Rule databases, then select them here by name."
+msgstr "The first matching rule decides the route. Create rules independently under Rule databases, then select them here by name."
+
+msgid "For example: Work services through WAN"
+msgstr "For example: Work services through WAN"
+
+msgid "Select rules by name; stable IDs keep the links. The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+msgstr "Select rules by name; stable IDs keep the links. The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+
+msgid "Finance"
+msgstr "Finance"
+
+msgid "Education and science"
+msgstr "Education and science"
+
+msgid "Media and communication"
+msgstr "Media and communication"
+
+msgid "Games"
+msgstr "Games"
+
+msgid "Work and IT"
+msgstr "Work and IT"
+
+msgid "Internet and networks"
+msgstr "Internet and networks"
+
+msgid "Everyday services"
+msgstr "Everyday services"
+
+msgid "Electronics and cars"
+msgstr "Electronics and cars"
+
+msgid "Government services"
+msgstr "Government services"
+
+msgid "Shopping and travel"
+msgstr "Shopping and travel"
+
+msgid "Technology"
+msgstr "Technology"
+
+msgid "Advertising"
+msgstr "Advertising"
+
+msgid "Select all: %s"
+msgstr "Select all: %s"
+
+msgid "%d of %d selected"
+msgstr "%d of %d selected"
+
+msgid "%d lists"
+msgstr "%d lists"
+
+msgid "Communication and ecosystems"
+msgstr "Communication and ecosystems"
+
+msgid "Media and entertainment"
+msgstr "Media and entertainment"
+
+msgid "Education, work and IT"
+msgstr "Education, work and IT"
+
+msgid "All Russian services"
+msgstr "All Russian services"
+
+msgid "All Chinese services"
+msgstr "All Chinese services"
+
+msgid "All Iranian services"
+msgstr "All Iranian services"
+
+msgid "Rule database updates"
+msgstr "Rule database updates"
+
+msgid "Automatic update interval"
+msgstr "Automatic update interval"
+
+msgid "Interval units"
+msgstr "Interval units"
+
+msgid "Seconds"
+msgstr "Seconds"
+
+msgid "Minutes"
+msgstr "Minutes"
+
+msgid "Hours"
+msgstr "Hours"
+
+msgid "Applies to all loaded rule databases. Minimum: 1 hour; maximum: 7 days."
+msgstr "Applies to all loaded rule databases. Minimum: 1 hour; maximum: 7 days."
+
+msgid "Choose an interval from 1 hour to 7 days, with whole seconds."
+msgstr "Choose an interval from 1 hour to 7 days, with whole seconds."
+
+msgid "Custom rule %d"
+msgstr "Custom rule %d"
+
+msgid "Connection type — advanced"
+msgstr "Connection type — advanced"
+
+msgid "Network devices — transparent proxy"
+msgstr "Network devices — transparent proxy"
+
+msgid "Router applications — SOCKS5"
+msgstr "Router applications — SOCKS5"
+
+msgid "Usually leave both unchecked. This filter separates network-device traffic from applications explicitly using SOCKS5 on the router at 127.0.0.1:%s."
+msgstr "Usually leave both unchecked. This filter separates network-device traffic from applications explicitly using SOCKS5 on the router at 127.0.0.1:%s."
+
+msgid "Optional. Empty means all devices allowed by this route list. Enter IPv4, IPv6, CIDR or geoip:private to narrow the source; both the list and rule restrictions apply."
+msgstr "Optional. Empty means all devices allowed by this route list. Enter IPv4, IPv6, CIDR or geoip:private to narrow the source; both the list and rule restrictions apply."
+
+msgid "Select rules by name; The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+msgstr "Select rules by name; The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+
+msgid "Route monitoring — shared settings"
+msgstr "Route monitoring — shared settings"
+
+msgid "Changed intervals apply to every route list. Unchanged legacy per-list settings are preserved."
+msgstr "Changed intervals apply to every route list. Unchanged legacy per-list settings are preserved."
+
+msgid "Opening route lists..."
+msgstr "Opening route lists..."
+
+msgid "Saved source restriction"
+msgstr "Saved source restriction"
+
+msgid "Existing restriction remains active. Select devices in route lists when creating new rules."
+msgstr "Existing restriction remains active. Select devices in route lists when creating new rules."
+
+msgid "Optional. A rule may match only ports or a detected protocol. Leave domains and IP empty in that case."
+msgstr "Optional. A rule may match only ports or a detected protocol. Leave domains and IP empty in that case."
+
+msgid "These settings apply to all route lists."
+msgstr "These settings apply to all route lists."
+
+msgid "Not loaded"
+msgstr "Not loaded"
+
+msgid "Traffic rules"
+msgstr "Traffic rules"
+
+msgid "Devices in this list"
+msgstr "Devices in this list"
+
+msgid "All devices"
+msgstr "All devices"
+
+msgid "Selected devices"
+msgstr "Selected devices"
+
+msgid "Only one list can cover all devices. Select devices in the other lists."
+msgstr "Only one list can cover all devices. Select devices in the other lists."
+
+msgid "Rules — top to bottom"
+msgstr "Rules — top to bottom"
+
+msgid "Without country"
+msgstr "Without country"
+
+msgid "Find in list"
+msgstr "Find in list"
+
+msgid "Country, city or node name"
+msgstr "Country, city or node name"
+
+msgid "Subscription: %s"
+msgstr "Subscription: %s"
+
+msgid "Unavailable selection: %s"
+msgstr "Unavailable selection: %s"
+
+msgid "Selected — top to bottom"
+msgstr "Selected — top to bottom"
+
+msgid "Nothing selected. Choose countries, cities or nodes below."
+msgstr "Nothing selected. Choose countries, cities or nodes below."
+
+msgid "Move up: %s"
+msgstr "Move up: %s"
+
+msgid "Move down: %s"
+msgstr "Move down: %s"
+
+msgid "Remove: %s"
+msgstr "Remove: %s"
+
+msgid "Matching nodes: %d"
+msgstr "Matching nodes: %d"
+
+msgid "View matching nodes"
+msgstr "View matching nodes"
+
+msgid "Showing the first 50 of %d nodes."
+msgstr "Showing the first 50 of %d nodes."
+
+msgid "No matching nodes. This list will not use another location automatically."
+msgstr "No matching nodes. This list will not use another location automatically."
+
+msgid "No subscription nodes loaded. Add or update a subscription first."
+msgstr "No subscription nodes loaded. Add or update a subscription first."
+
+msgid "Node selection"
+msgstr "Node selection"
+
+msgid "Choose locations"
+msgstr "Choose locations"
+
+msgid "By filter"
+msgstr "By filter"
+
+msgid "Display order"
+msgstr "Display order"
+
+msgid "By country"
+msgstr "By country"
+
+msgid "As in subscription"
+msgstr "As in subscription"
+
+msgid "Filter subscription"
+msgstr "Filter subscription"
+
+msgid "All subscriptions"
+msgstr "All subscriptions"
+
+msgid "Countries — empty means any"
+msgstr "Countries — empty means any"
+
+msgid "Protocols — empty means any"
+msgstr "Protocols — empty means any"
+
+msgid "Include names"
+msgstr "Include names"
+
+msgid "Any comma-separated fragment may match. Double quotes require the full name: Sweden, \"Amsterdam Premium 01\"."
+msgstr "Any comma-separated fragment may match. Double quotes require the full name: Sweden, \"Amsterdam Premium 01\"."
+
+msgid "Exclude names"
+msgstr "Exclude names"
+
+msgid "Same syntax as inclusion. Any match excludes the node, even if it matches inclusion."
+msgstr "Same syntax as inclusion. Any match excludes the node, even if it matches inclusion."
+
+msgid "Filter membership is recalculated when subscriptions update. Matching nodes keep their subscription order."
+msgstr "Filter membership is recalculated when subscriptions update. Matching nodes keep their subscription order."
+
+msgid "Select at least one country, city or node, or configure a filter."
+msgstr "Select at least one country, city or node, or configure a filter."
+
+msgid "Close the double quotes around the full name."
+msgstr "Close the double quotes around the full name."
+
+msgid "A quoted full name cannot be empty."
+msgstr "A quoted full name cannot be empty."
+
+msgid "Separate names with a comma or | after a closing quote."
+msgstr "Separate names with a comma or | after a closing quote."
+
+msgid "Name filters cannot contain control characters."
+msgstr "Name filters cannot contain control characters."
+
+msgid "The name filter is too long. Shorten the list."
+msgstr "The name filter is too long. Shorten the list."
+
+msgid "Display order does not change selection priority."
+msgstr "Display order does not change selection priority."
+
+msgid "Global exceptions and IPv6"
+msgstr "Global exceptions and IPv6"
+
+msgid "IPv6 handling"
+msgstr "IPv6 handling"
+
+msgid "Through proxy"
+msgstr "Through proxy"
+
+msgid "Direct — without proxy"
+msgstr "Direct — without proxy"
+
+msgid "Block internet access"
+msgstr "Block internet access"
+
+msgid "Blocking preserves local IPv6 connectivity and takes precedence over user IPv6 exceptions."
+msgstr "Blocking preserves local IPv6 connectivity and takes precedence over user IPv6 exceptions."
+
+msgid "Direct IP addresses and networks"
+msgstr "Direct IP addresses and networks"
+
+msgid "Maximum: 256 IP addresses or networks."
+msgstr "Maximum: 256 IP addresses or networks."
+
+msgid "Enter IPv4, IPv6 or CIDR networks, one per line."
+msgstr "Enter IPv4, IPv6 or CIDR networks, one per line."
+
+msgid "One IP or CIDR per line. These destinations bypass the proxy; router DNS is managed separately."
+msgstr "One IP or CIDR per line. These destinations bypass the proxy; router DNS is managed separately."
+
+msgid "The country filters the list below."
+msgstr "The country filters the list below."
+
+msgid "BitTorrent"
+msgstr "BitTorrent"
+
+msgid "Matches traffic detected by Xray as BitTorrent."
+msgstr "Matches traffic detected by Xray as BitTorrent."
+
+msgid "Save the rules, then select them by name in a route list."
+msgstr "Save the rules, then select them by name in a route list."
+
+msgid "Create a rule, then select it in a route list."
+msgstr "Create a rule, then select it in a route list."
+
+msgid "Applies to network-device traffic in all route lists."
+msgstr "Applies to network-device traffic in all route lists."
+
+msgid "Selected-device lists take precedence. If selected lists overlap, the first list wins."
+msgstr "Selected-device lists take precedence. If selected lists overlap, the first list wins."
+
+msgid "Select rules. The first match decides the route."
+msgstr "Select rules. The first match decides the route."
+
+msgid "Today (UTC)"
+msgstr "Today (UTC)"
+
+msgid "Sort nodes"
+msgstr "Sort nodes"
+
+msgid "By availability"
+msgstr "By availability"
+
+msgid "By latency"
+msgstr "By latency"
+
+msgid "By name"
+msgstr "By name"
+
+msgid "Active · unavailable"
+msgstr "Active · unavailable"
+
+msgid "Availability / loss"
+msgstr "Availability / loss"
+
+msgid "p95 latency"
+msgstr "p95 latency"
+
+msgid "Previous"
+msgstr "Previous"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "No matching nodes."
+msgstr "No matching nodes."
+
+msgid "%d–%d of %d"
+msgstr "%d–%d of %d"
+
+msgid "%d candidates · %d healthy reserves"
+msgstr "%d candidates · %d healthy reserves"
+
+msgid "No fresh data: %s"
+msgstr "No fresh data: %s"
+
+msgid "No data"
+msgstr "No data"
+
+msgid "DNS mode"
+msgstr "DNS mode"
+
+msgid "LAN capture disabled"
+msgstr "LAN capture disabled"
+
+msgid "OpenWrt DNS"
+msgstr "OpenWrt DNS"
+
+msgid "Package DNS"
+msgstr "Package DNS"
+
+msgid "Selected node"
+msgstr "Selected node"
+
+msgid "Healthy reserves"
+msgstr "Healthy reserves"
+
+msgid "Blocked"
+msgstr "Blocked"
+
+msgid "Waiting for checks"
+msgstr "Waiting for checks"
+
+msgid "Starting"
+msgstr "Starting"
+
+msgid "Status data is stale"
+msgstr "Status data is stale"
+
+msgid "DNS takeover failed; previous DNS restored. See the journal."
+msgstr "DNS takeover failed; previous DNS restored. See the journal."
+
+msgid "%d downloaded · %d cached · %d unavailable"
+msgstr "%d downloaded · %d cached · %d unavailable"
+
+msgid "Downloaded"
+msgstr "Downloaded"
+
+msgid "Rule database update was not applied; previous rules remain active. %s"
+msgstr "Rule database update was not applied; previous rules remain active. %s"
+
+msgid "Some rule databases could not be updated. See Rule databases for details."
+msgstr "Some rule databases could not be updated. See Rule databases for details."
+
+msgid "Not confirmed"
+msgstr "Not confirmed"
+
+msgid "No route lists."
+msgstr "No route lists."
+
+msgid "DNS requests"
+msgstr "DNS requests"
+
+msgid "Queries"
+msgstr "Queries"
+
+msgid "Fallback WAN"
+msgstr "Fallback WAN"
+
+msgid "Cache"
+msgstr "Cache"
+
+msgid "Local"
+msgstr "Local"
+
+msgid "Errors"
+msgstr "Errors"
+
+msgid "Since service start"
+msgstr "Since service start"
+
+msgid "https-dns-proxy is running. Configure DNS takeover on the DNS page."
+msgstr "https-dns-proxy is running. Configure DNS takeover on the DNS page."
+
+msgid "Another DNS service is running; DNS capture is disabled."
+msgstr "Another DNS service is running; DNS capture is disabled."
+
+msgid "Another DNS redirect is present; DNS capture is disabled."
+msgstr "Another DNS redirect is present; DNS capture is disabled."
+
+msgid "Unable to inspect firewall; DNS capture is disabled."
+msgstr "Unable to inspect firewall; DNS capture is disabled."
+
+msgid "DNS listener failed. See the journal."
+msgstr "DNS listener failed. See the journal."
+
+msgid "%d loaded · %d cached · %d unavailable"
+msgstr "%d loaded · %d cached · %d unavailable"
+
+msgid "Updated at %s"
+msgstr "Updated at %s"
+
+msgid "List"
+msgstr "List"
+
+msgid "ms"
+msgstr "ms"
+
+msgid "Enable SB Gateway"
+msgstr "Enable SB Gateway"
+
+msgid "Device routing"
+msgstr "Device routing"
+
+msgid "On schedule"
+msgstr "On schedule"
+
+msgid "Update time"
+msgstr "Update time"
+
+msgid "Router time"
+msgstr "Router time"
+
+msgid "Specify time as HH:MM."
+msgstr "Specify time as HH:MM."
+
+msgid "Choose an interval from 5 minutes to 24 hours, with whole seconds."
+msgstr "Choose an interval from 5 minutes to 24 hours, with whole seconds."
+
+msgid "Save and load"
+msgstr "Save and load"
+
+msgid "Loading…"
+msgstr "Loading…"
+
+msgid "Use 1–32 Latin letters, digits, spaces, underscores or hyphens; start with a letter."
+msgstr "Use 1–32 Latin letters, digits, spaces, underscores or hyphens; start with a letter."
+
+msgid "This source name is already used."
+msgstr "This source name is already used."
+
+msgid "Enter an HTTPS subscription address."
+msgstr "Enter an HTTPS subscription address."
+
+msgid "Check the subscription fields."
+msgstr "Check the subscription fields."
+
+msgid "Could not save subscription settings."
+msgstr "Could not save subscription settings."
+
+msgid "Subscription saved. Enable SB Gateway in Overview."
+msgstr "Subscription saved. Enable SB Gateway in Overview."
+
+msgid "Could not apply subscription settings."
+msgstr "Could not apply subscription settings."
+
+msgid "Could not start subscription loading."
+msgstr "Could not start subscription loading."
+
+msgid "Subscription loading started."
+msgstr "Subscription loading started."
+
+msgid "Settings"
+msgstr "Settings"
+
+msgid "Status unavailable"
+msgstr "Status unavailable"
+
+msgid "No nodes loaded"
+msgstr "No nodes loaded"
+
+msgid "Updated: %s"
+msgstr "Updated: %s"
+
+msgid "Added: %d · Removed: %d"
+msgstr "Added: %d · Removed: %d"
+
+msgid "Subscription download failed"
+msgstr "Subscription download failed"
+
+msgid "Subscription server error"
+msgstr "Subscription server error"
+
+msgid "No reachable nodes; previous nodes retained"
+msgstr "No reachable nodes; previous nodes retained"
+
+msgid "Loading interrupted"
+msgstr "Loading interrupted"
+
+msgid "Subscription update failed"
+msgstr "Subscription update failed"
+
+msgid "Loading is taking longer than expected."
+msgstr "Loading is taking longer than expected."
+
+msgid "Selected"
+msgstr "Selected"
+
+msgid "Countries"
+msgstr "Countries"
+
+msgid "Protocols"
+msgstr "Protocols"
+
+msgid "All countries"
+msgstr "All countries"
+
+msgid "All protocols"
+msgstr "All protocols"
+
+msgid "Selected: %d"
+msgstr "Selected: %d"
+
+msgid "One IP or CIDR per line. # marks detected VPN addresses."
+msgstr "One IP or CIDR per line. # marks detected VPN addresses."
+
+msgid "Shadowsocks plugins"
+msgstr "Shadowsocks plugins"
+
+msgid "Install"
+msgstr "Install"
+
+msgid "Installed"
+msgstr "Installed"
+
+msgid "Not installed"
+msgstr "Not installed"
+
+msgid "Installing…"
+msgstr "Installing…"
+
+msgid "Plugin installation failed."
+msgstr "Plugin installation failed."
+
+msgid "Plugin status unavailable."
+msgstr "Plugin status unavailable."
+
+msgid "Unsupported router architecture."
+msgstr "Unsupported router architecture."
+
+msgid "Matching nodes"
+msgstr "Matching nodes"
+
+msgid "Find a country"
+msgstr "Find a country"
+
+msgid "Choose a rule"
+msgstr "Choose a rule"
+
+msgid "Create rules"
+msgstr "Create rules"
+
+msgid "Unavailable rule: %s"
+msgstr "Unavailable rule: %s"
+
+msgid "Add a variant"
+msgstr "Add a variant"
+
+msgid "Variant name"
+msgstr "Variant name"
+
+msgid "Enter a name of up to 40 characters."
+msgstr "Enter a name of up to 40 characters."
+
+msgid "Variant %d"
+msgstr "Variant %d"
+
+msgid "%d rules"
+msgstr "%d rules"
+
+msgid "Not used"
+msgstr "Not used"
+
+msgid "Rule variants"
+msgstr "Rule variants"
+
+msgid "Individual rules"
+msgstr "Individual rules"
+
+msgid "Enter a name"
+msgstr "Enter a name"
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Edit variant"
+msgstr "Edit variant"
+
+msgid "Save changes"
+msgstr "Save changes"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Other presets"
+msgstr "Other presets"
+
+msgid "Keep existing actions"
+msgstr "Keep existing actions"
+
+msgid "Latency"
+msgstr "Latency"
+
+msgid "Last measured speed"
+msgstr "Last measured speed"
+
+msgid "Last successful measurement"
+msgstr "Last successful measurement"
+
+msgid "Mbit/s"
+msgstr "Mbit/s"
+
+msgid "Speed drop (%)"
+msgstr "Speed drop (%)"
+
+msgid "Drop from this node’s recent speed. 0 disables speed-drop switching."
+msgstr "Drop from this node’s recent speed. 0 disables speed-drop switching."
+
+msgid "A reserve must confirm its gain in fresh paired measurements."
+msgstr "A reserve must confirm its gain in fresh paired measurements."
+
+msgid "Shared node budget per cycle"
+msgstr "Shared node budget per cycle"
+
+msgid "Automatic: 5 nodes"
+msgstr "Automatic: 5 nodes"
+
+msgid "Availability / HTTPS errors"
+msgstr "Availability / HTTPS errors"
+
+msgid "Delta, %"
+msgstr "Delta, %"
+
+msgid "HTTPS latency (seconds)"
+msgstr "HTTPS latency (seconds)"
+
+msgid "Concurrent node checks"
+msgstr "Concurrent node checks"
+
+msgid "Shared across route lists. Emergency recovery has priority."
+msgstr "Shared across route lists. Emergency recovery has priority."
+
+msgid "Switch after two fresh confirmations of this HTTPS latency improvement."
+msgstr "Switch after two fresh confirmations of this HTTPS latency improvement."
+
+msgid "Compared with the active node using fresh HTTPS measurements. Negative means lower latency; positive means higher latency."
+msgstr "Compared with the active node using fresh HTTPS measurements. Negative means lower latency; positive means higher latency."
+
+msgid "Delta: negative means lower latency; positive means higher latency than the active node."
+msgstr "Delta: negative means lower latency; positive means higher latency than the active node."
+
+msgid "Name fragments, separated by commas"
+msgstr "Name fragments, separated by commas"
+
+msgid "Services without country restriction"
+msgstr "Services without country restriction"
+
+msgid "Exchanges"
+msgstr "Exchanges"
+
+msgid "Services"
+msgstr "Services"
+
+msgid "Preset section"
+msgstr "Preset section"
+
+msgid "Choose a country or services."
+msgstr "Choose a country or services."
+
+msgid "Response improvement for URLTest (ms)"
+msgstr "Response improvement for URLTest (ms)"
+
+msgid "Only for URLTest (Best available). Switch after two fresh confirmations of this HTTPS latency improvement."
+msgstr "Only for URLTest (Best available). Switch after two fresh confirmations of this HTTPS latency improvement."
+
+msgid "No fresh successful HTTPS measurement for the active node."
+msgstr "No fresh successful HTTPS measurement for the active node."
+
+msgid "No fresh successful HTTPS measurement for this node."
+msgstr "No fresh successful HTTPS measurement for this node."
+
+msgid "Node history RAM budget (KiB)"
+msgstr "Node history RAM budget (KiB)"
+
+msgid "Shared by all route lists. Older history is removed when the budget is reached. Current routing evidence is kept. History survives service restart and is cleared on router reboot."
+msgstr "Shared by all route lists. Older history is removed when the budget is reached. Current routing evidence is kept. History survives service restart and is cleared on router reboot."
+
+msgid "History budget: %d / %d KiB across all route lists"
+msgstr "History budget: %d / %d KiB across all route lists"
+
+msgid "Older history removed to stay within the RAM budget"
+msgstr "Older history removed to stay within the RAM budget"
+
+msgid "The draft is too large. Save the form before continuing."
+msgstr "The draft is too large. Save the form before continuing."
+
+msgid "Draft not saved. Apply was not started."
+msgstr "Draft not saved. Apply was not started."
+
+msgid "A save is already in progress."
+msgstr "A save is already in progress."
+
+msgid "Compact updates keep a recovery copy in RAM. A power loss during installation may require reinstalling the package."
+msgstr "Compact updates keep a recovery copy in RAM. A power loss during installation may require reinstalling the package."
+
+msgid "Showing %d of %d nodes"
+msgstr "Showing %d of %d nodes"
+
+msgid "Availability, s"
+msgstr "Availability, s"
+
+msgid "HTTPS check, s"
+msgstr "HTTPS check, s"
+
+msgid "Parallel checks"
+msgstr "Parallel checks"
+
+msgid "URLTest improvement, ms"
+msgstr "URLTest improvement, ms"
+
+msgid "RAM history, KiB"
+msgstr "RAM history, KiB"
+
+msgid "Check for updates"
+msgstr "Check for updates"
+
+msgid "Update from GitHub"
+msgstr "Update from GitHub"
+
+msgid "Available: %s"
+msgstr "Available: %s"
+
+msgid "Latest version is installed."
+msgstr "Latest version is installed."
+
+msgid "Release notes"
+msgstr "Release notes"
+
+msgid "No published APK for this router yet."
+msgstr "No published APK for this router yet."
+
+msgid "Checking GitHub…"
+msgstr "Checking GitHub…"
+
+msgid "Downloading APK…"
+msgstr "Downloading APK…"
+
+msgid "Settings are kept. The proxy service restarts during installation."
+msgstr "Settings are kept. The proxy service restarts during installation."
+
+msgid "Install an APK file"
+msgstr "Install an APK file"
+
+msgid "No updates available."
+msgstr "No updates available."
+
+msgid "When all proxies fail"
+msgstr "When all proxies fail"
+
+msgid "Through WAN"
+msgstr "Through WAN"
+
+msgid "Keep existing behavior"
+msgstr "Keep existing behavior"
+
+msgid "WAN by rules"
+msgstr "WAN by rules"
+
+msgid "Block"
+msgstr "Block"
+
+msgid "Block WAN ping"
+msgstr "Block WAN ping"
+
+msgid "Blocking TCP/UDP preserves local IPv6. Ping follows its separate setting."
+msgstr "Blocking TCP/UDP preserves local IPv6. Ping follows its separate setting."
+
+msgid "Controller RAM"
+msgstr "Controller RAM"
+
+msgid "Xray RAM"
+msgstr "Xray RAM"
+
+msgid "Xray sessions"
+msgstr "Xray sessions"
+
+msgid "Available RAM"
+msgstr "Available RAM"
+
+msgid "RssAnon: %s · Files: %s / %s"
+msgstr "RssAnon: %s · Files: %s / %s"
+
+msgid "%s TCP · %s UDP"
+msgstr "%s TCP · %s UDP"
+
+msgid "Low available router memory. Reduce connection load or selected rule sets."
+msgstr "Low available router memory. Reduce connection load or selected rule sets."
+
+msgid "Xray is near its open-file limit."
+msgstr "Xray is near its open-file limit."
+
+msgid "Xray was stopped by the kernel for lack of memory. See the journal."
+msgstr "Xray was stopped by the kernel for lack of memory. See the journal."
+
+msgid "Finish configuring route lists before enabling SB Gateway."
+msgstr "Finish configuring route lists before enabling SB Gateway."
+
+msgid "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
+msgstr "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
+
+msgid "Waiting for HTTPS measurements completed within 10 seconds of each other."
+msgstr "Waiting for HTTPS measurements completed within 10 seconds of each other."
+
+msgid "Candidate"
+msgstr "Candidate"
+
+msgid "Active node"
+msgstr "Active node"
+
+msgid "LAN client DNS"
+msgstr "LAN client DNS"
+
+msgid "Stop https-dns-proxy and take over DNS"
+msgstr "Stop https-dns-proxy and take over DNS"
+
+msgid "I confirm the switch. Service settings are kept; its previous state is restored when returning to OpenWrt DNS or if takeover fails."
+msgstr "I confirm the switch. Service settings are kept; its previous state is restored when returning to OpenWrt DNS or if takeover fails."
+
+msgid "Protocol through proxy"
+msgstr "Protocol through proxy"
+
+msgid "Plain DNS/TCP"
+msgstr "Plain DNS/TCP"
+
+msgid "DNS provider through proxy"
+msgstr "DNS provider through proxy"
+
+msgid "Custom address"
+msgstr "Custom address"
+
+msgid "DNS address through proxy"
+msgstr "DNS address through proxy"
+
+msgid "Protocol through WAN"
+msgstr "Protocol through WAN"
+
+msgid "Plain DNS/UDP"
+msgstr "Plain DNS/UDP"
+
+msgid "DNS provider through WAN"
+msgstr "DNS provider through WAN"
+
+msgid "DNS address through WAN"
+msgstr "DNS address through WAN"
+
+msgid "Local DNS port"
+msgstr "Local DNS port"
+
+msgid "Yandex"
+msgstr "Yandex"
+
+msgid "Device DNS"
+msgstr "Device DNS"
+
+msgid "Add"
+msgstr "Add"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Protocol"
+msgstr "Protocol"
+
+msgid "Downloading…"
+msgstr "Downloading…"
+
+msgid "Waiting…"
+msgstr "Waiting…"
+
+msgid "Catalog read failed."
+msgstr "Catalog read failed."
+
+msgid "Government portals and public services"
+msgstr "Government portals and public services"
+
+msgid "Federal and regional portals, taxes, Goskey and related services."
+msgstr "Federal and regional portals, taxes, Goskey and related services."
+
+msgid "Russian banks and payments"
+msgstr "Russian banks and payments"
+
+msgid "Russian banks, SBP/NSPK and major payment portals."
+msgstr "Russian banks, SBP/NSPK and major payment portals."
+
+msgid "Russian marketplaces, classifieds, delivery and retail"
+msgstr "Russian marketplaces, classifieds, delivery and retail"
+
+msgid "Marketplaces, classifieds, shops, delivery services and their CDNs."
+msgstr "Marketplaces, classifieds, shops, delivery services and their CDNs."
+
+msgid "Yandex ecosystem"
+msgstr "Yandex ecosystem"
+
+msgid "Search, Maps, Mail, Cloud, Disk, Go, Taxi, Food, Market, Kinopoisk and shared CDNs."
+msgstr "Search, Maps, Mail, Cloud, Disk, Go, Taxi, Food, Market, Kinopoisk and shared CDNs."
+
+msgid "VK, Mail.ru, OK, Dzen and MAX"
+msgstr "VK, Mail.ru, OK, Dzen and MAX"
+
+msgid "Main websites, apps, CDNs and calls in the VK/Mail.ru/MAX ecosystem."
+msgstr "Main websites, apps, CDNs and calls in the VK/Mail.ru/MAX ecosystem."
+
+msgid "Russian transport and travel"
+msgstr "Russian transport and travel"
+
+msgid "Tickets, airlines, railways, maps and travel."
+msgstr "Tickets, airlines, railways, maps and travel."
+
+msgid "Russian mobile operators and internet providers"
+msgstr "Russian mobile operators and internet providers"
+
+msgid "Account portals, websites, apps and CDNs of Russian telecom operators."
+msgstr "Account portals, websites, apps and CDNs of Russian telecom operators."
+
+msgid "Russian media, TV, video streaming and music"
+msgstr "Russian media, TV, video streaming and music"
+
+msgid "News, TV channels, streaming services, video, radio, music and CDNs."
+msgstr "News, TV channels, streaming services, video, radio, music and CDNs."
+
+msgid "Russian education, jobs and IT services"
+msgstr "Russian education, jobs and IT services"
+
+msgid "Learning platforms, job listings, development, cloud services, hosting and IT media."
+msgstr "Learning platforms, job listings, development, cloud services, hosting and IT media."
+
+msgid "RU/РФ domains and Russian services"
+msgstr "RU/РФ domains and Russian services"
+
+msgid "Broad rule covering most Russian domain zones."
+msgstr "Broad rule covering most Russian domain zones."
+
+msgid "Russian retail"
+msgstr "Russian retail"
+
+msgid "MegaFon"
+msgstr "MegaFon"
+
+msgid "MTS"
+msgstr "MTS"
+
+msgid "Rostelecom"
+msgstr "Rostelecom"
+
+msgid "T2"
+msgstr "T2"
+
+msgid "Russian entertainment"
+msgstr "Russian entertainment"
+
+msgid "Russian IT media"
+msgstr "Russian IT media"
+
+msgid "Ozon"
+msgstr "Ozon"
+
+msgid "Chinese banks"
+msgstr "Chinese banks"
+
+msgid "Chinese banks from the public domain-list-community list."
+msgstr "Chinese banks from the public domain-list-community list."
+
+msgid "Chinese social networks"
+msgstr "Chinese social networks"
+
+msgid "Chinese social platforms from the public domain-list-community list."
+msgstr "Chinese social platforms from the public domain-list-community list."
+
+msgid "Chinese media and news"
+msgstr "Chinese media and news"
+
+msgid "Chinese media from the public domain-list-community list."
+msgstr "Chinese media from the public domain-list-community list."
+
+msgid "Iranian banks"
+msgstr "Iranian banks"
+
+msgid "Iranian banks from the public domain-list-community list."
+msgstr "Iranian banks from the public domain-list-community list."
+
+msgid "Iranian government websites"
+msgstr "Iranian government websites"
+
+msgid "Iranian government resources from the public domain-list-community list."
+msgstr "Iranian government resources from the public domain-list-community list."
+
+msgid "Iranian shops"
+msgstr "Iranian shops"
+
+msgid "Iranian shops and marketplaces from the public domain-list-community list."
+msgstr "Iranian shops and marketplaces from the public domain-list-community list."
+
+msgid "Iranian advertising and analytics"
+msgstr "Iranian advertising and analytics"
+
+msgid "domain-list-community category: category-ads-ir."
+msgstr "domain-list-community category: category-ads-ir."
+
+msgid "Chinese AI services"
+msgstr "Chinese AI services"
+
+msgid "domain-list-community category: category-ai-cn."
+msgstr "domain-list-community category: category-ai-cn."
+
+msgid "Chinese automotive services"
+msgstr "Chinese automotive services"
+
+msgid "domain-list-community category: category-automobile-cn."
+msgstr "domain-list-community category: category-automobile-cn."
+
+msgid "Chinese blogs"
+msgstr "Chinese blogs"
+
+msgid "domain-list-community category: category-blog-cn."
+msgstr "domain-list-community category: category-blog-cn."
+
+msgid "Iranian exchanges and finance"
+msgstr "Iranian exchanges and finance"
+
+msgid "domain-list-community category: category-bourse-ir."
+msgstr "domain-list-community category: category-bourse-ir."
+
+msgid "Chinese CDNs"
+msgstr "Chinese CDNs"
+
+msgid "domain-list-community category: category-cdn-cn."
+msgstr "domain-list-community category: category-cdn-cn."
+
+msgid "Chinese collaboration services"
+msgstr "Chinese collaboration services"
+
+msgid "domain-list-community category: category-collaborate-cn."
+msgstr "domain-list-community category: category-collaborate-cn."
+
+msgid "Chinese development and IT services"
+msgstr "Chinese development and IT services"
+
+msgid "domain-list-community category: category-dev-cn."
+msgstr "domain-list-community category: category-dev-cn."
+
+msgid "Chinese document and office services"
+msgstr "Chinese document and office services"
+
+msgid "domain-list-community category: category-documents-cn."
+msgstr "domain-list-community category: category-documents-cn."
+
+msgid "Chinese education"
+msgstr "Chinese education"
+
+msgid "domain-list-community category: category-education-cn."
+msgstr "domain-list-community category: category-education-cn."
+
+msgid "Iranian education"
+msgstr "Iranian education"
+
+msgid "domain-list-community category: category-education-ir."
+msgstr "domain-list-community category: category-education-ir."
+
+msgid "Chinese electronics"
+msgstr "Chinese electronics"
+
+msgid "domain-list-community category: category-electronic-cn."
+msgstr "domain-list-community category: category-electronic-cn."
+
+msgid "Chinese company registries and verification"
+msgstr "Chinese company registries and verification"
+
+msgid "domain-list-community category: category-enterprise-query-platform-cn."
+msgstr "domain-list-community category: category-enterprise-query-platform-cn."
+
+msgid "Chinese video, music and entertainment"
+msgstr "Chinese video, music and entertainment"
+
+msgid "domain-list-community category: category-entertainment-cn."
+msgstr "domain-list-community category: category-entertainment-cn."
+
+msgid "Chinese food and delivery"
+msgstr "Chinese food and delivery"
+
+msgid "domain-list-community category: category-food-cn."
+msgstr "domain-list-community category: category-food-cn."
+
+msgid "Iranian forums"
+msgstr "Iranian forums"
+
+msgid "domain-list-community category: category-forums-ir."
+msgstr "domain-list-community category: category-forums-ir."
+
+msgid "Chinese game accelerators"
+msgstr "Chinese game accelerators"
+
+msgid "domain-list-community category: category-game-accelerator-cn."
+msgstr "domain-list-community category: category-game-accelerator-cn."
+
+msgid "Chinese games"
+msgstr "Chinese games"
+
+msgid "domain-list-community category: category-games-cn."
+msgstr "domain-list-community category: category-games-cn."
+
+msgid "Chinese healthcare providers"
+msgstr "Chinese healthcare providers"
+
+msgid "domain-list-community category: category-hospital-cn."
+msgstr "domain-list-community category: category-hospital-cn."
+
+msgid "Chinese HTTP DNS services"
+msgstr "Chinese HTTP DNS services"
+
+msgid "domain-list-community category: category-httpdns-cn."
+msgstr "domain-list-community category: category-httpdns-cn."
+
+msgid "Iranian insurance"
+msgstr "Iranian insurance"
+
+msgid "domain-list-community category: category-insurance-ir."
+msgstr "domain-list-community category: category-insurance-ir."
+
+msgid "Chinese logistics"
+msgstr "Chinese logistics"
+
+msgid "domain-list-community category: category-logistics-cn."
+msgstr "domain-list-community category: category-logistics-cn."
+
+msgid "Iranian video and media"
+msgstr "Iranian video and media"
+
+msgid "domain-list-community category: category-media-ir."
+msgstr "domain-list-community category: category-media-ir."
+
+msgid "Chinese online courses"
+msgstr "Chinese online courses"
+
+msgid "domain-list-community category: category-mooc-cn."
+msgstr "domain-list-community category: category-mooc-cn."
+
+msgid "Chinese cloud storage"
+msgstr "Chinese cloud storage"
+
+msgid "domain-list-community category: category-netdisk-cn."
+msgstr "domain-list-community category: category-netdisk-cn."
+
+msgid "Chinese information security"
+msgstr "Chinese information security"
+
+msgid "domain-list-community category: category-network-security-cn."
+msgstr "domain-list-community category: category-network-security-cn."
+
+msgid "Iranian media and news"
+msgstr "Iranian media and news"
+
+msgid "domain-list-community category: category-news-ir."
+msgstr "domain-list-community category: category-news-ir."
+
+msgid "Chinese time servers"
+msgstr "Chinese time servers"
+
+msgid "domain-list-community category: category-ntp-cn."
+msgstr "domain-list-community category: category-ntp-cn."
+
+msgid "Chinese phone number verification"
+msgstr "Chinese phone number verification"
+
+msgid "domain-list-community category: category-number-verification-cn."
+msgstr "domain-list-community category: category-number-verification-cn."
+
+msgid "Chinese freelance services"
+msgstr "Chinese freelance services"
+
+msgid "domain-list-community category: category-outsource-cn."
+msgstr "domain-list-community category: category-outsource-cn."
+
+msgid "Iranian payment services"
+msgstr "Iranian payment services"
+
+msgid "domain-list-community category: category-payment-ir."
+msgstr "domain-list-community category: category-payment-ir."
+
+msgid "Chinese research resources"
+msgstr "Chinese research resources"
+
+msgid "domain-list-community category: category-scholar-cn."
+msgstr "domain-list-community category: category-scholar-cn."
+
+msgid "Iranian research resources"
+msgstr "Iranian research resources"
+
+msgid "domain-list-community category: category-scholar-ir."
+msgstr "domain-list-community category: category-scholar-ir."
+
+msgid "Chinese exchanges and securities"
+msgstr "Chinese exchanges and securities"
+
+msgid "domain-list-community category: category-securities-cn."
+msgstr "domain-list-community category: category-securities-cn."
+
+msgid "Iranian social networks"
+msgstr "Iranian social networks"
+
+msgid "domain-list-community category: category-social-media-ir."
+msgstr "domain-list-community category: category-social-media-ir."
+
+msgid "Iranian technology services"
+msgstr "Iranian technology services"
+
+msgid "domain-list-community category: category-tech-ir."
+msgstr "domain-list-community category: category-tech-ir."
+
+msgid "Iranian transport and travel"
+msgstr "Iranian transport and travel"
+
+msgid "domain-list-community category: category-travel-ir."
+msgstr "domain-list-community category: category-travel-ir."
+
+msgid "Chinese encyclopedias"
+msgstr "Chinese encyclopedias"
+
+msgid "domain-list-community category: category-wiki-cn."
+msgstr "domain-list-community category: category-wiki-cn."
+
+msgid "CN/中国/中國 domains and Chinese services"
+msgstr "CN/中国/中國 domains and Chinese services"
+
+msgid "Country domain zones and all thematic lists. Enable IP networks separately with GeoIP."
+msgstr "Country domain zones and all thematic lists. Enable IP networks separately with GeoIP."
+
+msgid "IR/ایران domains and Iranian services"
+msgstr "IR/ایران domains and Iranian services"
+
+msgid "Binance"
+msgstr "Binance"
+
+msgid "Website, app, CDNs, REST/WebSocket APIs and AWS WAF challenge."
+msgstr "Website, app, CDNs, REST/WebSocket APIs and AWS WAF challenge."
+
+msgid "Bybit"
+msgstr "Bybit"
+
+msgid "Website, app, CDNs, REST/WebSocket APIs, testnet, demo and regional endpoints."
+msgstr "Website, app, CDNs, REST/WebSocket APIs, testnet, demo and regional endpoints."
+
+msgid "Bybit · trading API"
+msgstr "Bybit · trading API"
+
+msgid "REST, WebSocket, testnet/demo and regional endpoints from Bybit documentation."
+msgstr "REST, WebSocket, testnet/demo and regional endpoints from Bybit documentation."
+
+msgid "Gate.io"
+msgstr "Gate.io"
+
+msgid "Website, app, CDNs, REST API v4, WebSocket, futures and testnet."
+msgstr "Website, app, CDNs, REST API v4, WebSocket, futures and testnet."
+
+msgid "Gate.io · trading API"
+msgstr "Gate.io · trading API"
+
+msgid "Gate.io REST API v4, WebSocket, futures and testnet endpoints."
+msgstr "Gate.io REST API v4, WebSocket, futures and testnet endpoints."
+
+msgid "YouTube"
+msgstr "YouTube"
+
+msgid "Telegram"
+msgstr "Telegram"
+
+msgid "Telegram Web, APIs, official networks and calls."
+msgstr "Telegram Web, APIs, official networks and calls."
+
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+msgid "WhatsApp Web, app and related calls."
+msgstr "WhatsApp Web, app and related calls."
+
+msgid "Discord"
+msgstr "Discord"
+
+msgid "Instagram"
+msgstr "Instagram"
+
+msgid "Facebook"
+msgstr "Facebook"
+
+msgid "TikTok"
+msgstr "TikTok"
+
+msgid "Netflix"
+msgstr "Netflix"
+
+msgid "Spotify"
+msgstr "Spotify"
+
+msgid "OpenAI / ChatGPT"
+msgstr "OpenAI / ChatGPT"
+
+msgid "Claude"
+msgstr "Claude"
+
+msgid "Claude, Claude Code, Anthropic API and first-party static assets; no broad rules for third-party CDNs."
+msgstr "Claude, Claude Code, Anthropic API and first-party static assets; no broad rules for third-party CDNs."
+
+msgid "Antigravity"
+msgstr "Antigravity"
+
+msgid "Antigravity and required Google AI APIs; no broad rule for google.com or googleapis.com."
+msgstr "Antigravity and required Google AI APIs; no broad rule for google.com or googleapis.com."
+
+msgid "GitHub"
+msgstr "GitHub"
+
+msgid "Steam"
+msgstr "Steam"
+
+msgid "OKX"
+msgstr "OKX"
+
+msgid "Website, app, CDNs, REST, WebSocket, demo and regional endpoints."
+msgstr "Website, app, CDNs, REST, WebSocket, demo and regional endpoints."
+
+msgid "OKX · trading API"
+msgstr "OKX · trading API"
+
+msgid "OKX REST, public/private/business WebSocket, demo and regional endpoints."
+msgstr "OKX REST, public/private/business WebSocket, demo and regional endpoints."
+
+msgid "eWeLink / Sonoff"
+msgstr "eWeLink / Sonoff"
+
+msgid "eWeLink APIs, regional dispatchers and cloud connections."
+msgstr "eWeLink APIs, regional dispatchers and cloud connections."
+
+msgid "Xiaomi Home / Mi Home"
+msgstr "Xiaomi Home / Mi Home"
+
+msgid "MIoT API, MQTT and Xiaomi account sign-in."
+msgstr "MIoT API, MQTT and Xiaomi account sign-in."
+
+msgid "Tuya / Smart Life"
+msgstr "Tuya / Smart Life"
+
+msgid "Tuya regional APIs and cloud MQTT."
+msgstr "Tuya regional APIs and cloud MQTT."
+
+msgid "Aqara Home"
+msgstr "Aqara Home"
+
+msgid "Regional app APIs and cloud services for Aqara devices."
+msgstr "Regional app APIs and cloud services for Aqara devices."
+
+msgid "Shelly Smart Control"
+msgstr "Shelly Smart Control"
+
+msgid "Cloud API and WebSocket connections for Shelly devices."
+msgstr "Cloud API and WebSocket connections for Shelly devices."
+
+msgid "Save & Apply"
+msgstr "Save & Apply"
+
+msgid "Apply unchecked"
+msgstr "Apply unchecked"
+
+msgid "Reset"
+msgstr "Reset"
+
+msgid "Apply"
+msgstr "Apply"
+
+msgid "Close"
+msgstr "Close"
+
+msgid "Dismiss"
+msgstr "Dismiss"
+
+msgid "Changes"
+msgstr "Changes"
+
+msgid "Configuration"
+msgstr "Configuration"

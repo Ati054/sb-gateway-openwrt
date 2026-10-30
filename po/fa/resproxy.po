@@ -1,0 +1,2330 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: fa\nPlural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Resilient Proxy"
+msgstr "پراکسی پایدار"
+
+msgid "SB Gateway for OpenWrt"
+msgstr "SB Gateway برای OpenWrt"
+
+msgid "Package update"
+msgstr "به‌روزرسانی بسته"
+
+msgid "Package update failed."
+msgstr "به‌روزرسانی بسته ناموفق بود."
+
+msgid "Installed version"
+msgstr "نسخهٔ نصب‌شده"
+
+msgid "Update state"
+msgstr "وضعیت به‌روزرسانی"
+
+msgid "No update in progress"
+msgstr "به‌روزرسانی در حال اجرا نیست"
+
+msgid "Preparing update"
+msgstr "در حال آماده‌سازی به‌روزرسانی"
+
+msgid "Installing package"
+msgstr "در حال نصب بسته"
+
+msgid "Starting service"
+msgstr "در حال راه‌اندازی سرویس"
+
+msgid "Completed"
+msgstr "تکمیل شد"
+
+msgid "Update failed"
+msgstr "به‌روزرسانی ناموفق بود"
+
+msgid "Package updated successfully."
+msgstr "بسته با موفقیت به‌روزرسانی شد."
+
+msgid "Update failed. Check the system log for details."
+msgstr "به‌روزرسانی ناموفق بود. جزئیات را در گزارش سیستم ببینید."
+
+msgid "Installing version %s…"
+msgstr "در حال نصب نسخهٔ %s…"
+
+msgid "Choose APK and update"
+msgstr "انتخاب APK و به‌روزرسانی"
+
+msgid "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgstr "فقط SB Gateway به‌روزرسانی می‌شود. سرویس پراکسی برای مدتی کوتاه راه‌اندازی مجدد می‌شود؛ به‌روزرسانی اشتراک نیازی به راه‌اندازی مجدد ندارد."
+
+msgid "New source"
+msgstr "منبع جدید"
+
+msgid "New route list"
+msgstr "فهرست مسیریابی جدید"
+
+msgid "Keep this name after the first import."
+msgstr "پس از نخستین ورود، این نام را تغییر ندهید."
+
+msgid "Subscription update"
+msgstr "به‌روزرسانی اشتراک"
+
+msgid "Update"
+msgstr "به‌روزرسانی"
+
+msgid "APK SHA-256: "
+msgstr "SHA-256 فایل APK: "
+
+msgid "Overview"
+msgstr "نمای کلی"
+
+msgid "Subscription"
+msgstr "اشتراک"
+
+msgid "Subscriptions"
+msgstr "اشتراک‌ها"
+
+msgid "Each source has its own schedule and fetch path. A successful refresh publishes new nodes to the running Xray core without restarting it. Applying configuration changes can restart the service."
+msgstr "هر منبع زمان‌بندی و مسیر دریافت جداگانه دارد. پس از به‌روزرسانی موفق، گره‌های جدید بدون راه‌اندازی مجدد به Xray در حال اجرا اضافه می‌شوند. اعمال تغییرات پیکربندی ممکن است سرویس را دوباره راه‌اندازی کند."
+
+msgid "Sources"
+msgstr "منابع"
+
+msgid "Add HTTPS client subscriptions. Keep their URLs private: they may contain access tokens. Applying the removal of a source also removes its nodes from the active catalog."
+msgstr "اشتراک‌های HTTPS کلاینت را اضافه کنید. نشانی اشتراک ممکن است حاوی توکن دسترسی باشد؛ آن را محرمانه نگه دارید. با اعمال حذف یک منبع، گره‌های آن نیز از فهرست فعال حذف می‌شوند."
+
+msgid "Source ID"
+msgstr "شناسهٔ منبع"
+
+msgid "Source name"
+msgstr "نام منبع"
+
+msgid "This name identifies the source and its nodes. Do not rename it after importing nodes."
+msgstr "این نام، منبع و گره‌های آن را مشخص می‌کند. پس از ورود گره‌ها نام را تغییر ندهید."
+
+msgid "Use 1–32 Latin letters, digits, spaces or hyphens; start with a letter."
+msgstr "از ۱ تا ۳۲ حرف لاتین، رقم، فاصله یا خط تیره استفاده کنید؛ با حرف شروع شود."
+
+msgid "Stable source identity. Do not change it during routine updates."
+msgstr "شناسهٔ ثابت منبع است. آن را در به‌روزرسانی‌های معمول تغییر ندهید."
+
+msgid "Fetch path"
+msgstr "مسیر دریافت"
+
+msgid "Current proxy, then direct"
+msgstr "ابتدا پراکسی فعلی، سپس اتصال مستقیم"
+
+msgid "Direct, then current proxy"
+msgstr "ابتدا اتصال مستقیم، سپس پراکسی فعلی"
+
+msgid "Current proxy only"
+msgstr "فقط پراکسی فعلی"
+
+msgid "Direct only"
+msgstr "فقط اتصال مستقیم"
+
+msgid "Proxy-only cannot bootstrap without an existing working catalog. Direct fallback may expose the subscription request to the WAN."
+msgstr "بدون فهرست گره‌های از پیش موجود و سالم، حالت «فقط پراکسی» نمی‌تواند دریافت اولیه را انجام دهد. بازگشت به اتصال مستقیم ممکن است درخواست اشتراک را از WAN عبور دهد."
+
+msgid "Request source refresh"
+msgstr "درخواست به‌روزرسانی منبع"
+
+msgid "Save and apply changes first. The journal shows the result."
+msgstr "ابتدا تغییرات را ذخیره و اعمال کنید. نتیجه در گزارش نمایش داده می‌شود."
+
+msgid "Save a valid source ID first."
+msgstr "ابتدا یک شناسهٔ معتبر برای منبع ذخیره کنید."
+
+msgid "Refresh requested. The previous route remains active until validation and publication complete."
+msgstr "درخواست به‌روزرسانی ثبت شد. تا پایان اعتبارسنجی و انتشار، مسیر قبلی فعال می‌ماند."
+
+msgid "Existing single source"
+msgstr "منبع تکی قبلی"
+
+msgid "This older source is used only while no sources are configured above. When migrating, reuse its Provider ID to preserve node identity, then clear the older URL."
+msgstr "این منبع قدیمی فقط زمانی استفاده می‌شود که در بالا منبعی تنظیم نشده باشد. هنگام مهاجرت، شناسهٔ ارائه‌دهندهٔ آن را حفظ کنید تا شناسهٔ گره‌ها ثابت بماند؛ سپس نشانی قبلی را پاک کنید."
+
+msgid "Europe"
+msgstr "اروپا"
+
+msgid "Asia"
+msgstr "آسیا"
+
+msgid "Americas"
+msgstr "قارهٔ آمریکا"
+
+msgid "Africa"
+msgstr "آفریقا"
+
+msgid "Oceania"
+msgstr "اقیانوسیه"
+
+msgid "Other regions"
+msgstr "سایر مناطق"
+
+msgid "Choose available countries or cities from the catalog, or enter a selector manually. In priority mode the order determines reserves. A city label can change when the provider renames it; country filters remain broader."
+msgstr "کشورها یا شهرهای موجود در فهرست را انتخاب کنید یا شرط انتخاب را دستی وارد کنید. در حالت اولویت، ترتیب انتخاب‌ها ترتیب گره‌های پشتیبان را تعیین می‌کند. نام شهر ممکن است با تغییر نام توسط ارائه‌دهنده عوض شود؛ فیلتر کشور دامنهٔ گسترده‌تری دارد."
+
+msgid "Route lists"
+msgstr "فهرست‌های مسیریابی"
+
+msgid "Journal"
+msgstr "گزارش"
+
+msgid "Stopped"
+msgstr "متوقف"
+
+msgid "Running"
+msgstr "در حال اجرا"
+
+msgid "none"
+msgstr "هیچ‌کدام"
+
+msgid "confirmed in Xray"
+msgstr "در Xray تأیید شده"
+
+msgid "not confirmed in Xray"
+msgstr "در Xray تأیید نشده"
+
+msgid "Runtime error"
+msgstr "خطای زمان اجرا"
+
+msgid "No route status is available yet."
+msgstr "هنوز وضعیت مسیر در دسترس نیست."
+
+msgid "Client-only proxy. Subscription refreshes do not restart the running Xray core."
+msgstr "پراکسی در نقش کلاینت اجرا می‌شود. به‌روزرسانی اشتراک، Xray در حال اجرا را دوباره راه‌اندازی نمی‌کند."
+
+msgid "Current state"
+msgstr "وضعیت فعلی"
+
+msgid "Service"
+msgstr "سرویس"
+
+msgid "Active catalog"
+msgstr "فهرست فعال گره‌ها"
+
+msgid "%d nodes"
+msgstr "%d گره"
+
+msgid "Selected routes"
+msgstr "مسیرهای انتخاب‌شده"
+
+msgid "Service and LAN routing"
+msgstr "سرویس و مسیریابی LAN"
+
+msgid "Enable service"
+msgstr "فعال‌سازی سرویس"
+
+msgid "Route LAN through proxy"
+msgstr "عبور LAN از پراکسی"
+
+msgid "LAN bridge to capture"
+msgstr "پل LAN برای هدایت ترافیک"
+
+msgid "Add an HTTPS client subscription and choose automatic or manual refresh. Saving changed settings can restart the service; routine refreshes add usable nodes to the running Xray core without restarting it."
+msgstr "یک اشتراک HTTPS کلاینت اضافه کنید و به‌روزرسانی خودکار یا دستی را انتخاب کنید. ذخیرهٔ تغییرات تنظیمات ممکن است سرویس را دوباره راه‌اندازی کند؛ به‌روزرسانی معمول، گره‌های قابل استفاده را بدون راه‌اندازی مجدد به Xray اضافه می‌کند."
+
+msgid "Source"
+msgstr "منبع"
+
+msgid "Subscription URL"
+msgstr "نشانی اشتراک"
+
+msgid "HTTPS only. Keep this address private: it may contain an access token. This version supports one subscription source."
+msgstr "فقط HTTPS پشتیبانی می‌شود. این نشانی ممکن است حاوی توکن دسترسی باشد؛ آن را محرمانه نگه دارید. این نسخه از یک منبع اشتراک پشتیبانی می‌کند."
+
+msgid "Provider ID"
+msgstr "شناسهٔ ارائه‌دهنده"
+
+msgid "Stable source identity used when reconciling renamed or updated nodes. Do not change it during a routine refresh."
+msgstr "شناسهٔ ثابت منبع برای تطبیق گره‌های تغییرنام‌یافته یا به‌روزشده است. آن را هنگام به‌روزرسانی معمول تغییر ندهید."
+
+msgid "Refresh schedule"
+msgstr "زمان‌بندی به‌روزرسانی"
+
+msgid "Update method"
+msgstr "روش به‌روزرسانی"
+
+msgid "Automatic and on request"
+msgstr "خودکار و درخواستی"
+
+msgid "Only on request"
+msgstr "فقط درخواستی"
+
+msgid "Automatic interval (seconds)"
+msgstr "فاصلهٔ به‌روزرسانی خودکار (ثانیه)"
+
+msgid "Maximum imported nodes"
+msgstr "حداکثر گره‌های قابل ورود"
+
+msgid "Update now"
+msgstr "به‌روزرسانی اکنون"
+
+msgid "Request subscription refresh"
+msgstr "درخواست به‌روزرسانی اشتراک"
+
+msgid "First save and apply any changed settings. This button queues a refresh; check the journal for its result."
+msgstr "ابتدا تغییرات را ذخیره و اعمال کنید. این دکمه درخواست به‌روزرسانی را در صف قرار می‌دهد؛ نتیجه را در گزارش ببینید."
+
+msgid "Refresh request failed."
+msgstr "درخواست به‌روزرسانی ناموفق بود."
+
+msgid "Refresh requested. The previous route remains active until the new catalog is validated and published."
+msgstr "درخواست به‌روزرسانی ثبت شد. تا اعتبارسنجی و انتشار فهرست جدید، مسیر قبلی فعال می‌ماند."
+
+msgid "Route lists for devices"
+msgstr "فهرست‌های مسیریابی دستگاه‌ها"
+
+msgid "Each route list selects locations and a failover mode for its client IP addresses. The first list is the default for unmatched devices. Changing route lists changes Xray routing configuration and requires a service restart when applied."
+msgstr "هر فهرست مسیریابی، مکان‌ها و حالت جایگزینی هنگام خرابی را برای IPهای کلاینت خود تعیین می‌کند. نخستین فهرست برای دستگاه‌های بدون تطبیق پیش‌فرض است. تغییر فهرست‌ها پیکربندی مسیریابی Xray را عوض می‌کند و هنگام اعمال به راه‌اندازی مجدد سرویس نیاز دارد."
+
+msgid "Create up to eight lists. Put more specific device rules before broader subnets. An empty location selection fails closed."
+msgstr "حداکثر هشت فهرست بسازید. قواعد دستگاه‌های مشخص را پیش از زیرشبکه‌های گسترده‌تر قرار دهید. خالی بودن مکان‌های انتخابی باعث مسدود شدن اتصال می‌شود."
+
+msgid "Servers and mode"
+msgstr "سرورها و حالت"
+
+msgid "Devices"
+msgstr "دستگاه‌ها"
+
+msgid "Health checks"
+msgstr "بررسی سلامت"
+
+msgid "Route list ID"
+msgstr "شناسهٔ فهرست مسیریابی"
+
+msgid "Use 1–32 lowercase Latin letters, digits, or hyphens; start with a letter."
+msgstr "از ۱ تا ۳۲ حرف کوچک لاتین، رقم یا خط تیره استفاده کنید؛ با حرف شروع شود."
+
+msgid "Selection mode"
+msgstr "حالت انتخاب"
+
+msgid "Best available"
+msgstr "بهترین گرهٔ در دسترس"
+
+msgid "Priority / reserve"
+msgstr "اولویت / پشتیبان"
+
+msgid "Selected locations in order"
+msgstr "مکان‌های انتخاب‌شده به‌ترتیب"
+
+msgid "Examples: country:CA, region:europe, city:CA:Toronto. In priority mode, order is used for reserve selection."
+msgstr "نمونه‌ها: country:CA، region:europe، city:CA:Toronto. در حالت اولویت، ترتیب برای انتخاب گرهٔ پشتیبان استفاده می‌شود."
+
+msgid "Client IP addresses or subnets"
+msgstr "نشانی‌های IP یا زیرشبکه‌های کلاینت"
+
+msgid "Examples: 192.168.1.20/32 for one device, 192.168.1.0/24 for a subnet. Leave empty for the default list. Give devices fixed DHCP leases so the mapping remains stable."
+msgstr "نمونه: 192.168.1.20/32 برای یک دستگاه و 192.168.1.0/24 برای یک زیرشبکه. برای فهرست پیش‌فرض خالی بگذارید. برای ثابت ماندن نگاشت، به دستگاه‌ها اجارهٔ ثابت DHCP بدهید."
+
+msgid "Active liveness (seconds)"
+msgstr "بررسی زنده‌بودن گرهٔ فعال (ثانیه)"
+
+msgid "Failure retry (seconds)"
+msgstr "تلاش مجدد پس از خرابی (ثانیه)"
+
+msgid "All-down recovery (seconds)"
+msgstr "بررسی بازیابی پس از خرابی همهٔ گره‌ها (ثانیه)"
+
+msgid "Active check (seconds)"
+msgstr "بررسی گرهٔ فعال (ثانیه)"
+
+msgid "Backup check (seconds)"
+msgstr "بررسی گرهٔ پشتیبان (ثانیه)"
+
+msgid "Full scan (seconds)"
+msgstr "فاصلهٔ پیمایش کامل (ثانیه)"
+
+msgid "Parallel probe batch"
+msgstr "تعداد بررسی‌های موازی هر نوبت"
+
+msgid "Maximum active candidates"
+msgstr "حداکثر گره‌های نامزد فعال"
+
+msgid "Unable to read the journal."
+msgstr "خواندن گزارش ممکن نشد."
+
+msgid "No Resilient Proxy events are in the system journal."
+msgstr "رویدادی از پراکسی در گزارش سیستم وجود ندارد."
+
+msgid "Resilient Proxy journal"
+msgstr "گزارش پراکسی"
+
+msgid "Refresh journal"
+msgstr "تازه‌سازی گزارش"
+
+msgid "The latest 200 proxy events and errors from the OpenWrt system journal. Routine probe traffic is hidden; this page does not create a separate disk log."
+msgstr "۲۰۰ رویداد و خطای اخیر پراکسی از گزارش سیستم OpenWrt نمایش داده می‌شود. ترافیک بررسی‌های معمول پنهان است؛ این صفحه گزارش جداگانه‌ای روی دیسک نمی‌سازد."
+
+msgid "Proxy internet traffic from LAN devices"
+msgstr "عبور ترافیک اینترنت دستگاه‌های LAN از پراکسی"
+
+msgid "LAN bridge"
+msgstr "پل LAN"
+
+msgid "Direct WAN"
+msgstr "WAN مستقیم"
+
+msgid "Domains without proxy"
+msgstr "دامنه‌های بدون پراکسی"
+
+msgid "Enter a lowercase domain, for example example.com. Use Punycode for Cyrillic names."
+msgstr "نام دامنه را با حروف کوچک وارد کنید؛ مانند example.com. برای نام‌های غیرلاتین از Punycode استفاده کنید."
+
+msgid "IP addresses and networks without proxy"
+msgstr "نشانی‌های IP و شبکه‌های بدون پراکسی"
+
+msgid "Detected BitTorrent through WAN"
+msgstr "عبور BitTorrent شناسایی‌شده از WAN"
+
+msgid "Encrypted or obfuscated P2P traffic may not be recognized by Xray."
+msgstr "ممکن است Xray ترافیک P2P رمزگذاری‌شده یا مبهم‌سازی‌شده را شناسایی نکند."
+
+msgid "Domains .ru and .рф through WAN"
+msgstr "عبور دامنه‌های .ru و .рф از WAN"
+
+msgid "Matches domain names in these two zones, not every Russian-hosted service."
+msgstr "نام دامنه در این دو پسوند تطبیق داده می‌شود، نه همهٔ سرویس‌های میزبانی‌شده در روسیه."
+
+msgid "Node health"
+msgstr "سلامت گره‌ها"
+
+msgid "Unable to read node health."
+msgstr "خواندن وضعیت سلامت گره‌ها ممکن نشد."
+
+msgid "Route list"
+msgstr "فهرست مسیریابی"
+
+msgid "Find a node"
+msgstr "جست‌وجوی گره"
+
+msgid "Node"
+msgstr "گره"
+
+msgid "Availability"
+msgstr "دسترس‌پذیری"
+
+msgid "Median latency"
+msgstr "میانهٔ تأخیر"
+
+msgid "Last check"
+msgstr "آخرین بررسی"
+
+msgid "Status"
+msgstr "وضعیت"
+
+msgid "No health data yet."
+msgstr "هنوز داده‌ای از بررسی سلامت وجود ندارد."
+
+msgid "%d candidates · %d healthy reserves · checked %s"
+msgstr "%d نامزد · %d پشتیبان سالم · زمان بررسی %s"
+
+msgid "never"
+msgstr "هرگز"
+
+msgid "Active"
+msgstr "فعال"
+
+msgid "Reserve"
+msgstr "پشتیبان"
+
+msgid "Refresh"
+msgstr "تازه‌سازی"
+
+msgid "Availability is based on recorded checks. Nodes without samples are not rated."
+msgstr "دسترس‌پذیری بر اساس بررسی‌های ثبت‌شده است. گره‌های بدون نمونه رتبه‌بندی نمی‌شوند."
+
+msgid "No matching events."
+msgstr "رویداد منطبقی یافت نشد."
+
+msgid "Journal category"
+msgstr "دستهٔ گزارش"
+
+msgid "Proxy events"
+msgstr "رویدادهای پراکسی"
+
+msgid "Errors and warnings"
+msgstr "خطاها و هشدارها"
+
+msgid "Xray messages"
+msgstr "پیام‌های Xray"
+
+msgid "System journal"
+msgstr "گزارش سیستم"
+
+msgid "Maximum lines"
+msgstr "حداکثر تعداد سطر"
+
+msgid "Find in loaded lines"
+msgstr "جست‌وجو در سطرهای بارگذاری‌شده"
+
+msgid "Journal output"
+msgstr "محتوای گزارش"
+
+msgid "This page reads the bounded OpenWrt logd buffer. Resilient Proxy does not create a separate disk log."
+msgstr "این صفحه بافر محدود logd در OpenWrt را می‌خواند. پراکسی گزارش جداگانه‌ای روی دیسک نمی‌سازد."
+
+msgid "Rating period"
+msgstr "بازهٔ ارزیابی"
+
+msgid "24 hours"
+msgstr "۲۴ ساعت"
+
+msgid "7 days"
+msgstr "۷ روز"
+
+msgid "30 days"
+msgstr "۳۰ روز"
+
+msgid "Checks"
+msgstr "بررسی‌ها"
+
+msgid "Available"
+msgstr "در دسترس"
+
+msgid "Unavailable"
+msgstr "خارج از دسترس"
+
+msgid "Not checked"
+msgstr "بررسی نشده"
+
+msgid "Russian services through WAN"
+msgstr "عبور سرویس‌های روسی از WAN"
+
+msgid "Choose service groups separately. The catalog updates without restarting Xray."
+msgstr "گروه‌های سرویس را جداگانه انتخاب کنید. فهرست بدون راه‌اندازی مجدد Xray به‌روزرسانی می‌شود."
+
+msgid "Domain zones through WAN"
+msgstr "پسوندهای دامنه برای عبور از WAN"
+
+msgid "Do not bypass by domain zone"
+msgstr "عدم عبور مستقیم بر اساس پسوند دامنه"
+
+msgid ".ru only"
+msgstr "فقط .ru"
+
+msgid ".рф only"
+msgstr "فقط .рф"
+
+msgid ".ru and .рф"
+msgstr ".ru و .рф"
+
+msgid "Domain zones are separate from the updateable Russian service catalog."
+msgstr "پسوندهای دامنه از فهرست به‌روزشوندهٔ سرویس‌های روسی جدا هستند."
+
+msgid "Russian service catalog"
+msgstr "فهرست سرویس‌های روسی"
+
+msgid "Rule databases"
+msgstr "پایگاه‌های قواعد"
+
+msgid "Updates of selected rules"
+msgstr "به‌روزرسانی قواعد انتخاب‌شده"
+
+msgid "Only groups selected in route lists are updated. Russian service groups are optional; they are not required for other countries."
+msgstr "فقط گروه‌های انتخاب‌شده در فهرست‌های مسیریابی به‌روزرسانی می‌شوند. گروه‌های سرویس روسی اختیاری‌اند و برای کشورهای دیگر لازم نیستند."
+
+msgid "Catalog updates"
+msgstr "به‌روزرسانی فهرست"
+
+msgid "Request catalog update"
+msgstr "درخواست به‌روزرسانی فهرست"
+
+msgid "Catalog update request failed."
+msgstr "درخواست به‌روزرسانی فهرست ناموفق بود."
+
+msgid "Catalog update requested. Current routes remain active."
+msgstr "درخواست به‌روزرسانی فهرست ثبت شد. مسیرهای فعلی فعال می‌مانند."
+
+msgid "Updated"
+msgstr "به‌روز شد"
+
+msgid "Unchanged"
+msgstr "بدون تغییر"
+
+msgid "Last good copy"
+msgstr "آخرین نسخهٔ سالم"
+
+msgid "Built in"
+msgstr "داخلی"
+
+msgid "No catalog update yet."
+msgstr "فهرست هنوز به‌روزرسانی نشده است."
+
+msgid "Current catalog state"
+msgstr "وضعیت فعلی فهرست"
+
+msgid "Service group"
+msgstr "گروه سرویس"
+
+msgid "State"
+msgstr "وضعیت"
+
+msgid "Rules"
+msgstr "قواعد"
+
+msgid "Error"
+msgstr "خطا"
+
+msgid "%s · %d rules"
+msgstr "%s · %d قاعده"
+
+msgid "Route monitoring"
+msgstr "پایش مسیر"
+
+msgid "Shared settings for all route lists"
+msgstr "تنظیمات مشترک همهٔ فهرست‌های مسیریابی"
+
+msgid "Older per-list intervals remain active until you apply these shared settings."
+msgstr "تا زمانی که این تنظیمات مشترک را اعمال نکنید، فاصله‌های قبلی هر فهرست فعال می‌ماند."
+
+msgid "Active availability (seconds)"
+msgstr "بررسی دسترس‌پذیری گرهٔ فعال (ثانیه)"
+
+msgid "Retry after failure (seconds)"
+msgstr "تلاش مجدد پس از خرابی (ثانیه)"
+
+msgid "Other nodes when all are down (seconds)"
+msgstr "بررسی سایر گره‌ها پس از خرابی همه (ثانیه)"
+
+msgid "Active quality (seconds)"
+msgstr "بررسی کیفیت گرهٔ فعال (ثانیه)"
+
+msgid "Reserve check (seconds)"
+msgstr "بررسی گرهٔ پشتیبان (ثانیه)"
+
+msgid "Maximum nodes per check"
+msgstr "حداکثر گره در هر بررسی"
+
+msgid "Automatic: best 2, priority 3"
+msgstr "خودکار: حالت بهترین ۲، حالت اولویت ۳"
+
+msgid "Switching rules"
+msgstr "قواعد تغییر گره"
+
+msgid "Nodes in active pool"
+msgstr "تعداد گره‌های مجموعهٔ فعال"
+
+msgid "Quality sample window"
+msgstr "پنجرهٔ نمونه‌برداری کیفیت"
+
+msgid "Maximum packet loss (%)"
+msgstr "حداکثر اتلاف بسته (%)"
+
+msgid "HTTPS median limit (ms)"
+msgstr "سقف میانهٔ تأخیر HTTPS (میلی‌ثانیه)"
+
+msgid "0 disables this limit."
+msgstr "مقدار ۰ این محدودیت را غیرفعال می‌کند."
+
+msgid "Ordinary failure confirmations"
+msgstr "تعداد تأیید خرابی معمول"
+
+msgid "Recovery confirmations"
+msgstr "تعداد تأیید بازیابی"
+
+msgid "Response improvement (ms)"
+msgstr "بهبود تأخیر پاسخ (میلی‌ثانیه)"
+
+msgid "Speed improvement (%)"
+msgstr "بهبود سرعت (%)"
+
+msgid "A speed-led switch may add at most 50 ms of HTTPS latency."
+msgstr "در تغییر گره بر اساس سرعت، افزایش تأخیر HTTPS نباید بیش از ۵۰ میلی‌ثانیه باشد."
+
+msgid "Switch cooldown (seconds)"
+msgstr "فاصلهٔ حداقل بین تغییر گره‌ها (ثانیه)"
+
+msgid "Reusable rule groups"
+msgstr "گروه‌های قواعد قابل استفادهٔ مجدد"
+
+msgid "Create a group here, then select it in a route list. Group order within a route list determines precedence."
+msgstr "اینجا یک گروه بسازید، سپس آن را در فهرست مسیریابی انتخاب کنید. ترتیب گروه‌ها در فهرست، اولویت را تعیین می‌کند."
+
+msgid "Rule ID"
+msgstr "شناسهٔ قاعده"
+
+msgid "Action"
+msgstr "عملکرد"
+
+msgid "Proxy through this route list"
+msgstr "پراکسی از طریق این فهرست مسیریابی"
+
+msgid "Domains — one per line"
+msgstr "دامنه‌ها؛ هر دامنه در یک سطر"
+
+msgid "IP networks — one per line"
+msgstr "شبکه‌های IP؛ هر شبکه در یک سطر"
+
+msgid "At least one domain or IP network is required. Domain and IP matches are alternatives, not a combined condition."
+msgstr "دست‌کم یک دامنه یا شبکهٔ IP لازم است. تطبیق دامنه و IP جایگزین یکدیگرند و لازم نیست هم‌زمان برقرار باشند."
+
+msgid "Routing rules"
+msgstr "قواعد مسیریابی"
+
+msgid "Rule groups in priority order"
+msgstr "گروه‌های قواعد به‌ترتیب اولویت"
+
+msgid "The first matching group decides the route. Select groups created under Rule databases."
+msgstr "نخستین گروه منطبق، مسیر را تعیین می‌کند. گروه‌های ساخته‌شده در «پایگاه‌های قواعد» را انتخاب کنید."
+
+msgid "Add at least one domain or IP network."
+msgstr "دست‌کم یک دامنه یا شبکهٔ IP اضافه کنید."
+
+msgid "Only country data selected by route lists is stored and loaded. Routine updates do not restart Xray."
+msgstr "فقط دادهٔ کشورهایی ذخیره و بارگذاری می‌شود که فهرست‌های مسیریابی انتخاب کرده‌اند. به‌روزرسانی معمول Xray را دوباره راه‌اندازی نمی‌کند."
+
+msgid "Update rules"
+msgstr "به‌روزرسانی قواعد"
+
+msgid "Create a group here, then select it in a route list. Each group can combine custom domains, IP networks and one country. Domain and IP matches are alternatives."
+msgstr "اینجا یک گروه بسازید، سپس آن را در فهرست مسیریابی انتخاب کنید. هر گروه می‌تواند دامنه‌های سفارشی، شبکه‌های IP و یک کشور را ترکیب کند. تطبیق دامنه و IP جایگزین یکدیگرند."
+
+msgid "Add domains, IP networks or a country with a Geo mode."
+msgstr "دامنه، شبکهٔ IP یا کشوری با حالت Geo اضافه کنید."
+
+msgid "Country"
+msgstr "کشور"
+
+msgid "No country"
+msgstr "بدون کشور"
+
+msgid "Russia (RU)"
+msgstr "روسیه (RU)"
+
+msgid "China (CN)"
+msgstr "چین (CN)"
+
+msgid "Iran (IR)"
+msgstr "ایران (IR)"
+
+msgid "Country data"
+msgstr "داده‌های کشور"
+
+msgid "GeoSite — domains"
+msgstr "GeoSite — دامنه‌ها"
+
+msgid "GeoIP — IP networks"
+msgstr "GeoIP — شبکه‌های IP"
+
+msgid "GeoSite and GeoIP"
+msgstr "GeoSite و GeoIP"
+
+msgid "GeoSite matches domains; GeoIP matches destination IP addresses. They can be used together. The selected data is fetched after Apply; until it is ready, custom entries continue to work."
+msgstr "GeoSite دامنه و GeoIP نشانی IP مقصد را تطبیق می‌دهد؛ می‌توان هر دو را با هم استفاده کرد. دادهٔ انتخاب‌شده پس از اعمال دریافت می‌شود؛ تا آماده شدن آن، ورودی‌های سفارشی همچنان کار می‌کنند."
+
+msgid "Optional. Add a country above to use GeoSite, GeoIP or both."
+msgstr "اختیاری است. برای استفاده از GeoSite، GeoIP یا هر دو، ابتدا در بالا کشور را انتخاب کنید."
+
+msgid "Additional domain lists"
+msgstr "فهرست‌های دامنهٔ اضافی"
+
+msgid "Optional reviewed lists; currently the catalog contains Russian services. These update without restarting Xray."
+msgstr "فهرست‌های بازبینی‌شدهٔ اختیاری؛ فهرست فعلی شامل سرویس‌های روسی است. به‌روزرسانی آن‌ها Xray را دوباره راه‌اندازی نمی‌کند."
+
+msgid "Ready-made rules"
+msgstr "قواعد آماده"
+
+msgid "Available presets"
+msgstr "پیش‌تنظیم‌های موجود"
+
+msgid "Other country — custom rules"
+msgstr "کشور دیگر — قواعد سفارشی"
+
+msgid "Custom rules"
+msgstr "قواعد سفارشی"
+
+msgid "For another country, create your own domain and IP rules in “Advanced rule groups”, then add the group to a route list."
+msgstr "برای کشور دیگر، قواعد دامنه و IP را در «گروه‌های پیشرفتهٔ قواعد» بسازید، سپس گروه را به فهرست مسیریابی اضافه کنید."
+
+msgid "Open custom rule groups"
+msgstr "باز کردن گروه‌های قواعد سفارشی"
+
+msgid "Thematic lists"
+msgstr "فهرست‌های موضوعی"
+
+msgid "Selected presets"
+msgstr "پیش‌تنظیم‌های انتخاب‌شده"
+
+msgid "Add selected to route list"
+msgstr "افزودن انتخاب‌ها به فهرست مسیریابی"
+
+msgid "Select at least one preset and a route list."
+msgstr "دست‌کم یک پیش‌تنظیم و یک فهرست مسیریابی انتخاب کنید."
+
+msgid "Selected presets are already in this route list."
+msgstr "پیش‌تنظیم‌های انتخاب‌شده از قبل در این فهرست مسیریابی هستند."
+
+msgid "Updates"
+msgstr "به‌روزرسانی‌ها"
+
+msgid "Rule"
+msgstr "قاعده"
+
+msgid "Add ready-made rule"
+msgstr "افزودن قاعدهٔ آماده"
+
+msgid "Add to route list"
+msgstr "افزودن به فهرست مسیریابی"
+
+msgid "Then use Apply to activate the rule. Only data used by route lists is downloaded."
+msgstr "سپس برای فعال شدن قاعده، تنظیمات را اعمال کنید. فقط دادهٔ مورد استفادهٔ فهرست‌های مسیریابی دریافت می‌شود."
+
+msgid "Select a rule and a route list first."
+msgstr "ابتدا یک قاعده و یک فهرست مسیریابی انتخاب کنید."
+
+msgid "The limit of 32 rule groups has been reached."
+msgstr "به سقف ۳۲ گروه قواعد رسیده‌اید."
+
+msgid "This rule is already in the selected route list."
+msgstr "این قاعده از قبل در فهرست مسیریابی انتخاب‌شده است."
+
+msgid "Added to route lists"
+msgstr "به فهرست‌های مسیریابی اضافه شده"
+
+msgid "Not assigned"
+msgstr "اختصاص داده نشده"
+
+msgid "Remove"
+msgstr "حذف"
+
+msgid "No ready-made rules have been added."
+msgstr "هنوز قاعدهٔ آماده‌ای اضافه نشده است."
+
+msgid "Advanced rule groups"
+msgstr "گروه‌های پیشرفتهٔ قواعد"
+
+msgid "Selection"
+msgstr "انتخاب"
+
+msgid "New rule group"
+msgstr "گروه قواعد جدید"
+
+msgid "Rule name"
+msgstr "نام قاعده"
+
+msgid "Rule ID: %s"
+msgstr "شناسهٔ قاعده: %s"
+
+msgid "Generated automatically. Renaming a rule keeps its route-list references."
+msgstr "به‌طور خودکار ساخته می‌شود. تغییر نام قاعده، ارجاع‌های فهرست مسیریابی به آن را تغییر نمی‌دهد."
+
+msgid "Enter a name of up to 120 characters."
+msgstr "نامی با حداکثر ۱۲۰ نویسه وارد کنید."
+
+msgid "This rule name already exists."
+msgstr "این نام قاعده از قبل وجود دارد."
+
+msgid "Create selected rules"
+msgstr "ساخت قواعد انتخاب‌شده"
+
+msgid "Select at least one preset."
+msgstr "دست‌کم یک پیش‌تنظیم انتخاب کنید."
+
+msgid "Selected rules already exist."
+msgstr "قواعد انتخاب‌شده از قبل وجود دارند."
+
+msgid "The limit of 128 rules has been reached."
+msgstr "به سقف ۱۲۸ قاعده رسیده‌اید."
+
+msgid "Created rules"
+msgstr "قواعد ساخته‌شده"
+
+msgid "No preset rules created yet."
+msgstr "هنوز قاعده‌ای از پیش‌تنظیم‌ها ساخته نشده است."
+
+msgid "Create a named rule, then select it in a route list. Domain and IP matches are alternatives; protocol, network, ports and source restrict each match."
+msgstr "یک قاعدهٔ نام‌دار بسازید، سپس آن را در فهرست مسیریابی انتخاب کنید. تطبیق دامنه و IP جایگزین یکدیگرند؛ پروتکل، شبکه، درگاه‌ها و مبدأ هر تطبیق را محدود می‌کنند."
+
+msgid "For another country, create a named domain and IP rule under “Custom rules”, then select it in a route list."
+msgstr "برای کشور دیگر، یک قاعدهٔ نام‌دار دامنه و IP در «قواعد سفارشی» بسازید، سپس آن را در فهرست مسیریابی انتخاب کنید."
+
+msgid "Inbound connection"
+msgstr "اتصال ورودی"
+
+msgid "Transparent proxy"
+msgstr "پراکسی شفاف"
+
+msgid "SOCKS proxy"
+msgstr "پراکسی SOCKS"
+
+msgid "Leave unchecked to match both. SOCKS listens locally on port %s."
+msgstr "برای تطبیق هر دو، هیچ‌کدام را انتخاب نکنید. SOCKS به‌صورت محلی روی درگاه %s گوش می‌دهد."
+
+msgid "Network"
+msgstr "شبکه"
+
+msgid "TCP and UDP"
+msgstr "TCP و UDP"
+
+msgid "Source IP or subnet"
+msgstr "IP یا زیرشبکهٔ مبدأ"
+
+msgid "IPv4, IPv6, CIDR, or geoip:private for local/private source addresses."
+msgstr "از IPv4، IPv6، CIDR یا geoip:private برای نشانی‌های مبدأ محلی و خصوصی استفاده کنید."
+
+msgid "Destination ports"
+msgstr "درگاه‌های مقصد"
+
+msgid "Source ports"
+msgstr "درگاه‌های مبدأ"
+
+msgid "Use ports 1–65535 separated by commas, or ranges such as 1000-2000."
+msgstr "درگاه‌های ۱ تا ۶۵۵۳۵ را با ویرگول جدا کنید یا بازه‌ای مانند 1000-2000 وارد کنید."
+
+msgid "Saved country and lists"
+msgstr "کشور و فهرست‌های ذخیره‌شده"
+
+msgid "Optional. A rule may match only ports, source addresses or a detected protocol. Leave domains and IP empty in that case."
+msgstr "اختیاری است. قاعده می‌تواند فقط بر درگاه‌ها، نشانی‌های مبدأ یا پروتکل شناسایی‌شده منطبق شود؛ در این حالت دامنه و IP را خالی بگذارید."
+
+msgid "Add a domain, IP network or traffic condition."
+msgstr "دامنه، شبکهٔ IP یا شرط ترافیک اضافه کنید."
+
+msgid "The first matching rule decides the route. Create rules independently under Rule databases, then select them here by name."
+msgstr "نخستین قاعدهٔ منطبق مسیر را تعیین می‌کند. قواعد را جداگانه در «پایگاه‌های قواعد» بسازید، سپس اینجا بر اساس نام انتخاب کنید."
+
+msgid "For example: Work services through WAN"
+msgstr "برای نمونه: عبور سرویس‌های کاری از WAN"
+
+msgid "Select rules by name; stable IDs keep the links. The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+msgstr "قواعد را بر اساس نام انتخاب کنید؛ شناسه‌های ثابت ارجاع‌ها را حفظ می‌کنند. نخستین قاعدهٔ منطبق مسیر را تعیین می‌کند. می‌توانید پیش یا پس از ساخت این فهرست، قواعد را در «پایگاه‌های قواعد» بسازید."
+
+msgid "Finance"
+msgstr "امور مالی"
+
+msgid "Education and science"
+msgstr "آموزش و پژوهش"
+
+msgid "Media and communication"
+msgstr "رسانه و ارتباطات"
+
+msgid "Games"
+msgstr "بازی‌ها"
+
+msgid "Work and IT"
+msgstr "کار و فناوری اطلاعات"
+
+msgid "Internet and networks"
+msgstr "اینترنت و شبکه‌ها"
+
+msgid "Everyday services"
+msgstr "سرویس‌های روزمره"
+
+msgid "Electronics and cars"
+msgstr "الکترونیک و خودرو"
+
+msgid "Government services"
+msgstr "خدمات دولتی"
+
+msgid "Shopping and travel"
+msgstr "خرید و سفر"
+
+msgid "Technology"
+msgstr "فناوری"
+
+msgid "Advertising"
+msgstr "تبلیغات"
+
+msgid "Select all: %s"
+msgstr "انتخاب همه: %s"
+
+msgid "%d of %d selected"
+msgstr "%d از %d انتخاب شده"
+
+msgid "%d lists"
+msgstr "%d فهرست"
+
+msgid "Communication and ecosystems"
+msgstr "ارتباطات و زیست‌بوم‌ها"
+
+msgid "Media and entertainment"
+msgstr "رسانه و سرگرمی"
+
+msgid "Education, work and IT"
+msgstr "آموزش، کار و فناوری اطلاعات"
+
+msgid "All Russian services"
+msgstr "همهٔ سرویس‌های روسی"
+
+msgid "All Chinese services"
+msgstr "همهٔ سرویس‌های چینی"
+
+msgid "All Iranian services"
+msgstr "همهٔ سرویس‌های ایرانی"
+
+msgid "Rule database updates"
+msgstr "به‌روزرسانی پایگاه‌های قواعد"
+
+msgid "Automatic update interval"
+msgstr "فاصلهٔ به‌روزرسانی خودکار"
+
+msgid "Interval units"
+msgstr "واحد زمان"
+
+msgid "Seconds"
+msgstr "ثانیه"
+
+msgid "Minutes"
+msgstr "دقیقه"
+
+msgid "Hours"
+msgstr "ساعت"
+
+msgid "Applies to all loaded rule databases. Minimum: 1 hour; maximum: 7 days."
+msgstr "برای همهٔ پایگاه‌های قواعد بارگذاری‌شده اعمال می‌شود. حداقل یک ساعت و حداکثر هفت روز است."
+
+msgid "Choose an interval from 1 hour to 7 days, with whole seconds."
+msgstr "فاصله‌ای از یک ساعت تا هفت روز، بر حسب ثانیهٔ کامل انتخاب کنید."
+
+msgid "Custom rule %d"
+msgstr "قاعدهٔ سفارشی %d"
+
+msgid "Connection type — advanced"
+msgstr "نوع اتصال — پیشرفته"
+
+msgid "Network devices — transparent proxy"
+msgstr "دستگاه‌های شبکه — پراکسی شفاف"
+
+msgid "Router applications — SOCKS5"
+msgstr "برنامه‌های روتر — SOCKS5"
+
+msgid "Usually leave both unchecked. This filter separates network-device traffic from applications explicitly using SOCKS5 on the router at 127.0.0.1:%s."
+msgstr "معمولاً هر دو را بدون انتخاب بگذارید. این فیلتر ترافیک دستگاه‌های شبکه را از برنامه‌های روی روتر که صریحاً از SOCKS5 روی 127.0.0.1:%s استفاده می‌کنند جدا می‌کند."
+
+msgid "Optional. Empty means all devices allowed by this route list. Enter IPv4, IPv6, CIDR or geoip:private to narrow the source; both the list and rule restrictions apply."
+msgstr "اختیاری است. خالی بودن یعنی همهٔ دستگاه‌های مجاز این فهرست. برای محدود کردن مبدأ، IPv4، IPv6، CIDR یا geoip:private وارد کنید؛ محدودیت فهرست و قاعده هم‌زمان اعمال می‌شوند."
+
+msgid "Select rules by name; The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+msgstr "قواعد را بر اساس نام انتخاب کنید؛ نخستین قاعدهٔ منطبق مسیر را تعیین می‌کند. می‌توانید پیش یا پس از ساخت این فهرست، قواعد را در «پایگاه‌های قواعد» بسازید."
+
+msgid "Route monitoring — shared settings"
+msgstr "پایش مسیر — تنظیمات مشترک"
+
+msgid "Changed intervals apply to every route list. Unchanged legacy per-list settings are preserved."
+msgstr "فاصله‌های تغییرکرده برای همهٔ فهرست‌های مسیریابی اعمال می‌شوند. تنظیمات قدیمی هر فهرست که تغییر نکرده‌اند حفظ می‌شوند."
+
+msgid "Opening route lists..."
+msgstr "در حال باز کردن فهرست‌های مسیریابی…"
+
+msgid "Saved source restriction"
+msgstr "محدودیت مبدأ ذخیره‌شده"
+
+msgid "Existing restriction remains active. Select devices in route lists when creating new rules."
+msgstr "محدودیت موجود فعال می‌ماند. هنگام ساخت قواعد جدید، دستگاه‌ها را در فهرست‌های مسیریابی انتخاب کنید."
+
+msgid "Optional. A rule may match only ports or a detected protocol. Leave domains and IP empty in that case."
+msgstr "اختیاری است. قاعده می‌تواند فقط بر درگاه‌ها یا پروتکل شناسایی‌شده منطبق شود؛ در این حالت دامنه و IP را خالی بگذارید."
+
+msgid "These settings apply to all route lists."
+msgstr "این تنظیمات برای همهٔ فهرست‌های مسیریابی اعمال می‌شوند."
+
+msgid "Not loaded"
+msgstr "بارگذاری نشده"
+
+msgid "Traffic rules"
+msgstr "قواعد ترافیک"
+
+msgid "Devices in this list"
+msgstr "دستگاه‌های این فهرست"
+
+msgid "All devices"
+msgstr "همهٔ دستگاه‌ها"
+
+msgid "Selected devices"
+msgstr "دستگاه‌های انتخاب‌شده"
+
+msgid "Only one list can cover all devices. Select devices in the other lists."
+msgstr "فقط یک فهرست می‌تواند همهٔ دستگاه‌ها را پوشش دهد. در فهرست‌های دیگر، دستگاه‌ها را مشخص کنید."
+
+msgid "Rules — top to bottom"
+msgstr "قواعد — از بالا به پایین"
+
+msgid "Without country"
+msgstr "بدون کشور"
+
+msgid "Find in list"
+msgstr "جست‌وجو در فهرست"
+
+msgid "Country, city or node name"
+msgstr "کشور، شهر یا نام گره"
+
+msgid "Subscription: %s"
+msgstr "اشتراک: %s"
+
+msgid "Unavailable selection: %s"
+msgstr "انتخاب خارج از دسترس: %s"
+
+msgid "Selected — top to bottom"
+msgstr "انتخاب‌ها — از بالا به پایین"
+
+msgid "Nothing selected. Choose countries, cities or nodes below."
+msgstr "چیزی انتخاب نشده است. کشورها، شهرها یا گره‌ها را در پایین انتخاب کنید."
+
+msgid "Move up: %s"
+msgstr "انتقال به بالا: %s"
+
+msgid "Move down: %s"
+msgstr "انتقال به پایین: %s"
+
+msgid "Remove: %s"
+msgstr "حذف: %s"
+
+msgid "Matching nodes: %d"
+msgstr "گره‌های منطبق: %d"
+
+msgid "View matching nodes"
+msgstr "مشاهدهٔ گره‌های منطبق"
+
+msgid "Showing the first 50 of %d nodes."
+msgstr "۵۰ گرهٔ نخست از %d گره نمایش داده می‌شود."
+
+msgid "No matching nodes. This list will not use another location automatically."
+msgstr "گره منطبقی وجود ندارد. این فهرست به‌طور خودکار از مکان دیگری استفاده نمی‌کند."
+
+msgid "No subscription nodes loaded. Add or update a subscription first."
+msgstr "هنوز گره‌های اشتراک بارگذاری نشده‌اند. ابتدا اشتراکی اضافه یا به‌روزرسانی کنید."
+
+msgid "Node selection"
+msgstr "انتخاب گره"
+
+msgid "Choose locations"
+msgstr "انتخاب مکان‌ها"
+
+msgid "By filter"
+msgstr "بر اساس فیلتر"
+
+msgid "Display order"
+msgstr "ترتیب نمایش"
+
+msgid "By country"
+msgstr "بر اساس کشور"
+
+msgid "As in subscription"
+msgstr "به‌ترتیب اشتراک"
+
+msgid "Filter subscription"
+msgstr "فیلتر اشتراک"
+
+msgid "All subscriptions"
+msgstr "همهٔ اشتراک‌ها"
+
+msgid "Countries — empty means any"
+msgstr "کشورها — خالی یعنی همه"
+
+msgid "Protocols — empty means any"
+msgstr "پروتکل‌ها — خالی یعنی همه"
+
+msgid "Include names"
+msgstr "نام‌های شامل‌شده"
+
+msgid "Any comma-separated fragment may match. Double quotes require the full name: Sweden, \"Amsterdam Premium 01\"."
+msgstr "بخش‌ها را با ویرگول انگلیسی (,) جدا کنید؛ تطبیق هر بخش کافی است. نام داخل علامت \" باید کامل منطبق باشد؛ مانند Sweden, \"Amsterdam Premium 01\"."
+
+msgid "Exclude names"
+msgstr "نام‌های مستثناشده"
+
+msgid "Same syntax as inclusion. Any match excludes the node, even if it matches inclusion."
+msgstr "نحو آن مانند بخش شامل‌شده‌هاست. هر تطبیق، گره را حذف می‌کند؛ حتی اگر با شرط شامل‌شدن نیز منطبق باشد."
+
+msgid "Filter membership is recalculated when subscriptions update. Matching nodes keep their subscription order."
+msgstr "با به‌روزرسانی اشتراک، عضویت در فیلتر دوباره محاسبه می‌شود. ترتیب گره‌های منطبق مانند اشتراک باقی می‌ماند."
+
+msgid "Select at least one country, city or node, or configure a filter."
+msgstr "دست‌کم یک کشور، شهر یا گره انتخاب کنید یا یک فیلتر تنظیم کنید."
+
+msgid "Close the double quotes around the full name."
+msgstr "گیومه‌های دوتایی اطراف نام کامل را ببندید."
+
+msgid "A quoted full name cannot be empty."
+msgstr "نام کامل داخل گیومه نمی‌تواند خالی باشد."
+
+msgid "Separate names with a comma or | after a closing quote."
+msgstr "پس از بستن گیومه، نام‌ها را با ویرگول انگلیسی (,) یا | جدا کنید."
+
+msgid "Name filters cannot contain control characters."
+msgstr "فیلتر نام نمی‌تواند نویسهٔ کنترلی داشته باشد."
+
+msgid "The name filter is too long. Shorten the list."
+msgstr "فیلتر نام بیش از حد طولانی است. فهرست را کوتاه‌تر کنید."
+
+msgid "Display order does not change selection priority."
+msgstr "ترتیب نمایش، اولویت انتخاب را تغییر نمی‌دهد."
+
+msgid "Global exceptions and IPv6"
+msgstr "استثناهای سراسری و IPv6"
+
+msgid "IPv6 handling"
+msgstr "نحوهٔ مدیریت IPv6"
+
+msgid "Through proxy"
+msgstr "از طریق پراکسی"
+
+msgid "Direct — without proxy"
+msgstr "مستقیم — بدون پراکسی"
+
+msgid "Block internet access"
+msgstr "مسدودسازی دسترسی به اینترنت"
+
+msgid "Blocking preserves local IPv6 connectivity and takes precedence over user IPv6 exceptions."
+msgstr "مسدودسازی، ارتباط محلی IPv6 را حفظ می‌کند و بر استثناهای IPv6 کاربر اولویت دارد."
+
+msgid "Direct IP addresses and networks"
+msgstr "نشانی‌ها و شبکه‌های IP مستقیم"
+
+msgid "Maximum: 256 IP addresses or networks."
+msgstr "حداکثر ۲۵۶ نشانی یا شبکهٔ IP."
+
+msgid "Enter IPv4, IPv6 or CIDR networks, one per line."
+msgstr "IPv4، IPv6 یا شبکه‌های CIDR را وارد کنید؛ هرکدام در یک سطر."
+
+msgid "One IP or CIDR per line. These destinations bypass the proxy; router DNS is managed separately."
+msgstr "هر IP یا CIDR در یک سطر. این مقصدها پراکسی را دور می‌زنند؛ DNS روتر جداگانه مدیریت می‌شود."
+
+msgid "The country filters the list below."
+msgstr "کشور، فهرست زیر را فیلتر می‌کند."
+
+msgid "BitTorrent"
+msgstr "BitTorrent"
+
+msgid "Matches traffic detected by Xray as BitTorrent."
+msgstr "بر ترافیکی منطبق می‌شود که Xray آن را BitTorrent شناسایی کرده باشد."
+
+msgid "Save the rules, then select them by name in a route list."
+msgstr "قواعد را ذخیره کنید، سپس در فهرست مسیریابی بر اساس نام انتخاب کنید."
+
+msgid "Create a rule, then select it in a route list."
+msgstr "یک قاعده بسازید، سپس آن را در فهرست مسیریابی انتخاب کنید."
+
+msgid "Applies to network-device traffic in all route lists."
+msgstr "بر ترافیک دستگاه‌های شبکه در همهٔ فهرست‌های مسیریابی اعمال می‌شود."
+
+msgid "Selected-device lists take precedence. If selected lists overlap, the first list wins."
+msgstr "فهرست‌های دستگاه‌های مشخص اولویت دارند. اگر این فهرست‌ها هم‌پوشانی داشته باشند، نخستین فهرست اعمال می‌شود."
+
+msgid "Select rules. The first match decides the route."
+msgstr "قواعد را انتخاب کنید. نخستین تطبیق، مسیر را تعیین می‌کند."
+
+msgid "Today (UTC)"
+msgstr "امروز (UTC)"
+
+msgid "Sort nodes"
+msgstr "مرتب‌سازی گره‌ها"
+
+msgid "By availability"
+msgstr "بر اساس دسترس‌پذیری"
+
+msgid "By latency"
+msgstr "بر اساس تأخیر"
+
+msgid "By name"
+msgstr "بر اساس نام"
+
+msgid "Active · unavailable"
+msgstr "فعال · خارج از دسترس"
+
+msgid "Availability / loss"
+msgstr "دسترس‌پذیری / اتلاف"
+
+msgid "p95 latency"
+msgstr "صدک ۹۵ تأخیر"
+
+msgid "Previous"
+msgstr "قبلی"
+
+msgid "Next"
+msgstr "بعدی"
+
+msgid "No matching nodes."
+msgstr "گره منطبقی یافت نشد."
+
+msgid "%d–%d of %d"
+msgstr "%d–%d از %d"
+
+msgid "%d candidates · %d healthy reserves"
+msgstr "%d نامزد · %d پشتیبان سالم"
+
+msgid "No fresh data: %s"
+msgstr "دادهٔ تازه در دسترس نیست: %s"
+
+msgid "No data"
+msgstr "بدون داده"
+
+msgid "DNS mode"
+msgstr "حالت DNS"
+
+msgid "LAN capture disabled"
+msgstr "هدایت ترافیک LAN غیرفعال است"
+
+msgid "OpenWrt DNS"
+msgstr "DNS سیستم OpenWrt"
+
+msgid "Package DNS"
+msgstr "DNS بسته"
+
+msgid "Selected node"
+msgstr "گرهٔ انتخاب‌شده"
+
+msgid "Healthy reserves"
+msgstr "پشتیبان‌های سالم"
+
+msgid "Blocked"
+msgstr "مسدود"
+
+msgid "Waiting for checks"
+msgstr "در انتظار بررسی"
+
+msgid "Starting"
+msgstr "در حال راه‌اندازی"
+
+msgid "Status data is stale"
+msgstr "دادهٔ وضعیت قدیمی است"
+
+msgid "DNS takeover failed; previous DNS restored. See the journal."
+msgstr "واگذاری DNS ناموفق بود؛ DNS قبلی بازیابی شد. گزارش را ببینید."
+
+msgid "%d downloaded · %d cached · %d unavailable"
+msgstr "%d دریافت‌شده · %d از حافظهٔ نهان · %d خارج از دسترس"
+
+msgid "Downloaded"
+msgstr "به‌روز شد"
+
+msgid "Rule database update was not applied; previous rules remain active. %s"
+msgstr "به‌روزرسانی پایگاه قواعد اعمال نشد؛ قواعد قبلی فعال می‌مانند. %s"
+
+msgid "Some rule databases could not be updated. See Rule databases for details."
+msgstr "برخی پایگاه‌های قواعد به‌روزرسانی نشدند. جزئیات را در «پایگاه‌های قواعد» ببینید."
+
+msgid "Not confirmed"
+msgstr "تأیید نشده"
+
+msgid "No route lists."
+msgstr "فهرست مسیریابی وجود ندارد."
+
+msgid "DNS requests"
+msgstr "درخواست‌های DNS"
+
+msgid "Queries"
+msgstr "پرس‌وجوها"
+
+msgid "Fallback WAN"
+msgstr "WAN پشتیبان"
+
+msgid "Cache"
+msgstr "حافظهٔ نهان"
+
+msgid "Local"
+msgstr "محلی"
+
+msgid "Errors"
+msgstr "خطاها"
+
+msgid "Since service start"
+msgstr "از زمان راه‌اندازی سرویس"
+
+msgid "https-dns-proxy is running. Configure DNS takeover on the DNS page."
+msgstr "https-dns-proxy در حال اجراست. واگذاری DNS را در صفحهٔ DNS تنظیم کنید."
+
+msgid "Another DNS service is running; DNS capture is disabled."
+msgstr "سرویس DNS دیگری در حال اجراست؛ هدایت DNS غیرفعال است."
+
+msgid "Another DNS redirect is present; DNS capture is disabled."
+msgstr "قاعدهٔ دیگری برای تغییر مسیر DNS وجود دارد؛ هدایت DNS غیرفعال است."
+
+msgid "Unable to inspect firewall; DNS capture is disabled."
+msgstr "بررسی دیوارهٔ آتش ممکن نشد؛ هدایت DNS غیرفعال است."
+
+msgid "DNS listener failed. See the journal."
+msgstr "شنوندهٔ DNS راه‌اندازی نشد. گزارش را ببینید."
+
+msgid "%d loaded · %d cached · %d unavailable"
+msgstr "%d بارگذاری‌شده · %d از حافظهٔ نهان · %d خارج از دسترس"
+
+msgid "Updated at %s"
+msgstr "زمان به‌روزرسانی: %s"
+
+msgid "List"
+msgstr "فهرست"
+
+msgid "ms"
+msgstr "میلی‌ثانیه"
+
+msgid "Enable SB Gateway"
+msgstr "فعال‌سازی SB Gateway"
+
+msgid "Device routing"
+msgstr "مسیریابی دستگاه‌ها"
+
+msgid "On schedule"
+msgstr "طبق زمان‌بندی"
+
+msgid "Update time"
+msgstr "زمان به‌روزرسانی"
+
+msgid "Router time"
+msgstr "زمان روتر"
+
+msgid "Specify time as HH:MM."
+msgstr "زمان را به‌شکل HH:MM وارد کنید."
+
+msgid "Choose an interval from 5 minutes to 24 hours, with whole seconds."
+msgstr "فاصله‌ای از پنج دقیقه تا ۲۴ ساعت، بر حسب ثانیهٔ کامل انتخاب کنید."
+
+msgid "Save and load"
+msgstr "ذخیره و بارگذاری"
+
+msgid "Loading…"
+msgstr "در حال بارگذاری…"
+
+msgid "Use 1–32 Latin letters, digits, spaces, underscores or hyphens; start with a letter."
+msgstr "از ۱ تا ۳۲ حرف لاتین، رقم، فاصله، زیرخط یا خط تیره استفاده کنید؛ با حرف شروع شود."
+
+msgid "This source name is already used."
+msgstr "این نام منبع از قبل استفاده شده است."
+
+msgid "Enter an HTTPS subscription address."
+msgstr "نشانی اشتراک HTTPS را وارد کنید."
+
+msgid "Check the subscription fields."
+msgstr "فیلدهای اشتراک را بررسی کنید."
+
+msgid "Could not save subscription settings."
+msgstr "ذخیرهٔ تنظیمات اشتراک ممکن نشد."
+
+msgid "Subscription saved. Enable SB Gateway in Overview."
+msgstr "اشتراک ذخیره شد. SB Gateway را در نمای کلی فعال کنید."
+
+msgid "Could not apply subscription settings."
+msgstr "اعمال تنظیمات اشتراک ممکن نشد."
+
+msgid "Could not start subscription loading."
+msgstr "شروع بارگذاری اشتراک ممکن نشد."
+
+msgid "Subscription loading started."
+msgstr "بارگذاری اشتراک آغاز شد."
+
+msgid "Settings"
+msgstr "تنظیمات"
+
+msgid "Status unavailable"
+msgstr "وضعیت در دسترس نیست"
+
+msgid "No nodes loaded"
+msgstr "گرهی بارگذاری نشده"
+
+msgid "Updated: %s"
+msgstr "به‌روز شده: %s"
+
+msgid "Added: %d · Removed: %d"
+msgstr "اضافه‌شده: %d · حذف‌شده: %d"
+
+msgid "Subscription download failed"
+msgstr "دریافت اشتراک ناموفق بود"
+
+msgid "Subscription server error"
+msgstr "خطای سرور اشتراک"
+
+msgid "No reachable nodes; previous nodes retained"
+msgstr "گرهٔ قابل دسترسی یافت نشد؛ گره‌های قبلی حفظ شدند"
+
+msgid "Loading interrupted"
+msgstr "بارگذاری قطع شد"
+
+msgid "Subscription update failed"
+msgstr "به‌روزرسانی اشتراک ناموفق بود"
+
+msgid "Loading is taking longer than expected."
+msgstr "بارگذاری بیش از زمان مورد انتظار طول کشیده است."
+
+msgid "Selected"
+msgstr "انتخاب‌شده"
+
+msgid "Countries"
+msgstr "کشورها"
+
+msgid "Protocols"
+msgstr "پروتکل‌ها"
+
+msgid "All countries"
+msgstr "همهٔ کشورها"
+
+msgid "All protocols"
+msgstr "همهٔ پروتکل‌ها"
+
+msgid "Selected: %d"
+msgstr "انتخاب‌شده: %d"
+
+msgid "One IP or CIDR per line. # marks detected VPN addresses."
+msgstr "هر IP یا CIDR در یک سطر. # نشانی‌های VPN شناسایی‌شده را مشخص می‌کند."
+
+msgid "Shadowsocks plugins"
+msgstr "افزونه‌های Shadowsocks"
+
+msgid "Install"
+msgstr "نصب"
+
+msgid "Installed"
+msgstr "نصب‌شده"
+
+msgid "Not installed"
+msgstr "نصب نشده"
+
+msgid "Installing…"
+msgstr "در حال نصب…"
+
+msgid "Plugin installation failed."
+msgstr "نصب افزونه ناموفق بود."
+
+msgid "Plugin status unavailable."
+msgstr "وضعیت افزونه در دسترس نیست."
+
+msgid "Unsupported router architecture."
+msgstr "معماری این روتر پشتیبانی نمی‌شود."
+
+msgid "Matching nodes"
+msgstr "گره‌های منطبق"
+
+msgid "Find a country"
+msgstr "جست‌وجوی کشور"
+
+msgid "Choose a rule"
+msgstr "انتخاب قاعده"
+
+msgid "Create rules"
+msgstr "ساخت قواعد"
+
+msgid "Unavailable rule: %s"
+msgstr "قاعدهٔ خارج از دسترس: %s"
+
+msgid "Add a variant"
+msgstr "افزودن الگو"
+
+msgid "Variant name"
+msgstr "نام الگو"
+
+msgid "Enter a name of up to 40 characters."
+msgstr "نامی با حداکثر ۴۰ نویسه وارد کنید."
+
+msgid "Variant %d"
+msgstr "الگوی %d"
+
+msgid "%d rules"
+msgstr "%d قاعده"
+
+msgid "Not used"
+msgstr "استفاده نشده"
+
+msgid "Rule variants"
+msgstr "الگوهای قواعد"
+
+msgid "Individual rules"
+msgstr "قواعد تکی"
+
+msgid "Enter a name"
+msgstr "یک نام وارد کنید"
+
+msgid "Edit"
+msgstr "ویرایش"
+
+msgid "Edit variant"
+msgstr "ویرایش الگو"
+
+msgid "Save changes"
+msgstr "ذخیرهٔ تغییرات"
+
+msgid "Cancel"
+msgstr "انصراف"
+
+msgid "Other presets"
+msgstr "سایر پیش‌تنظیم‌ها"
+
+msgid "Keep existing actions"
+msgstr "حفظ عملکردهای موجود"
+
+msgid "Latency"
+msgstr "تأخیر"
+
+msgid "Last measured speed"
+msgstr "آخرین سرعت اندازه‌گیری‌شده"
+
+msgid "Last successful measurement"
+msgstr "آخرین اندازه‌گیری موفق"
+
+msgid "Mbit/s"
+msgstr "Mbit/s"
+
+msgid "Speed drop (%)"
+msgstr "افت سرعت (%)"
+
+msgid "Drop from this node’s recent speed. 0 disables speed-drop switching."
+msgstr "افت نسبت به سرعت اخیر همین گره. مقدار ۰ تغییر گره بر اساس افت سرعت را غیرفعال می‌کند."
+
+msgid "A reserve must confirm its gain in fresh paired measurements."
+msgstr "گرهٔ پشتیبان باید برتری خود را در اندازه‌گیری‌های تازه و جفت‌شده تأیید کند."
+
+msgid "Shared node budget per cycle"
+msgstr "سهم مشترک گره‌ها در هر چرخه"
+
+msgid "Automatic: 5 nodes"
+msgstr "خودکار: ۵ گره"
+
+msgid "Availability / HTTPS errors"
+msgstr "دسترس‌پذیری / خطاهای HTTPS"
+
+msgid "Delta, %"
+msgstr "اختلاف، %"
+
+msgid "HTTPS latency (seconds)"
+msgstr "تأخیر HTTPS (ثانیه)"
+
+msgid "Concurrent node checks"
+msgstr "بررسی‌های هم‌زمان گره‌ها"
+
+msgid "Shared across route lists. Emergency recovery has priority."
+msgstr "بین فهرست‌های مسیریابی مشترک است. بازیابی اضطراری اولویت دارد."
+
+msgid "Switch after two fresh confirmations of this HTTPS latency improvement."
+msgstr "پس از دو تأیید تازه از این میزان بهبود تأخیر HTTPS، گره تغییر می‌کند."
+
+msgid "Compared with the active node using fresh HTTPS measurements. Negative means lower latency; positive means higher latency."
+msgstr "مقایسه با گرهٔ فعال بر اساس اندازه‌گیری‌های تازهٔ HTTPS. مقدار منفی یعنی تأخیر کمتر و مقدار مثبت یعنی تأخیر بیشتر."
+
+msgid "Delta: negative means lower latency; positive means higher latency than the active node."
+msgstr "اختلاف: مقدار منفی یعنی تأخیر کمتر از گرهٔ فعال و مقدار مثبت یعنی تأخیر بیشتر."
+
+msgid "Name fragments, separated by commas"
+msgstr "بخش‌های نام، جداشده با ویرگول انگلیسی (,)"
+
+msgid "Services without country restriction"
+msgstr "سرویس‌های بدون محدودیت کشور"
+
+msgid "Exchanges"
+msgstr "صرافی‌ها"
+
+msgid "Services"
+msgstr "سرویس‌ها"
+
+msgid "Preset section"
+msgstr "بخش پیش‌تنظیم"
+
+msgid "Choose a country or services."
+msgstr "یک کشور یا سرویس انتخاب کنید."
+
+msgid "Response improvement for URLTest (ms)"
+msgstr "بهبود پاسخ برای URLTest (میلی‌ثانیه)"
+
+msgid "Only for URLTest (Best available). Switch after two fresh confirmations of this HTTPS latency improvement."
+msgstr "فقط برای URLTest (بهترین گرهٔ در دسترس). پس از دو تأیید تازه از این میزان بهبود تأخیر HTTPS، گره تغییر می‌کند."
+
+msgid "No fresh successful HTTPS measurement for the active node."
+msgstr "اندازه‌گیری تازه و موفق HTTPS برای گرهٔ فعال وجود ندارد."
+
+msgid "No fresh successful HTTPS measurement for this node."
+msgstr "اندازه‌گیری تازه و موفق HTTPS برای این گره وجود ندارد."
+
+msgid "Node history RAM budget (KiB)"
+msgstr "بودجهٔ حافظهٔ تاریخچهٔ گره‌ها (KiB)"
+
+msgid "Shared by all route lists. Older history is removed when the budget is reached. Current routing evidence is kept. History survives service restart and is cleared on router reboot."
+msgstr "بین همهٔ فهرست‌های مسیریابی مشترک است. با رسیدن به سقف حافظه، تاریخچهٔ قدیمی حذف و شواهد فعلی مسیریابی حفظ می‌شود. تاریخچه پس از راه‌اندازی مجدد سرویس حفظ و با راه‌اندازی مجدد روتر پاک می‌شود."
+
+msgid "History budget: %d / %d KiB across all route lists"
+msgstr "بودجهٔ تاریخچه: %d / %d KiB برای همهٔ فهرست‌های مسیریابی"
+
+msgid "Older history removed to stay within the RAM budget"
+msgstr "تاریخچهٔ قدیمی برای رعایت سقف حافظه حذف شد"
+
+msgid "The draft is too large. Save the form before continuing."
+msgstr "پیش‌نویس بیش از حد بزرگ است. پیش از ادامه، فرم را ذخیره کنید."
+
+msgid "Draft not saved. Apply was not started."
+msgstr "پیش‌نویس ذخیره نشد. اعمال تنظیمات آغاز نشده است."
+
+msgid "A save is already in progress."
+msgstr "ذخیره‌سازی در حال انجام است."
+
+msgid "Compact updates keep a recovery copy in RAM. A power loss during installation may require reinstalling the package."
+msgstr "به‌روزرسانی کم‌حجم یک نسخهٔ بازیابی را در RAM نگه می‌دارد. قطع برق هنگام نصب ممکن است نصب دوبارهٔ بسته را لازم کند."
+
+msgid "Showing %d of %d nodes"
+msgstr "نمایش %d از %d گره"
+
+msgid "Availability, s"
+msgstr "دسترس‌پذیری، ثانیه"
+
+msgid "HTTPS check, s"
+msgstr "بررسی HTTPS، ثانیه"
+
+msgid "Parallel checks"
+msgstr "بررسی‌های موازی"
+
+msgid "URLTest improvement, ms"
+msgstr "بهبود URLTest، میلی‌ثانیه"
+
+msgid "RAM history, KiB"
+msgstr "تاریخچه در RAM، KiB"
+
+msgid "Check for updates"
+msgstr "بررسی به‌روزرسانی"
+
+msgid "Update from GitHub"
+msgstr "به‌روزرسانی از GitHub"
+
+msgid "Available: %s"
+msgstr "نسخهٔ موجود: %s"
+
+msgid "Latest version is installed."
+msgstr "آخرین نسخه نصب شده است."
+
+msgid "Release notes"
+msgstr "یادداشت‌های انتشار"
+
+msgid "No published APK for this router yet."
+msgstr "هنوز APK منتشرشده‌ای برای این روتر وجود ندارد."
+
+msgid "Checking GitHub…"
+msgstr "در حال بررسی GitHub…"
+
+msgid "Downloading APK…"
+msgstr "در حال دریافت APK…"
+
+msgid "Settings are kept. The proxy service restarts during installation."
+msgstr "تنظیمات حفظ می‌شوند. سرویس پراکسی هنگام نصب دوباره راه‌اندازی می‌شود."
+
+msgid "Install an APK file"
+msgstr "نصب فایل APK"
+
+msgid "No updates available."
+msgstr "به‌روزرسانی جدیدی موجود نیست."
+
+msgid "When all proxies fail"
+msgstr "هنگام خرابی همهٔ پراکسی‌ها"
+
+msgid "Through WAN"
+msgstr "از طریق WAN"
+
+msgid "Keep existing behavior"
+msgstr "حفظ رفتار موجود"
+
+msgid "WAN by rules"
+msgstr "WAN بر اساس قواعد"
+
+msgid "Block"
+msgstr "مسدودسازی"
+
+msgid "Block WAN ping"
+msgstr "مسدودسازی پینگ WAN"
+
+msgid "Blocking TCP/UDP preserves local IPv6. Ping follows its separate setting."
+msgstr "مسدودسازی TCP/UDP، ارتباط محلی IPv6 را حفظ می‌کند. پینگ از تنظیم جداگانهٔ خود پیروی می‌کند."
+
+msgid "Controller RAM"
+msgstr "RAM کنترل‌کننده"
+
+msgid "Xray RAM"
+msgstr "RAM مربوط به Xray"
+
+msgid "Xray sessions"
+msgstr "نشست‌های Xray"
+
+msgid "Available RAM"
+msgstr "RAM در دسترس"
+
+msgid "RssAnon: %s · Files: %s / %s"
+msgstr "RssAnon: %s · فایل‌ها: %s / %s"
+
+msgid "%s TCP · %s UDP"
+msgstr "%s TCP · %s UDP"
+
+msgid "Low available router memory. Reduce connection load or selected rule sets."
+msgstr "حافظهٔ در دسترس روتر کم است. بار اتصال‌ها یا مجموعه‌قواعد انتخاب‌شده را کاهش دهید."
+
+msgid "Xray is near its open-file limit."
+msgstr "Xray به سقف فایل‌های باز نزدیک شده است."
+
+msgid "Xray was stopped by the kernel for lack of memory. See the journal."
+msgstr "هسته به‌دلیل کمبود حافظه Xray را متوقف کرده است. گزارش را ببینید."
+
+msgid "Finish configuring route lists before enabling SB Gateway."
+msgstr "پیش از فعال کردن SB Gateway، تنظیم فهرست‌های مسیریابی را کامل کنید."
+
+msgid "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
+msgstr "آخرین مقایسهٔ جفت‌شدهٔ HTTPS. مقدار منفی یعنی تأخیر کمتر و مقدار مثبت یعنی تأخیر بیشتر."
+
+msgid "Waiting for HTTPS measurements completed within 10 seconds of each other."
+msgstr "در انتظار اندازه‌گیری‌های HTTPS که فاصلهٔ پایان آن‌ها حداکثر ۱۰ ثانیه باشد."
+
+msgid "Candidate"
+msgstr "گرهٔ نامزد"
+
+msgid "Active node"
+msgstr "گرهٔ فعال"
+
+msgid "LAN client DNS"
+msgstr "DNS کلاینت‌های LAN"
+
+msgid "Stop https-dns-proxy and take over DNS"
+msgstr "توقف https-dns-proxy و واگذاری DNS"
+
+msgid "I confirm the switch. Service settings are kept; its previous state is restored when returning to OpenWrt DNS or if takeover fails."
+msgstr "تغییر را تأیید می‌کنم. تنظیمات سرویس حفظ می‌شوند؛ هنگام بازگشت به DNS سیستم OpenWrt یا شکست واگذاری، وضعیت قبلی بازیابی می‌شود."
+
+msgid "Protocol through proxy"
+msgstr "پروتکل از طریق پراکسی"
+
+msgid "Plain DNS/TCP"
+msgstr "DNS/TCP معمولی"
+
+msgid "DNS provider through proxy"
+msgstr "ارائه‌دهندهٔ DNS از طریق پراکسی"
+
+msgid "Custom address"
+msgstr "نشانی سفارشی"
+
+msgid "DNS address through proxy"
+msgstr "نشانی DNS از طریق پراکسی"
+
+msgid "Protocol through WAN"
+msgstr "پروتکل از طریق WAN"
+
+msgid "Plain DNS/UDP"
+msgstr "DNS/UDP معمولی"
+
+msgid "DNS provider through WAN"
+msgstr "ارائه‌دهندهٔ DNS از طریق WAN"
+
+msgid "DNS address through WAN"
+msgstr "نشانی DNS از طریق WAN"
+
+msgid "Local DNS port"
+msgstr "درگاه محلی DNS"
+
+msgid "Yandex"
+msgstr "Yandex"
+
+msgid "Device DNS"
+msgstr "DNS دستگاه‌ها"
+
+msgid "Add"
+msgstr "افزودن"
+
+msgid "Delete"
+msgstr "حذف"
+
+msgid "Save"
+msgstr "ذخیره"
+
+msgid "Protocol"
+msgstr "پروتکل"
+
+msgid "Downloading…"
+msgstr "در حال دریافت…"
+
+msgid "Waiting…"
+msgstr "در انتظار…"
+
+msgid "Catalog read failed."
+msgstr "خواندن فهرست ممکن نشد."
+
+msgid "Government portals and public services"
+msgstr "درگاه‌های دولتی و خدمات عمومی"
+
+msgid "Federal and regional portals, taxes, Goskey and related services."
+msgstr "درگاه‌های فدرال و منطقه‌ای، مالیات، Goskey و سرویس‌های مرتبط."
+
+msgid "Russian banks and payments"
+msgstr "بانک‌ها و پرداخت‌های روسیه"
+
+msgid "Russian banks, SBP/NSPK and major payment portals."
+msgstr "بانک‌های روسی، SBP/NSPK و درگاه‌های اصلی پرداخت."
+
+msgid "Russian marketplaces, classifieds, delivery and retail"
+msgstr "بازارگاه‌ها، آگهی‌ها، تحویل و خرده‌فروشی روسیه"
+
+msgid "Marketplaces, classifieds, shops, delivery services and their CDNs."
+msgstr "بازارگاه‌ها، آگهی‌ها، فروشگاه‌ها، سرویس‌های تحویل و CDNهای آن‌ها."
+
+msgid "Yandex ecosystem"
+msgstr "زیست‌بوم Yandex"
+
+msgid "Search, Maps, Mail, Cloud, Disk, Go, Taxi, Food, Market, Kinopoisk and shared CDNs."
+msgstr "جست‌وجو، نقشه، ایمیل، فضای ابری، دیسک، Go، تاکسی، غذا، بازار، Kinopoisk و CDNهای مشترک."
+
+msgid "VK, Mail.ru, OK, Dzen and MAX"
+msgstr "VK، Mail.ru، OK، Dzen و MAX"
+
+msgid "Main websites, apps, CDNs and calls in the VK/Mail.ru/MAX ecosystem."
+msgstr "وب‌سایت‌ها، برنامه‌ها، CDNها و تماس‌های اصلی زیست‌بوم VK/Mail.ru/MAX."
+
+msgid "Russian transport and travel"
+msgstr "حمل‌ونقل و سفر در روسیه"
+
+msgid "Tickets, airlines, railways, maps and travel."
+msgstr "بلیت، خطوط هوایی، راه‌آهن، نقشه و سفر."
+
+msgid "Russian mobile operators and internet providers"
+msgstr "اپراتورهای همراه و ارائه‌دهندگان اینترنت روسیه"
+
+msgid "Account portals, websites, apps and CDNs of Russian telecom operators."
+msgstr "درگاه حساب، وب‌سایت‌ها، برنامه‌ها و CDNهای اپراتورهای مخابراتی روسیه."
+
+msgid "Russian media, TV, video streaming and music"
+msgstr "رسانه، تلویزیون، پخش ویدئو و موسیقی روسیه"
+
+msgid "News, TV channels, streaming services, video, radio, music and CDNs."
+msgstr "خبر، شبکه‌های تلویزیونی، سرویس‌های پخش، ویدئو، رادیو، موسیقی و CDNها."
+
+msgid "Russian education, jobs and IT services"
+msgstr "آموزش، کاریابی و سرویس‌های فناوری اطلاعات روسیه"
+
+msgid "Learning platforms, job listings, development, cloud services, hosting and IT media."
+msgstr "بسترهای آموزشی، فرصت‌های شغلی، توسعه، سرویس‌های ابری، میزبانی و رسانه‌های فناوری اطلاعات."
+
+msgid "RU/РФ domains and Russian services"
+msgstr "دامنه‌های RU/РФ و سرویس‌های روسی"
+
+msgid "Broad rule covering most Russian domain zones."
+msgstr "قاعده‌ای گسترده که بیشتر پسوندهای دامنهٔ روسی را پوشش می‌دهد."
+
+msgid "Russian retail"
+msgstr "خرده‌فروشی روسیه"
+
+msgid "MegaFon"
+msgstr "MegaFon"
+
+msgid "MTS"
+msgstr "MTS"
+
+msgid "Rostelecom"
+msgstr "Rostelecom"
+
+msgid "T2"
+msgstr "T2"
+
+msgid "Russian entertainment"
+msgstr "سرگرمی روسیه"
+
+msgid "Russian IT media"
+msgstr "رسانه‌های فناوری اطلاعات روسیه"
+
+msgid "Ozon"
+msgstr "Ozon"
+
+msgid "Chinese banks"
+msgstr "بانک‌های چین"
+
+msgid "Chinese banks from the public domain-list-community list."
+msgstr "بانک‌های چینی از فهرست عمومی domain-list-community."
+
+msgid "Chinese social networks"
+msgstr "شبکه‌های اجتماعی چین"
+
+msgid "Chinese social platforms from the public domain-list-community list."
+msgstr "بسترهای اجتماعی چینی از فهرست عمومی domain-list-community."
+
+msgid "Chinese media and news"
+msgstr "رسانه و اخبار چین"
+
+msgid "Chinese media from the public domain-list-community list."
+msgstr "رسانه‌های چینی از فهرست عمومی domain-list-community."
+
+msgid "Iranian banks"
+msgstr "بانک‌های ایران"
+
+msgid "Iranian banks from the public domain-list-community list."
+msgstr "بانک‌های ایرانی از فهرست عمومی domain-list-community."
+
+msgid "Iranian government websites"
+msgstr "وب‌سایت‌های دولتی ایران"
+
+msgid "Iranian government resources from the public domain-list-community list."
+msgstr "منابع دولتی ایران از فهرست عمومی domain-list-community."
+
+msgid "Iranian shops"
+msgstr "فروشگاه‌های ایران"
+
+msgid "Iranian shops and marketplaces from the public domain-list-community list."
+msgstr "فروشگاه‌ها و بازارگاه‌های ایرانی از فهرست عمومی domain-list-community."
+
+msgid "Iranian advertising and analytics"
+msgstr "تبلیغات و تحلیل‌گری ایران"
+
+msgid "domain-list-community category: category-ads-ir."
+msgstr "دستهٔ domain-list-community: category-ads-ir."
+
+msgid "Chinese AI services"
+msgstr "سرویس‌های هوش مصنوعی چین"
+
+msgid "domain-list-community category: category-ai-cn."
+msgstr "دستهٔ domain-list-community: category-ai-cn."
+
+msgid "Chinese automotive services"
+msgstr "سرویس‌های خودروی چین"
+
+msgid "domain-list-community category: category-automobile-cn."
+msgstr "دستهٔ domain-list-community: category-automobile-cn."
+
+msgid "Chinese blogs"
+msgstr "وبلاگ‌های چین"
+
+msgid "domain-list-community category: category-blog-cn."
+msgstr "دستهٔ domain-list-community: category-blog-cn."
+
+msgid "Iranian exchanges and finance"
+msgstr "بورس و امور مالی ایران"
+
+msgid "domain-list-community category: category-bourse-ir."
+msgstr "دستهٔ domain-list-community: category-bourse-ir."
+
+msgid "Chinese CDNs"
+msgstr "CDNهای چین"
+
+msgid "domain-list-community category: category-cdn-cn."
+msgstr "دستهٔ domain-list-community: category-cdn-cn."
+
+msgid "Chinese collaboration services"
+msgstr "سرویس‌های همکاری گروهی چین"
+
+msgid "domain-list-community category: category-collaborate-cn."
+msgstr "دستهٔ domain-list-community: category-collaborate-cn."
+
+msgid "Chinese development and IT services"
+msgstr "سرویس‌های توسعه و فناوری اطلاعات چین"
+
+msgid "domain-list-community category: category-dev-cn."
+msgstr "دستهٔ domain-list-community: category-dev-cn."
+
+msgid "Chinese document and office services"
+msgstr "سرویس‌های اسناد و اداری چین"
+
+msgid "domain-list-community category: category-documents-cn."
+msgstr "دستهٔ domain-list-community: category-documents-cn."
+
+msgid "Chinese education"
+msgstr "آموزش چین"
+
+msgid "domain-list-community category: category-education-cn."
+msgstr "دستهٔ domain-list-community: category-education-cn."
+
+msgid "Iranian education"
+msgstr "آموزش ایران"
+
+msgid "domain-list-community category: category-education-ir."
+msgstr "دستهٔ domain-list-community: category-education-ir."
+
+msgid "Chinese electronics"
+msgstr "الکترونیک چین"
+
+msgid "domain-list-community category: category-electronic-cn."
+msgstr "دستهٔ domain-list-community: category-electronic-cn."
+
+msgid "Chinese company registries and verification"
+msgstr "ثبت و بررسی شرکت‌های چین"
+
+msgid "domain-list-community category: category-enterprise-query-platform-cn."
+msgstr "دستهٔ domain-list-community: category-enterprise-query-platform-cn."
+
+msgid "Chinese video, music and entertainment"
+msgstr "ویدئو، موسیقی و سرگرمی چین"
+
+msgid "domain-list-community category: category-entertainment-cn."
+msgstr "دستهٔ domain-list-community: category-entertainment-cn."
+
+msgid "Chinese food and delivery"
+msgstr "غذا و تحویل در چین"
+
+msgid "domain-list-community category: category-food-cn."
+msgstr "دستهٔ domain-list-community: category-food-cn."
+
+msgid "Iranian forums"
+msgstr "انجمن‌های ایران"
+
+msgid "domain-list-community category: category-forums-ir."
+msgstr "دستهٔ domain-list-community: category-forums-ir."
+
+msgid "Chinese game accelerators"
+msgstr "شتاب‌دهنده‌های بازی چین"
+
+msgid "domain-list-community category: category-game-accelerator-cn."
+msgstr "دستهٔ domain-list-community: category-game-accelerator-cn."
+
+msgid "Chinese games"
+msgstr "بازی‌های چین"
+
+msgid "domain-list-community category: category-games-cn."
+msgstr "دستهٔ domain-list-community: category-games-cn."
+
+msgid "Chinese healthcare providers"
+msgstr "مراکز خدمات درمانی چین"
+
+msgid "domain-list-community category: category-hospital-cn."
+msgstr "دستهٔ domain-list-community: category-hospital-cn."
+
+msgid "Chinese HTTP DNS services"
+msgstr "سرویس‌های HTTP DNS چین"
+
+msgid "domain-list-community category: category-httpdns-cn."
+msgstr "دستهٔ domain-list-community: category-httpdns-cn."
+
+msgid "Iranian insurance"
+msgstr "بیمهٔ ایران"
+
+msgid "domain-list-community category: category-insurance-ir."
+msgstr "دستهٔ domain-list-community: category-insurance-ir."
+
+msgid "Chinese logistics"
+msgstr "لجستیک چین"
+
+msgid "domain-list-community category: category-logistics-cn."
+msgstr "دستهٔ domain-list-community: category-logistics-cn."
+
+msgid "Iranian video and media"
+msgstr "ویدئو و رسانهٔ ایران"
+
+msgid "domain-list-community category: category-media-ir."
+msgstr "دستهٔ domain-list-community: category-media-ir."
+
+msgid "Chinese online courses"
+msgstr "دوره‌های آنلاین چین"
+
+msgid "domain-list-community category: category-mooc-cn."
+msgstr "دستهٔ domain-list-community: category-mooc-cn."
+
+msgid "Chinese cloud storage"
+msgstr "فضای ذخیره‌سازی ابری چین"
+
+msgid "domain-list-community category: category-netdisk-cn."
+msgstr "دستهٔ domain-list-community: category-netdisk-cn."
+
+msgid "Chinese information security"
+msgstr "امنیت اطلاعات چین"
+
+msgid "domain-list-community category: category-network-security-cn."
+msgstr "دستهٔ domain-list-community: category-network-security-cn."
+
+msgid "Iranian media and news"
+msgstr "رسانه و اخبار ایران"
+
+msgid "domain-list-community category: category-news-ir."
+msgstr "دستهٔ domain-list-community: category-news-ir."
+
+msgid "Chinese time servers"
+msgstr "سرورهای زمان چین"
+
+msgid "domain-list-community category: category-ntp-cn."
+msgstr "دستهٔ domain-list-community: category-ntp-cn."
+
+msgid "Chinese phone number verification"
+msgstr "تأیید شمارهٔ تلفن در چین"
+
+msgid "domain-list-community category: category-number-verification-cn."
+msgstr "دستهٔ domain-list-community: category-number-verification-cn."
+
+msgid "Chinese freelance services"
+msgstr "سرویس‌های فریلنسری چین"
+
+msgid "domain-list-community category: category-outsource-cn."
+msgstr "دستهٔ domain-list-community: category-outsource-cn."
+
+msgid "Iranian payment services"
+msgstr "سرویس‌های پرداخت ایران"
+
+msgid "domain-list-community category: category-payment-ir."
+msgstr "دستهٔ domain-list-community: category-payment-ir."
+
+msgid "Chinese research resources"
+msgstr "منابع پژوهشی چین"
+
+msgid "domain-list-community category: category-scholar-cn."
+msgstr "دستهٔ domain-list-community: category-scholar-cn."
+
+msgid "Iranian research resources"
+msgstr "منابع پژوهشی ایران"
+
+msgid "domain-list-community category: category-scholar-ir."
+msgstr "دستهٔ domain-list-community: category-scholar-ir."
+
+msgid "Chinese exchanges and securities"
+msgstr "بورس و اوراق بهادار چین"
+
+msgid "domain-list-community category: category-securities-cn."
+msgstr "دستهٔ domain-list-community: category-securities-cn."
+
+msgid "Iranian social networks"
+msgstr "شبکه‌های اجتماعی ایران"
+
+msgid "domain-list-community category: category-social-media-ir."
+msgstr "دستهٔ domain-list-community: category-social-media-ir."
+
+msgid "Iranian technology services"
+msgstr "سرویس‌های فناوری ایران"
+
+msgid "domain-list-community category: category-tech-ir."
+msgstr "دستهٔ domain-list-community: category-tech-ir."
+
+msgid "Iranian transport and travel"
+msgstr "حمل‌ونقل و سفر در ایران"
+
+msgid "domain-list-community category: category-travel-ir."
+msgstr "دستهٔ domain-list-community: category-travel-ir."
+
+msgid "Chinese encyclopedias"
+msgstr "دانشنامه‌های چین"
+
+msgid "domain-list-community category: category-wiki-cn."
+msgstr "دستهٔ domain-list-community: category-wiki-cn."
+
+msgid "CN/中国/中國 domains and Chinese services"
+msgstr "دامنه‌های CN/中国/中國 و سرویس‌های چینی"
+
+msgid "Country domain zones and all thematic lists. Enable IP networks separately with GeoIP."
+msgstr "پسوندهای دامنهٔ کشور و همهٔ فهرست‌های موضوعی. شبکه‌های IP را جداگانه با GeoIP فعال کنید."
+
+msgid "IR/ایران domains and Iranian services"
+msgstr "دامنه‌های IR/ایران و سرویس‌های ایرانی"
+
+msgid "Binance"
+msgstr "Binance"
+
+msgid "Website, app, CDNs, REST/WebSocket APIs and AWS WAF challenge."
+msgstr "وب‌سایت، برنامه، CDNها، APIهای REST/WebSocket و چالش AWS WAF."
+
+msgid "Bybit"
+msgstr "Bybit"
+
+msgid "Website, app, CDNs, REST/WebSocket APIs, testnet, demo and regional endpoints."
+msgstr "وب‌سایت، برنامه، CDNها، APIهای REST/WebSocket، شبکهٔ آزمایشی، محیط نمایشی و نقاط پایانی منطقه‌ای."
+
+msgid "Bybit · trading API"
+msgstr "Bybit · API معاملاتی"
+
+msgid "REST, WebSocket, testnet/demo and regional endpoints from Bybit documentation."
+msgstr "نقاط پایانی REST، WebSocket، شبکهٔ آزمایشی/محیط نمایشی و منطقه‌ای طبق مستندات Bybit."
+
+msgid "Gate.io"
+msgstr "Gate.io"
+
+msgid "Website, app, CDNs, REST API v4, WebSocket, futures and testnet."
+msgstr "وب‌سایت، برنامه، CDNها، REST API v4، WebSocket، معاملات آتی و شبکهٔ آزمایشی."
+
+msgid "Gate.io · trading API"
+msgstr "Gate.io · API معاملاتی"
+
+msgid "Gate.io REST API v4, WebSocket, futures and testnet endpoints."
+msgstr "نقاط پایانی REST API v4، WebSocket، معاملات آتی و شبکهٔ آزمایشی Gate.io."
+
+msgid "YouTube"
+msgstr "YouTube"
+
+msgid "Telegram"
+msgstr "Telegram"
+
+msgid "Telegram Web, APIs, official networks and calls."
+msgstr "نسخهٔ وب Telegram، APIها، شبکه‌های رسمی و تماس‌ها."
+
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+msgid "WhatsApp Web, app and related calls."
+msgstr "نسخهٔ وب WhatsApp، برنامه و تماس‌های مرتبط."
+
+msgid "Discord"
+msgstr "Discord"
+
+msgid "Instagram"
+msgstr "Instagram"
+
+msgid "Facebook"
+msgstr "Facebook"
+
+msgid "TikTok"
+msgstr "TikTok"
+
+msgid "Netflix"
+msgstr "Netflix"
+
+msgid "Spotify"
+msgstr "Spotify"
+
+msgid "OpenAI / ChatGPT"
+msgstr "OpenAI / ChatGPT"
+
+msgid "Claude"
+msgstr "Claude"
+
+msgid "Claude, Claude Code, Anthropic API and first-party static assets; no broad rules for third-party CDNs."
+msgstr "Claude، Claude Code، Anthropic API و فایل‌های ایستای خودشان؛ بدون قواعد گسترده برای CDNهای شخص ثالث."
+
+msgid "Antigravity"
+msgstr "Antigravity"
+
+msgid "Antigravity and required Google AI APIs; no broad rule for google.com or googleapis.com."
+msgstr "Antigravity و APIهای لازم Google AI؛ بدون قاعدهٔ کلی برای google.com یا googleapis.com."
+
+msgid "GitHub"
+msgstr "GitHub"
+
+msgid "Steam"
+msgstr "Steam"
+
+msgid "OKX"
+msgstr "OKX"
+
+msgid "Website, app, CDNs, REST, WebSocket, demo and regional endpoints."
+msgstr "وب‌سایت، برنامه، CDNها، REST، WebSocket، محیط نمایشی و نقاط پایانی منطقه‌ای."
+
+msgid "OKX · trading API"
+msgstr "OKX · API معاملاتی"
+
+msgid "OKX REST, public/private/business WebSocket, demo and regional endpoints."
+msgstr "REST، WebSocket عمومی/خصوصی/تجاری، محیط نمایشی و نقاط پایانی منطقه‌ای OKX."
+
+msgid "eWeLink / Sonoff"
+msgstr "eWeLink / Sonoff"
+
+msgid "eWeLink APIs, regional dispatchers and cloud connections."
+msgstr "APIها، توزیع‌کننده‌های منطقه‌ای و اتصال‌های ابری eWeLink."
+
+msgid "Xiaomi Home / Mi Home"
+msgstr "Xiaomi Home / Mi Home"
+
+msgid "MIoT API, MQTT and Xiaomi account sign-in."
+msgstr "MIoT API، MQTT و ورود به حساب Xiaomi."
+
+msgid "Tuya / Smart Life"
+msgstr "Tuya / Smart Life"
+
+msgid "Tuya regional APIs and cloud MQTT."
+msgstr "APIهای منطقه‌ای و MQTT ابری Tuya."
+
+msgid "Aqara Home"
+msgstr "Aqara Home"
+
+msgid "Regional app APIs and cloud services for Aqara devices."
+msgstr "APIهای منطقه‌ای برنامه و سرویس‌های ابری دستگاه‌های Aqara."
+
+msgid "Shelly Smart Control"
+msgstr "Shelly Smart Control"
+
+msgid "Cloud API and WebSocket connections for Shelly devices."
+msgstr "API ابری و اتصال‌های WebSocket دستگاه‌های Shelly."
+
+msgid "Save & Apply"
+msgstr "ذخیره و اعمال"
+
+msgid "Apply unchecked"
+msgstr "اعمال بدون بررسی"
+
+msgid "Reset"
+msgstr "بازنشانی"
+
+msgid "Apply"
+msgstr "اعمال"
+
+msgid "Close"
+msgstr "بستن"
+
+msgid "Dismiss"
+msgstr "بستن"
+
+msgid "Changes"
+msgstr "تغییرات"
+
+msgid "Configuration"
+msgstr "پیکربندی"

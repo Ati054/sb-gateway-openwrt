@@ -121,13 +121,13 @@ return view.extend({
     var catalog=values.rules, database=catalog && catalog.status;
     dbBody.replaceChildren();
     var packs=database && database.packs || [], names={};
-    if (catalog) catalog.choices.forEach(function(c) { names[c.id]=c.name; });
+    if (catalog) catalog.choices.forEach(function(c) { names[c.id]=_(c.name); });
     var loaded=packs.filter(function(p) { return p.state==='updated' || p.state==='unchanged'; }).length;
     var stale=packs.filter(function(p) { return p.state==='stale'; }).length;
     var unavailable=packs.filter(function(p) { return p.state==='unavailable'; }).length;
     dbSummary.textContent=!catalog ? _('No data') : !database ? _('No catalog update yet.') :
      _('%d downloaded · %d cached · %d unavailable').format(loaded,stale,unavailable) +
-      (database.checked_at ? ' · '+new Date(database.checked_at).toLocaleString() : '');
+      (database.checked_at ? ' · '+new Date(database.checked_at).toLocaleString((document.documentElement.lang || 'en').replace(/_/g, '-'), {calendar:'gregory'}) : '');
     packs.forEach(function(p) {
      var state={ updated:_('Updated'),unchanged:_('Unchanged'),stale:_('Last good copy'),unavailable:_('Not loaded') }[p.state] || p.state;
      dbBody.appendChild(E('tr', {},[cell(names[p.id] || p.id),cell(state),cell(String(p.entries || 0)),cell(p.error || '—')]));
@@ -138,7 +138,7 @@ return view.extend({
      _('Rule database update was not applied; previous rules remain active. %s').format(database.error) :
      failedPacks ? _('Some rule databases could not be updated. See Rule databases for details.') : '';
    }
-   if (result.some(function(item) { return !item.error; })) checked.textContent=_('Updated at %s').format(new Date().toLocaleTimeString());
+   if (result.some(function(item) { return !item.error; })) checked.textContent=_('Updated at %s').format(new Date().toLocaleTimeString((document.documentElement.lang || 'en').replace(/_/g, '-')));
   }
   var refresh=E('button', { type:'button', 'class':'cbi-button cbi-button-action', click:function() { return update(true); } },_('Refresh'));
   function update(force) {

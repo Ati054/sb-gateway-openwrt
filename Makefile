@@ -100,13 +100,24 @@ define Package/sb-gateway-openwrt/install
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/resproxy/*.js $(1)/www/luci-static/resources/view/resproxy/
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/resproxy/*.css $(1)/www/luci-static/resources/view/resproxy/
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
-	$(INSTALL_DATA) ./files/resproxy.ru.lmo $(1)/usr/lib/lua/luci/i18n/resproxy.ru.lmo
+	$(INSTALL_DATA) ./files/resproxy.*.lmo $(1)/usr/lib/lua/luci/i18n/
 endef
 
 define Package/sb-gateway-openwrt/postinst
 #!/bin/sh
 [ -n "$$IPKG_INSTROOT" ] && exit 0
 /etc/init.d/resproxy-guard enable
+# Register bundled LuCI catalogues without replacing existing language names.
+register_language() {
+	uci -q get "luci.languages.$$1" >/dev/null && return 0
+	uci -q set "luci.languages.$$1=$$2"
+}
+register_language en 'English'
+register_language ru 'Русский (Russian)'
+register_language zh_cn '简体中文 (Simplified Chinese)'
+register_language zh_tw '正體中文 (Traditional Chinese)'
+register_language fa 'فارسی (Persian)'
+uci -q commit luci
 # Remove LuCI's hashed page-tree cache when package menu entries change.
 rm -f /tmp/luci-indexcache /tmp/luci-indexcache.*.json
 # An r11 guarded update leaves its supervisor running. Wait for that one

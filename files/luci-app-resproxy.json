@@ -44,7 +44,7 @@
     }
   },
   "admin/services/resproxy/dns": {
-    "title": "DNS устройств",
+    "title": "Device DNS",
     "order": 36,
     "action": {
       "type": "view",

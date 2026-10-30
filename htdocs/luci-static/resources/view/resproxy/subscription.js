@@ -178,7 +178,7 @@ return view.extend({
 			if (state.state === 'loading') parts.push(_('Loading…'));
 			if (state.updated_at) {
 				var date = new Date(state.updated_at);
-				if (!isNaN(date.getTime())) parts.push(_('Updated: %s').format(date.toLocaleString()));
+				if (!isNaN(date.getTime())) parts.push(_('Updated: %s').format(date.toLocaleString((document.documentElement.lang || 'en').replace(/_/g, '-'), {calendar:'gregory'})));
 			}
 			if (state.state === 'success' && (state.added || state.removed))
 				parts.push(_('Added: %d · Removed: %d').format(state.added || 0, state.removed || 0));

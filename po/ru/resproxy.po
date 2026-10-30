@@ -1,8 +1,5 @@
 msgid ""
-msgstr ""
-"Content-Type: text/plain; charset=UTF-8\n"
-"Language: ru\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
+msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: ru\nPlural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
 
 msgid "Resilient Proxy"
 msgstr "Устойчивый прокси"
@@ -592,9 +589,6 @@ msgstr "Качество активного узла (секунды)"
 msgid "Reserve check (seconds)"
 msgstr "Проверка резерва (секунды)"
 
-msgid "Full scan (seconds)"
-msgstr "Полная проверка (секунды)"
-
 msgid "Maximum nodes per check"
 msgstr "Максимум узлов за цикл"
 
@@ -1027,7 +1021,6 @@ msgstr "Не загружено"
 msgid "Traffic rules"
 msgstr "Правила трафика"
 
-
 msgid "Devices in this list"
 msgstr "Устройства этого листа"
 
@@ -1180,7 +1173,6 @@ msgstr "Максимум: 256 IP-адресов или подсетей."
 
 msgid "Enter IPv4, IPv6 or CIDR networks, one per line."
 msgstr "Укажите IPv4, IPv6 или подсети CIDR, по одному в строке."
-
 
 msgid "One IP or CIDR per line. These destinations bypass the proxy; router DNS is managed separately."
 msgstr "IP или CIDR — по одному в строке. Адреса идут напрямую; DNS роутера обрабатывается отдельно."
@@ -1506,7 +1498,6 @@ msgstr "Добавить вариант"
 msgid "Variant name"
 msgstr "Название варианта"
 
-
 msgid "Enter a name of up to 40 characters."
 msgstr "Введите название длиной до 40 символов."
 
@@ -1764,3 +1755,576 @@ msgstr "Кандидат"
 
 msgid "Active node"
 msgstr "Активный узел"
+
+msgid "LAN client DNS"
+msgstr "DNS клиентов LAN"
+
+msgid "Stop https-dns-proxy and take over DNS"
+msgstr "Остановить https-dns-proxy и передать DNS"
+
+msgid "I confirm the switch. Service settings are kept; its previous state is restored when returning to OpenWrt DNS or if takeover fails."
+msgstr "Подтверждаю переключение. Настройки службы сохраняются; её состояние восстановится при возврате к DNS OpenWrt или ошибке."
+
+msgid "Protocol through proxy"
+msgstr "Протокол через прокси"
+
+msgid "Plain DNS/TCP"
+msgstr "Обычный DNS/TCP"
+
+msgid "DNS provider through proxy"
+msgstr "Провайдер DNS через прокси"
+
+msgid "Custom address"
+msgstr "Другой адрес"
+
+msgid "DNS address through proxy"
+msgstr "Адрес DNS через прокси"
+
+msgid "Protocol through WAN"
+msgstr "Протокол через WAN"
+
+msgid "Plain DNS/UDP"
+msgstr "Обычный DNS/UDP"
+
+msgid "DNS provider through WAN"
+msgstr "Провайдер DNS через WAN"
+
+msgid "DNS address through WAN"
+msgstr "Адрес DNS через WAN"
+
+msgid "Local DNS port"
+msgstr "Локальный порт DNS"
+
+msgid "Yandex"
+msgstr "Яндекс"
+
+msgid "Device DNS"
+msgstr "DNS устройств"
+
+msgid "Add"
+msgstr "Добавить"
+
+msgid "Delete"
+msgstr "Удалить"
+
+msgid "Save"
+msgstr "Сохранить"
+
+msgid "Protocol"
+msgstr "Протокол"
+
+msgid "Downloading…"
+msgstr "Загрузка…"
+
+msgid "Waiting…"
+msgstr "Ожидание…"
+
+msgid "Catalog read failed."
+msgstr "Не удалось прочитать каталог."
+
+msgid "Government portals and public services"
+msgstr "Госуслуги и государственные сайты"
+
+msgid "Federal and regional portals, taxes, Goskey and related services."
+msgstr "Федеральные и региональные порталы, налоги, Госключ и связанные сервисы."
+
+msgid "Russian banks and payments"
+msgstr "Банки и платежи РФ"
+
+msgid "Russian banks, SBP/NSPK and major payment portals."
+msgstr "Российские банки, СБП/НСПК и основные платежные кабинеты."
+
+msgid "Russian marketplaces, classifieds, delivery and retail"
+msgstr "Маркетплейсы, объявления, доставка и ритейл РФ"
+
+msgid "Marketplaces, classifieds, shops, delivery services and their CDNs."
+msgstr "Маркетплейсы, объявления, магазины, службы доставки и их CDN."
+
+msgid "Yandex ecosystem"
+msgstr "Экосистема Яндекса"
+
+msgid "Search, Maps, Mail, Cloud, Disk, Go, Taxi, Food, Market, Kinopoisk and shared CDNs."
+msgstr "Поиск, карты, почта, облако, Диск, Go, Такси, Еда, Маркет, Кинопоиск и общие CDN."
+
+msgid "VK, Mail.ru, OK, Dzen and MAX"
+msgstr "VK, Mail.ru, OK, Дзен и MAX"
+
+msgid "Main websites, apps, CDNs and calls in the VK/Mail.ru/MAX ecosystem."
+msgstr "Основные сайты, приложения, CDN и звонки экосистемы VK/Mail.ru/MAX."
+
+msgid "Russian transport and travel"
+msgstr "Транспорт и путешествия РФ"
+
+msgid "Tickets, airlines, railways, maps and travel."
+msgstr "Билеты, авиакомпании, железные дороги, карты и поездки."
+
+msgid "Russian mobile operators and internet providers"
+msgstr "Мобильные операторы и провайдеры связи РФ"
+
+msgid "Account portals, websites, apps and CDNs of Russian telecom operators."
+msgstr "Личные кабинеты, сайты, приложения и CDN российских операторов связи."
+
+msgid "Russian media, TV, video streaming and music"
+msgstr "Медиа, ТВ, видеостриминг и музыка РФ"
+
+msgid "News, TV channels, streaming services, video, radio, music and CDNs."
+msgstr "Новости, телеканалы, онлайн-кинотеатры, видео, радио, музыка и CDN."
+
+msgid "Russian education, jobs and IT services"
+msgstr "Образование, работа и ИТ-сервисы РФ"
+
+msgid "Learning platforms, job listings, development, cloud services, hosting and IT media."
+msgstr "Образовательные платформы, вакансии, разработка, облака, хостинг и ИТ-медиа."
+
+msgid "RU/РФ domains and Russian services"
+msgstr "Вся зона RU/РФ и российские сервисы"
+
+msgid "Broad rule covering most Russian domain zones."
+msgstr "Широкое правило: разрешает практически всю российскую доменную зону."
+
+msgid "Russian retail"
+msgstr "Ритейл РФ"
+
+msgid "MegaFon"
+msgstr "МегаФон"
+
+msgid "MTS"
+msgstr "МТС"
+
+msgid "Rostelecom"
+msgstr "Ростелеком"
+
+msgid "T2"
+msgstr "T2"
+
+msgid "Russian entertainment"
+msgstr "Развлечения РФ"
+
+msgid "Russian IT media"
+msgstr "ИТ-медиа РФ"
+
+msgid "Ozon"
+msgstr "Ozon"
+
+msgid "Chinese banks"
+msgstr "Банки Китая"
+
+msgid "Chinese banks from the public domain-list-community list."
+msgstr "Китайские банки из открытого списка domain-list-community."
+
+msgid "Chinese social networks"
+msgstr "Соцсети Китая"
+
+msgid "Chinese social platforms from the public domain-list-community list."
+msgstr "Китайские социальные платформы из открытого списка domain-list-community."
+
+msgid "Chinese media and news"
+msgstr "СМИ и новости Китая"
+
+msgid "Chinese media from the public domain-list-community list."
+msgstr "Китайские медиаресурсы из открытого списка domain-list-community."
+
+msgid "Iranian banks"
+msgstr "Банки Ирана"
+
+msgid "Iranian banks from the public domain-list-community list."
+msgstr "Иранские банки из открытого списка domain-list-community."
+
+msgid "Iranian government websites"
+msgstr "Государственные сайты Ирана"
+
+msgid "Iranian government resources from the public domain-list-community list."
+msgstr "Государственные ресурсы Ирана из открытого списка domain-list-community."
+
+msgid "Iranian shops"
+msgstr "Магазины Ирана"
+
+msgid "Iranian shops and marketplaces from the public domain-list-community list."
+msgstr "Иранские магазины и торговые площадки из открытого списка domain-list-community."
+
+msgid "Iranian advertising and analytics"
+msgstr "Реклама и аналитика Ирана"
+
+msgid "domain-list-community category: category-ads-ir."
+msgstr "Тематический список domain-list-community: category-ads-ir."
+
+msgid "Chinese AI services"
+msgstr "ИИ-сервисы Китая"
+
+msgid "domain-list-community category: category-ai-cn."
+msgstr "Тематический список domain-list-community: category-ai-cn."
+
+msgid "Chinese automotive services"
+msgstr "Автомобили Китая"
+
+msgid "domain-list-community category: category-automobile-cn."
+msgstr "Тематический список domain-list-community: category-automobile-cn."
+
+msgid "Chinese blogs"
+msgstr "Блоги Китая"
+
+msgid "domain-list-community category: category-blog-cn."
+msgstr "Тематический список domain-list-community: category-blog-cn."
+
+msgid "Iranian exchanges and finance"
+msgstr "Биржи и финансы Ирана"
+
+msgid "domain-list-community category: category-bourse-ir."
+msgstr "Тематический список domain-list-community: category-bourse-ir."
+
+msgid "Chinese CDNs"
+msgstr "CDN Китая"
+
+msgid "domain-list-community category: category-cdn-cn."
+msgstr "Тематический список domain-list-community: category-cdn-cn."
+
+msgid "Chinese collaboration services"
+msgstr "Совместная работа в Китае"
+
+msgid "domain-list-community category: category-collaborate-cn."
+msgstr "Тематический список domain-list-community: category-collaborate-cn."
+
+msgid "Chinese development and IT services"
+msgstr "Разработка и ИТ Китая"
+
+msgid "domain-list-community category: category-dev-cn."
+msgstr "Тематический список domain-list-community: category-dev-cn."
+
+msgid "Chinese document and office services"
+msgstr "Документы и офисные сервисы Китая"
+
+msgid "domain-list-community category: category-documents-cn."
+msgstr "Тематический список domain-list-community: category-documents-cn."
+
+msgid "Chinese education"
+msgstr "Образование Китая"
+
+msgid "domain-list-community category: category-education-cn."
+msgstr "Тематический список domain-list-community: category-education-cn."
+
+msgid "Iranian education"
+msgstr "Образование Ирана"
+
+msgid "domain-list-community category: category-education-ir."
+msgstr "Тематический список domain-list-community: category-education-ir."
+
+msgid "Chinese electronics"
+msgstr "Электроника Китая"
+
+msgid "domain-list-community category: category-electronic-cn."
+msgstr "Тематический список domain-list-community: category-electronic-cn."
+
+msgid "Chinese company registries and verification"
+msgstr "Реестры и проверка компаний Китая"
+
+msgid "domain-list-community category: category-enterprise-query-platform-cn."
+msgstr "Тематический список domain-list-community: category-enterprise-query-platform-cn."
+
+msgid "Chinese video, music and entertainment"
+msgstr "Видео, музыка и развлечения Китая"
+
+msgid "domain-list-community category: category-entertainment-cn."
+msgstr "Тематический список domain-list-community: category-entertainment-cn."
+
+msgid "Chinese food and delivery"
+msgstr "Еда и доставка Китая"
+
+msgid "domain-list-community category: category-food-cn."
+msgstr "Тематический список domain-list-community: category-food-cn."
+
+msgid "Iranian forums"
+msgstr "Форумы Ирана"
+
+msgid "domain-list-community category: category-forums-ir."
+msgstr "Тематический список domain-list-community: category-forums-ir."
+
+msgid "Chinese game accelerators"
+msgstr "Игровые ускорители Китая"
+
+msgid "domain-list-community category: category-game-accelerator-cn."
+msgstr "Тематический список domain-list-community: category-game-accelerator-cn."
+
+msgid "Chinese games"
+msgstr "Игры Китая"
+
+msgid "domain-list-community category: category-games-cn."
+msgstr "Тематический список domain-list-community: category-games-cn."
+
+msgid "Chinese healthcare providers"
+msgstr "Медицинские учреждения Китая"
+
+msgid "domain-list-community category: category-hospital-cn."
+msgstr "Тематический список domain-list-community: category-hospital-cn."
+
+msgid "Chinese HTTP DNS services"
+msgstr "HTTP DNS Китая"
+
+msgid "domain-list-community category: category-httpdns-cn."
+msgstr "Тематический список domain-list-community: category-httpdns-cn."
+
+msgid "Iranian insurance"
+msgstr "Страхование Ирана"
+
+msgid "domain-list-community category: category-insurance-ir."
+msgstr "Тематический список domain-list-community: category-insurance-ir."
+
+msgid "Chinese logistics"
+msgstr "Логистика Китая"
+
+msgid "domain-list-community category: category-logistics-cn."
+msgstr "Тематический список domain-list-community: category-logistics-cn."
+
+msgid "Iranian video and media"
+msgstr "Видео и медиа Ирана"
+
+msgid "domain-list-community category: category-media-ir."
+msgstr "Тематический список domain-list-community: category-media-ir."
+
+msgid "Chinese online courses"
+msgstr "Онлайн-курсы Китая"
+
+msgid "domain-list-community category: category-mooc-cn."
+msgstr "Тематический список domain-list-community: category-mooc-cn."
+
+msgid "Chinese cloud storage"
+msgstr "Облачные диски Китая"
+
+msgid "domain-list-community category: category-netdisk-cn."
+msgstr "Тематический список domain-list-community: category-netdisk-cn."
+
+msgid "Chinese information security"
+msgstr "Информационная безопасность Китая"
+
+msgid "domain-list-community category: category-network-security-cn."
+msgstr "Тематический список domain-list-community: category-network-security-cn."
+
+msgid "Iranian media and news"
+msgstr "СМИ и новости Ирана"
+
+msgid "domain-list-community category: category-news-ir."
+msgstr "Тематический список domain-list-community: category-news-ir."
+
+msgid "Chinese time servers"
+msgstr "Серверы времени Китая"
+
+msgid "domain-list-community category: category-ntp-cn."
+msgstr "Тематический список domain-list-community: category-ntp-cn."
+
+msgid "Chinese phone number verification"
+msgstr "Проверка номера телефона в Китае"
+
+msgid "domain-list-community category: category-number-verification-cn."
+msgstr "Тематический список domain-list-community: category-number-verification-cn."
+
+msgid "Chinese freelance services"
+msgstr "Фриланс и услуги Китая"
+
+msgid "domain-list-community category: category-outsource-cn."
+msgstr "Тематический список domain-list-community: category-outsource-cn."
+
+msgid "Iranian payment services"
+msgstr "Платёжные сервисы Ирана"
+
+msgid "domain-list-community category: category-payment-ir."
+msgstr "Тематический список domain-list-community: category-payment-ir."
+
+msgid "Chinese research resources"
+msgstr "Научные ресурсы Китая"
+
+msgid "domain-list-community category: category-scholar-cn."
+msgstr "Тематический список domain-list-community: category-scholar-cn."
+
+msgid "Iranian research resources"
+msgstr "Научные ресурсы Ирана"
+
+msgid "domain-list-community category: category-scholar-ir."
+msgstr "Тематический список domain-list-community: category-scholar-ir."
+
+msgid "Chinese exchanges and securities"
+msgstr "Биржи и ценные бумаги Китая"
+
+msgid "domain-list-community category: category-securities-cn."
+msgstr "Тематический список domain-list-community: category-securities-cn."
+
+msgid "Iranian social networks"
+msgstr "Соцсети Ирана"
+
+msgid "domain-list-community category: category-social-media-ir."
+msgstr "Тематический список domain-list-community: category-social-media-ir."
+
+msgid "Iranian technology services"
+msgstr "Технологические сервисы Ирана"
+
+msgid "domain-list-community category: category-tech-ir."
+msgstr "Тематический список domain-list-community: category-tech-ir."
+
+msgid "Iranian transport and travel"
+msgstr "Транспорт и путешествия Ирана"
+
+msgid "domain-list-community category: category-travel-ir."
+msgstr "Тематический список domain-list-community: category-travel-ir."
+
+msgid "Chinese encyclopedias"
+msgstr "Энциклопедии Китая"
+
+msgid "domain-list-community category: category-wiki-cn."
+msgstr "Тематический список domain-list-community: category-wiki-cn."
+
+msgid "CN/中国/中國 domains and Chinese services"
+msgstr "Вся зона CN/中国/中國 и китайские сервисы"
+
+msgid "Country domain zones and all thematic lists. Enable IP networks separately with GeoIP."
+msgstr "Доменные зоны страны и все её тематические списки. IP-сети включаются отдельно через GeoIP."
+
+msgid "IR/ایران domains and Iranian services"
+msgstr "Вся зона IR/ایران и иранские сервисы"
+
+msgid "Binance"
+msgstr "Binance"
+
+msgid "Website, app, CDNs, REST/WebSocket APIs and AWS WAF challenge."
+msgstr "Сайт, приложение, CDN, REST/WebSocket API и AWS WAF challenge."
+
+msgid "Bybit"
+msgstr "Bybit"
+
+msgid "Website, app, CDNs, REST/WebSocket APIs, testnet, demo and regional endpoints."
+msgstr "Сайт, приложение, CDN, REST/WebSocket API, testnet, demo и регионы."
+
+msgid "Bybit · trading API"
+msgstr "Bybit · торговый API"
+
+msgid "REST, WebSocket, testnet/demo and regional endpoints from Bybit documentation."
+msgstr "REST, WebSocket, testnet/demo и региональные endpoints из документации Bybit."
+
+msgid "Gate.io"
+msgstr "Gate.io"
+
+msgid "Website, app, CDNs, REST API v4, WebSocket, futures and testnet."
+msgstr "Сайт, приложение, CDN, REST API v4, WebSocket, futures и testnet."
+
+msgid "Gate.io · trading API"
+msgstr "Gate.io · торговый API"
+
+msgid "Gate.io REST API v4, WebSocket, futures and testnet endpoints."
+msgstr "REST API v4, WebSocket, futures и testnet endpoints Gate.io."
+
+msgid "YouTube"
+msgstr "YouTube"
+
+msgid "Telegram"
+msgstr "Telegram"
+
+msgid "Telegram Web, APIs, official networks and calls."
+msgstr "Web, API, официальные сети и звонки Telegram."
+
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+msgid "WhatsApp Web, app and related calls."
+msgstr "WhatsApp Web, приложение и связанные звонки."
+
+msgid "Discord"
+msgstr "Discord"
+
+msgid "Instagram"
+msgstr "Instagram"
+
+msgid "Facebook"
+msgstr "Facebook"
+
+msgid "TikTok"
+msgstr "TikTok"
+
+msgid "Netflix"
+msgstr "Netflix"
+
+msgid "Spotify"
+msgstr "Spotify"
+
+msgid "OpenAI / ChatGPT"
+msgstr "OpenAI / ChatGPT"
+
+msgid "Claude"
+msgstr "Claude"
+
+msgid "Claude, Claude Code, Anthropic API and first-party static assets; no broad rules for third-party CDNs."
+msgstr "Claude, Claude Code, Anthropic API и их собственная статика без широких правил для сторонних CDN."
+
+msgid "Antigravity"
+msgstr "Antigravity"
+
+msgid "Antigravity and required Google AI APIs; no broad rule for google.com or googleapis.com."
+msgstr "Antigravity и необходимые Google AI API без общего правила для google.com или googleapis.com."
+
+msgid "GitHub"
+msgstr "GitHub"
+
+msgid "Steam"
+msgstr "Steam"
+
+msgid "OKX"
+msgstr "OKX"
+
+msgid "Website, app, CDNs, REST, WebSocket, demo and regional endpoints."
+msgstr "Сайт, приложение, CDN, REST, WebSocket, demo и регионы."
+
+msgid "OKX · trading API"
+msgstr "OKX · торговый API"
+
+msgid "OKX REST, public/private/business WebSocket, demo and regional endpoints."
+msgstr "REST, public/private/business WebSocket, demo и региональные endpoints OKX."
+
+msgid "eWeLink / Sonoff"
+msgstr "eWeLink / Sonoff"
+
+msgid "eWeLink APIs, regional dispatchers and cloud connections."
+msgstr "API, региональные диспетчеры и облачные соединения eWeLink."
+
+msgid "Xiaomi Home / Mi Home"
+msgstr "Xiaomi Home / Mi Home"
+
+msgid "MIoT API, MQTT and Xiaomi account sign-in."
+msgstr "MIoT API, MQTT и вход в аккаунт Xiaomi."
+
+msgid "Tuya / Smart Life"
+msgstr "Tuya / Smart Life"
+
+msgid "Tuya regional APIs and cloud MQTT."
+msgstr "Региональные API и MQTT облака Tuya."
+
+msgid "Aqara Home"
+msgstr "Aqara Home"
+
+msgid "Regional app APIs and cloud services for Aqara devices."
+msgstr "Региональные API приложения и облачные сервисы устройств Aqara."
+
+msgid "Shelly Smart Control"
+msgstr "Shelly Smart Control"
+
+msgid "Cloud API and WebSocket connections for Shelly devices."
+msgstr "Облачный API и WebSocket-соединения устройств Shelly."
+
+msgid "Save & Apply"
+msgstr "Сохранить и применить"
+
+msgid "Apply unchecked"
+msgstr "Применить без проверки"
+
+msgid "Reset"
+msgstr "Сбросить"
+
+msgid "Apply"
+msgstr "Применить"
+
+msgid "Close"
+msgstr "Закрыть"
+
+msgid "Dismiss"
+msgstr "Закрыть"
+
+msgid "Changes"
+msgstr "Изменения"
+
+msgid "Configuration"
+msgstr "Настройки"

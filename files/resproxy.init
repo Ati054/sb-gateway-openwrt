@@ -124,7 +124,7 @@ service_stopped() {
  while [ "$waited" -lt 95 ]; do
   alive=0
   for pid in $resproxy_stopping_pid; do
-   [ -r "/proc/$pid/cmdline" ] && tr '\000' ' ' < "/proc/$pid/cmdline" | grep -q '^/usr/bin/resproxyd run ' && alive=1
+   [ -r "/proc/$pid/cmdline" ] && tr '\000' ' ' 2>/dev/null < "/proc/$pid/cmdline" | grep -q '^/usr/bin/resproxyd run ' && alive=1
   done
   [ "$alive" = 1 ] || break
   waited=$((waited+1)); sleep 1

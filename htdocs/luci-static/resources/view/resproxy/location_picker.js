@@ -66,7 +66,7 @@ function picker(option, section, hidden, state, inventory) {
  function groupedCountries(codes) {
   return regionOrder.map(function(key) { return { key:key, countries:codes.filter(function(code) { return countryRegion(code) === key; }).sort(function(a, b) { return countryLabel(a).localeCompare(countryLabel(b), languages); }) }; }).filter(function(group) { return group.countries.length; });
  }
- var languages = (document.documentElement.lang || 'ru');
+ var languages = (document.documentElement.lang || 'en').replace(/_/g, '-');
  var displayNames = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames([languages], { type: 'region' }) : null;
  function countryLabel(code) { return code ? (displayNames ? displayNames.of(code) : code) + ' (' + code + ')' : _('Without country'); }
  var sourceIDs = [];

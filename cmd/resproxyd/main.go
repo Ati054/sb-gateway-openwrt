@@ -27,11 +27,14 @@ import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xraycli"
+	clog "github.com/xtls/xray-core/common/log"
 )
 
 var version = "dev"
 
 func main() {
+	// Configuration compilation precedes Xray's configured runtime logger.
+	clog.ReplaceWithSeverityLogger(clog.Severity_Warning)
 	if filepath.Base(os.Args[0]) == "xray" {
 		xraycli.Main()
 		return

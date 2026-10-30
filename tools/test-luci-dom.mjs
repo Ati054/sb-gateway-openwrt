@@ -40,6 +40,7 @@ try {
  page.on('pageerror', error => errors.push(error.message));
  await page.goto(`http://127.0.0.1:${server.address().port}/`);
  const result = await page.evaluate(async ({ sources, stockDOM, nameCases }) => {
+  document.documentElement.lang = 'ru';
   const baseclass = { extend: value => value };
   const Class = { singleton: value => value };
   const dom = new Function('Class', 'domParser', stockDOM + ';return DOM;')(Class, new DOMParser());
@@ -72,7 +73,14 @@ try {
   const deltaCell=label=>healthRows().find(row=>row.cells[0].textContent===label).cells[4];
   if(deltaCell('Амстердам Premium').textContent!=='-25.0%' || deltaCell('Швеция Premium').textContent!=='+25.0%')throw Error('Delta signs rendered incorrectly');
   if(!deltaCell('Амстердам Premium').title.includes('Negative means lower latency'))throw Error('Delta tooltip contradicts signs');
-  if(!deltaCell('Амстердам Premium').title.includes(new Date(1000*1000).toLocaleString()) || !deltaCell('Амстердам Premium').title.includes(new Date(1001*1000).toLocaleString()))throw Error('Delta tooltip lost either completion time');
+  if(!deltaCell('Амстердам Premium').title.includes(new Date(1000*1000).toLocaleString('ru', {calendar:'gregory'})) || !deltaCell('Амстердам Premium').title.includes(new Date(1001*1000).toLocaleString('ru', {calendar:'gregory'})))throw Error('Delta tooltip lost either completion time in the UI locale');
+  document.documentElement.lang='fa'; healthView.node.dir='rtl';
+  healthView.update([{id:payload,nodes:filterNodes,candidate_count:5,healthy_reserves:4}]);
+  const persianDelta=deltaCell('Амстердам Premium');
+  if(persianDelta.textContent!=='-25.0%' || getComputedStyle(persianDelta).direction!=='ltr')throw Error('RTL Delta changed numeric reading order');
+  if(!persianDelta.title.includes(new Date(1000*1000).toLocaleString('fa', {calendar:'gregory'})) || !persianDelta.title.includes(new Date(1001*1000).toLocaleString('fa', {calendar:'gregory'})))throw Error('Persian tooltip lost Gregorian completion times');
+  document.documentElement.lang='ru'; healthView.node.dir='ltr';
+  healthView.update([{id:payload,nodes:filterNodes,candidate_count:5,healthy_reserves:4}]);
   healthSearch.value='"Швеция Premium", "Берлин"'; healthSearch.dispatchEvent(new Event('input'));
   if(healthRows().length!==3 || healthRows().some(row=>row.textContent.includes('Швеция тестовый')))throw Error('Health full-name search matched a partial label');
   healthSearch.value='"Швеция';healthSearch.dispatchEvent(new Event('input'));

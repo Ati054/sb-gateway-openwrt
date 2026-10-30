@@ -70,67 +70,71 @@ func TestLatestPairAndMedianMustBothShowImprovement(t *testing.T) {
 	}
 }
 
-func TestOneSharedSlotFinishesPairsForThreeListsAtLongIntervals(t *testing.T) {
-	for _, interval := range []int{3, 30, 60} {
-		t.Run(fmt.Sprint(interval), func(t *testing.T) {
-			base := healthFixture(false).HealthPolicies["europe"]
-			pool := healthPool{Version: 4, ProbeBudget: 1, HealthPolicies: map[string]healthPolicyContract{}}
-			runtime := &fakeSelectorRuntime{current: map[string]string{}, probes: map[string]probeEvidence{}}
-			controller := &healthController{opts: Options{StateRoot: t.TempDir(), HealthInterval: 30 * time.Second}, runtime: runtime, stateLoaded: true, state: healthState{}, warmStarted: map[string]bool{}}
-			for _, id := range []string{"a", "b", "c"} {
-				active, reserve := id+"-active", id+"-reserve"
-				contract := base
-				contract.Mode, contract.Groups = "best", nil
-				contract.Candidates = []string{active, reserve}
-				contract.Nodes = budgetContract(active, reserve).Nodes
-				contract.Policy.ActiveCheckSeconds, contract.Policy.ActiveLivenessSeconds, contract.Policy.ProbeBatchSize = interval, 30, 1
-				pool.HealthPolicies[id] = contract
-				item := newPolicyHealthState()
-				item.Selected, item.RuntimeSelected, item.RuntimeConfirmed = active, active, true
-				item.CandidateSignature = strings.Join(contract.Candidates, "\n")
-				item.CandidateNodes = contract.Nodes
-				item.AvailabilityOK, item.QualityOK = map[string]bool{}, map[string]bool{}
-				for node, delay := range map[string]int{active: 600, reserve: 400} {
-					value := delay
-					item.LastProbeAt[node] = 800
-					item.Samples[node] = []healthSample{{At: 800, OK: true, DelayMS: &value}}
-					item.AvailabilityOK[node], item.QualityOK[node], item.Recoveries[node] = true, true, 3
-					runtime.probes[node] = successfulEvidence(delay)
-				}
-				runtime.current[id], controller.state[id], controller.warmStarted[id] = active, item, true
-			}
-			runtime.pool = pool
-			now := time.Unix(1000, 0)
-			for tick := 0; tick < 240 && now.Before(time.Unix(1300, 0)); tick++ {
-				runtime.probeCalls = nil
-				if err := controller.Tick(now); err != nil {
-					t.Fatal(err)
-				}
-				if len(runtime.probeCalls) > 1 {
-					t.Fatalf("shared slot exceeded: %v", runtime.probeCalls)
-				}
-				done := true
-				for id, item := range controller.state {
-					done = done && item.Selected == id+"-reserve"
-				}
-				if done {
-					if now.Sub(time.Unix(1000, 0)) > time.Duration(max(interval, 30)+20)*time.Second {
-						t.Fatal("paired scheduling added a quality cycle")
+func TestOneSharedSlotFinishesPairsForThreeAndSixListsAtLongIntervals(t *testing.T) {
+	for _, count := range []int{3, 6} {
+		for _, interval := range []int{3, 30, 60} {
+			t.Run(fmt.Sprintf("%d-lists/%d-seconds", count, interval), func(t *testing.T) {
+				base := healthFixture(false).HealthPolicies["europe"]
+				pool := healthPool{Version: 4, ProbeBudget: 1, HealthPolicies: map[string]healthPolicyContract{}}
+				runtime := &fakeSelectorRuntime{current: map[string]string{}, probes: map[string]probeEvidence{}}
+				controller := &healthController{opts: Options{StateRoot: t.TempDir(), HealthInterval: 30 * time.Second}, runtime: runtime, stateLoaded: true, state: healthState{}, warmStarted: map[string]bool{}}
+				for _, id := range []string{"a", "b", "c", "d", "e", "f"}[:count] {
+					active, reserve := id+"-active", id+"-reserve"
+					contract := base
+					contract.Mode, contract.Groups = "best", nil
+					contract.Candidates = []string{active, reserve}
+					contract.Nodes = budgetContract(active, reserve).Nodes
+					contract.Policy.ActiveCheckSeconds, contract.Policy.ActiveLivenessSeconds, contract.Policy.ProbeBatchSize = interval, 30, 1
+					pool.HealthPolicies[id] = contract
+					item := newPolicyHealthState()
+					item.Selected, item.RuntimeSelected, item.RuntimeConfirmed = active, active, true
+					item.CandidateSignature = strings.Join(contract.Candidates, "\n")
+					item.CandidateNodes = contract.Nodes
+					item.AvailabilityOK, item.QualityOK = map[string]bool{}, map[string]bool{}
+					for node, delay := range map[string]int{active: 600, reserve: 400} {
+						value := delay
+						item.LastProbeAt[node] = 800
+						item.Samples[node] = []healthSample{{At: 800, OK: true, DelayMS: &value}}
+						item.AvailabilityOK[node], item.QualityOK[node], item.Recoveries[node] = true, true, 3
+						runtime.probes[node] = successfulEvidence(delay)
 					}
-					return
+					runtime.current[id], controller.state[id], controller.warmStarted[id] = active, item, true
 				}
-				delay := controller.nextIntervalAt(now)
-				if delay <= 0 {
-					delay = time.Second
+				runtime.pool = pool
+				now := time.Unix(1000, 0)
+				for tick := 0; tick < 240 && now.Before(time.Unix(1300, 0)); tick++ {
+					runtime.probeCalls = nil
+					if err := controller.Tick(now); err != nil {
+						t.Fatal(err)
+					}
+					if len(runtime.probeCalls) > 1 {
+						t.Fatalf("shared slot exceeded: %v", runtime.probeCalls)
+					}
+					done := true
+					for id, item := range controller.state {
+						done = done && item.Selected == id+"-reserve"
+					}
+					if done {
+						// One shared slot must also rotate all lists; allow its bounded
+						// per-list work, never an additional quality interval.
+						if now.Sub(time.Unix(1000, 0)) > time.Duration(max(interval, 30)+4*count)*time.Second {
+							t.Fatal("paired scheduling added a quality cycle")
+						}
+						return
+					}
+					delay := controller.nextIntervalAt(now)
+					if delay <= 0 {
+						delay = time.Second
+					}
+					now = now.Add(delay)
 				}
-				now = now.Add(delay)
-			}
-			for id, item := range controller.state {
-				if item.Selected != id+"-reserve" {
-					t.Errorf("%s starved: selected=%s checks=%d pair=%+v", id, item.Selected, item.OptimizationChecks, item.qualityPair)
+				for id, item := range controller.state {
+					if item.Selected != id+"-reserve" {
+						t.Errorf("%s starved: selected=%s checks=%d pair=%+v", id, item.Selected, item.OptimizationChecks, item.qualityPair)
+					}
 				}
-			}
-		})
+			})
+		}
 	}
 }
 

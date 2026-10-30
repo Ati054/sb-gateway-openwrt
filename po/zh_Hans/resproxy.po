@@ -1,0 +1,2330 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: zh_Hans\nPlural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Resilient Proxy"
+msgstr "弹性代理"
+
+msgid "SB Gateway for OpenWrt"
+msgstr "适用于 OpenWrt 的 SB Gateway"
+
+msgid "Package update"
+msgstr "软件包更新"
+
+msgid "Package update failed."
+msgstr "软件包更新失败。"
+
+msgid "Installed version"
+msgstr "已安装版本"
+
+msgid "Update state"
+msgstr "更新状态"
+
+msgid "No update in progress"
+msgstr "当前未进行更新"
+
+msgid "Preparing update"
+msgstr "正在准备更新"
+
+msgid "Installing package"
+msgstr "正在安装软件包"
+
+msgid "Starting service"
+msgstr "正在启动服务"
+
+msgid "Completed"
+msgstr "已完成"
+
+msgid "Update failed"
+msgstr "更新失败"
+
+msgid "Package updated successfully."
+msgstr "软件包更新成功。"
+
+msgid "Update failed. Check the system log for details."
+msgstr "更新失败。请查看系统日志了解详情。"
+
+msgid "Installing version %s…"
+msgstr "正在安装版本 %s…"
+
+msgid "Choose APK and update"
+msgstr "选择 APK 并更新"
+
+msgid "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgstr "仅更新 SB Gateway。代理服务会短暂重启；订阅更新不会重启服务。"
+
+msgid "New source"
+msgstr "新来源"
+
+msgid "New route list"
+msgstr "新路由列表"
+
+msgid "Keep this name after the first import."
+msgstr "首次导入后请保留此名称。"
+
+msgid "Subscription update"
+msgstr "订阅更新"
+
+msgid "Update"
+msgstr "更新"
+
+msgid "APK SHA-256: "
+msgstr "APK SHA-256： "
+
+msgid "Overview"
+msgstr "概览"
+
+msgid "Subscription"
+msgstr "订阅"
+
+msgid "Subscriptions"
+msgstr "订阅"
+
+msgid "Each source has its own schedule and fetch path. A successful refresh publishes new nodes to the running Xray core without restarting it. Applying configuration changes can restart the service."
+msgstr "每个来源有独立的更新计划和下载路径。更新成功后，新节点会加入正在运行的 Xray，无需重启。应用配置更改可能会重启服务。"
+
+msgid "Sources"
+msgstr "来源"
+
+msgid "Add HTTPS client subscriptions. Keep their URLs private: they may contain access tokens. Applying the removal of a source also removes its nodes from the active catalog."
+msgstr "添加 HTTPS 客户端订阅。订阅地址可能包含访问令牌，请勿公开。应用删除来源的更改后，该来源的节点也会从活动目录中移除。"
+
+msgid "Source ID"
+msgstr "来源 ID"
+
+msgid "Source name"
+msgstr "来源名称"
+
+msgid "This name identifies the source and its nodes. Do not rename it after importing nodes."
+msgstr "此名称用于识别来源及其节点。导入节点后请勿改名。"
+
+msgid "Use 1–32 Latin letters, digits, spaces or hyphens; start with a letter."
+msgstr "使用 1–32 个拉丁字母、数字、空格或连字符，并以字母开头。"
+
+msgid "Stable source identity. Do not change it during routine updates."
+msgstr "来源的固定标识。日常更新时请勿更改。"
+
+msgid "Fetch path"
+msgstr "下载路径"
+
+msgid "Current proxy, then direct"
+msgstr "先用当前代理，再直连"
+
+msgid "Direct, then current proxy"
+msgstr "先直连，再用当前代理"
+
+msgid "Current proxy only"
+msgstr "仅用当前代理"
+
+msgid "Direct only"
+msgstr "仅直连"
+
+msgid "Proxy-only cannot bootstrap without an existing working catalog. Direct fallback may expose the subscription request to the WAN."
+msgstr "没有可用的已有节点目录时，仅代理模式无法完成首次下载。直连回退会通过 WAN 发出订阅请求。"
+
+msgid "Request source refresh"
+msgstr "请求更新来源"
+
+msgid "Save and apply changes first. The journal shows the result."
+msgstr "请先保存并应用更改。结果会显示在日志中。"
+
+msgid "Save a valid source ID first."
+msgstr "请先保存有效的来源 ID。"
+
+msgid "Refresh requested. The previous route remains active until validation and publication complete."
+msgstr "已请求更新。验证和发布完成前，原路由继续生效。"
+
+msgid "Existing single source"
+msgstr "原有单一来源"
+
+msgid "This older source is used only while no sources are configured above. When migrating, reuse its Provider ID to preserve node identity, then clear the older URL."
+msgstr "仅在上方未配置来源时使用此旧来源。迁移时沿用其提供商 ID 以保留节点标识，然后清空旧地址。"
+
+msgid "Europe"
+msgstr "欧洲"
+
+msgid "Asia"
+msgstr "亚洲"
+
+msgid "Americas"
+msgstr "美洲"
+
+msgid "Africa"
+msgstr "非洲"
+
+msgid "Oceania"
+msgstr "大洋洲"
+
+msgid "Other regions"
+msgstr "其他地区"
+
+msgid "Choose available countries or cities from the catalog, or enter a selector manually. In priority mode the order determines reserves. A city label can change when the provider renames it; country filters remain broader."
+msgstr "从目录中选择国家或城市，也可手动输入选择条件。优先级模式按所列顺序选择备用节点。提供商改名可能改变城市标签；国家筛选范围更广。"
+
+msgid "Route lists"
+msgstr "路由列表"
+
+msgid "Journal"
+msgstr "日志"
+
+msgid "Stopped"
+msgstr "已停止"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "none"
+msgstr "无"
+
+msgid "confirmed in Xray"
+msgstr "已在 Xray 中确认"
+
+msgid "not confirmed in Xray"
+msgstr "未在 Xray 中确认"
+
+msgid "Runtime error"
+msgstr "运行时错误"
+
+msgid "No route status is available yet."
+msgstr "暂无路由状态。"
+
+msgid "Client-only proxy. Subscription refreshes do not restart the running Xray core."
+msgstr "仅提供客户端代理。更新订阅不会重启正在运行的 Xray。"
+
+msgid "Current state"
+msgstr "当前状态"
+
+msgid "Service"
+msgstr "服务"
+
+msgid "Active catalog"
+msgstr "活动节点目录"
+
+msgid "%d nodes"
+msgstr "%d 个节点"
+
+msgid "Selected routes"
+msgstr "已选路由"
+
+msgid "Service and LAN routing"
+msgstr "服务与 LAN 路由"
+
+msgid "Enable service"
+msgstr "启用服务"
+
+msgid "Route LAN through proxy"
+msgstr "LAN 通过代理"
+
+msgid "LAN bridge to capture"
+msgstr "要接管的 LAN 网桥"
+
+msgid "Add an HTTPS client subscription and choose automatic or manual refresh. Saving changed settings can restart the service; routine refreshes add usable nodes to the running Xray core without restarting it."
+msgstr "添加 HTTPS 客户端订阅并选择自动或手动更新。保存配置更改可能会重启服务；日常更新会将可用节点加入正在运行的 Xray，无需重启。"
+
+msgid "Source"
+msgstr "来源"
+
+msgid "Subscription URL"
+msgstr "订阅地址"
+
+msgid "HTTPS only. Keep this address private: it may contain an access token. This version supports one subscription source."
+msgstr "仅支持 HTTPS。此地址可能包含访问令牌，请勿公开。此版本支持一个订阅来源。"
+
+msgid "Provider ID"
+msgstr "提供商 ID"
+
+msgid "Stable source identity used when reconciling renamed or updated nodes. Do not change it during a routine refresh."
+msgstr "协调节点改名或更新时使用的固定来源标识。日常更新时请勿更改。"
+
+msgid "Refresh schedule"
+msgstr "更新计划"
+
+msgid "Update method"
+msgstr "更新方式"
+
+msgid "Automatic and on request"
+msgstr "自动及按需更新"
+
+msgid "Only on request"
+msgstr "仅按需更新"
+
+msgid "Automatic interval (seconds)"
+msgstr "自动更新间隔（秒）"
+
+msgid "Maximum imported nodes"
+msgstr "最多导入节点数"
+
+msgid "Update now"
+msgstr "立即更新"
+
+msgid "Request subscription refresh"
+msgstr "请求更新订阅"
+
+msgid "First save and apply any changed settings. This button queues a refresh; check the journal for its result."
+msgstr "请先保存并应用更改。此按钮将更新请求加入队列；请在日志中查看结果。"
+
+msgid "Refresh request failed."
+msgstr "更新请求失败。"
+
+msgid "Refresh requested. The previous route remains active until the new catalog is validated and published."
+msgstr "已请求更新。新目录验证并发布前，原路由继续生效。"
+
+msgid "Route lists for devices"
+msgstr "设备路由列表"
+
+msgid "Each route list selects locations and a failover mode for its client IP addresses. The first list is the default for unmatched devices. Changing route lists changes Xray routing configuration and requires a service restart when applied."
+msgstr "每个路由列表为其客户端 IP 选择位置和故障切换模式。首个列表用于未匹配的设备。应用路由列表更改会修改 Xray 路由配置并重启服务。"
+
+msgid "Create up to eight lists. Put more specific device rules before broader subnets. An empty location selection fails closed."
+msgstr "最多创建八个列表。具体设备规则应排在较宽泛的子网之前。未选位置时将阻断连接。"
+
+msgid "Servers and mode"
+msgstr "服务器与模式"
+
+msgid "Devices"
+msgstr "设备"
+
+msgid "Health checks"
+msgstr "健康检查"
+
+msgid "Route list ID"
+msgstr "路由列表 ID"
+
+msgid "Use 1–32 lowercase Latin letters, digits, or hyphens; start with a letter."
+msgstr "使用 1–32 个小写拉丁字母、数字或连字符，并以字母开头。"
+
+msgid "Selection mode"
+msgstr "选择模式"
+
+msgid "Best available"
+msgstr "最佳可用节点"
+
+msgid "Priority / reserve"
+msgstr "优先级／备用"
+
+msgid "Selected locations in order"
+msgstr "按顺序选择的位置"
+
+msgid "Examples: country:CA, region:europe, city:CA:Toronto. In priority mode, order is used for reserve selection."
+msgstr "示例：country:CA、region:europe、city:CA:Toronto。优先级模式按此顺序选择备用节点。"
+
+msgid "Client IP addresses or subnets"
+msgstr "客户端 IP 地址或子网"
+
+msgid "Examples: 192.168.1.20/32 for one device, 192.168.1.0/24 for a subnet. Leave empty for the default list. Give devices fixed DHCP leases so the mapping remains stable."
+msgstr "示例：192.168.1.20/32 表示一台设备，192.168.1.0/24 表示一个子网。默认列表留空。请为设备设置静态 DHCP 租约以保持映射稳定。"
+
+msgid "Active liveness (seconds)"
+msgstr "活动节点存活检查（秒）"
+
+msgid "Failure retry (seconds)"
+msgstr "失败后重试间隔（秒）"
+
+msgid "All-down recovery (seconds)"
+msgstr "全部故障时的恢复检查（秒）"
+
+msgid "Active check (seconds)"
+msgstr "活动节点检查（秒）"
+
+msgid "Backup check (seconds)"
+msgstr "备用节点检查（秒）"
+
+msgid "Full scan (seconds)"
+msgstr "完整扫描间隔（秒）"
+
+msgid "Parallel probe batch"
+msgstr "并行探测批量"
+
+msgid "Maximum active candidates"
+msgstr "活动候选节点上限"
+
+msgid "Unable to read the journal."
+msgstr "无法读取日志。"
+
+msgid "No Resilient Proxy events are in the system journal."
+msgstr "系统日志中没有代理事件。"
+
+msgid "Resilient Proxy journal"
+msgstr "代理日志"
+
+msgid "Refresh journal"
+msgstr "刷新日志"
+
+msgid "The latest 200 proxy events and errors from the OpenWrt system journal. Routine probe traffic is hidden; this page does not create a separate disk log."
+msgstr "显示 OpenWrt 系统日志中最近 200 条代理事件和错误。常规探测流量已隐藏；此页面不会另建磁盘日志。"
+
+msgid "Proxy internet traffic from LAN devices"
+msgstr "代理 LAN 设备的互联网流量"
+
+msgid "LAN bridge"
+msgstr "LAN 网桥"
+
+msgid "Direct WAN"
+msgstr "直连 WAN"
+
+msgid "Domains without proxy"
+msgstr "不经过代理的域名"
+
+msgid "Enter a lowercase domain, for example example.com. Use Punycode for Cyrillic names."
+msgstr "输入小写域名，例如 example.com。非拉丁域名请使用 Punycode。"
+
+msgid "IP addresses and networks without proxy"
+msgstr "不经过代理的 IP 地址和网段"
+
+msgid "Detected BitTorrent through WAN"
+msgstr "已识别的 BitTorrent 通过 WAN"
+
+msgid "Encrypted or obfuscated P2P traffic may not be recognized by Xray."
+msgstr "Xray 可能无法识别加密或混淆的 P2P 流量。"
+
+msgid "Domains .ru and .рф through WAN"
+msgstr ".ru 和 .рф 域名通过 WAN"
+
+msgid "Matches domain names in these two zones, not every Russian-hosted service."
+msgstr "按这两个域名后缀匹配，不代表所有托管在俄罗斯的服务。"
+
+msgid "Node health"
+msgstr "节点健康状态"
+
+msgid "Unable to read node health."
+msgstr "无法读取节点健康状态。"
+
+msgid "Route list"
+msgstr "路由列表"
+
+msgid "Find a node"
+msgstr "查找节点"
+
+msgid "Node"
+msgstr "节点"
+
+msgid "Availability"
+msgstr "可用性"
+
+msgid "Median latency"
+msgstr "延迟中位数"
+
+msgid "Last check"
+msgstr "上次检查"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "No health data yet."
+msgstr "暂无健康检查数据。"
+
+msgid "%d candidates · %d healthy reserves · checked %s"
+msgstr "%d 个候选节点 · %d 个健康备用节点 · 检查时间 %s"
+
+msgid "never"
+msgstr "从未"
+
+msgid "Active"
+msgstr "活动节点"
+
+msgid "Reserve"
+msgstr "备用节点"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Availability is based on recorded checks. Nodes without samples are not rated."
+msgstr "可用性基于已记录的检查。没有样本的节点不参与评分。"
+
+msgid "No matching events."
+msgstr "没有匹配的事件。"
+
+msgid "Journal category"
+msgstr "日志类别"
+
+msgid "Proxy events"
+msgstr "代理事件"
+
+msgid "Errors and warnings"
+msgstr "错误与警告"
+
+msgid "Xray messages"
+msgstr "Xray 消息"
+
+msgid "System journal"
+msgstr "系统日志"
+
+msgid "Maximum lines"
+msgstr "最大行数"
+
+msgid "Find in loaded lines"
+msgstr "在已加载的日志中查找"
+
+msgid "Journal output"
+msgstr "日志内容"
+
+msgid "This page reads the bounded OpenWrt logd buffer. Resilient Proxy does not create a separate disk log."
+msgstr "此页面读取 OpenWrt logd 的有限缓冲区。代理不会另建磁盘日志。"
+
+msgid "Rating period"
+msgstr "统计时段"
+
+msgid "24 hours"
+msgstr "24 小时"
+
+msgid "7 days"
+msgstr "7 天"
+
+msgid "30 days"
+msgstr "30 天"
+
+msgid "Checks"
+msgstr "检查次数"
+
+msgid "Available"
+msgstr "可用"
+
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Not checked"
+msgstr "未检查"
+
+msgid "Russian services through WAN"
+msgstr "俄罗斯服务通过 WAN"
+
+msgid "Choose service groups separately. The catalog updates without restarting Xray."
+msgstr "分别选择服务组。目录更新不会重启 Xray。"
+
+msgid "Domain zones through WAN"
+msgstr "通过 WAN 的域名后缀"
+
+msgid "Do not bypass by domain zone"
+msgstr "不按域名后缀绕过代理"
+
+msgid ".ru only"
+msgstr "仅 .ru"
+
+msgid ".рф only"
+msgstr "仅 .рф"
+
+msgid ".ru and .рф"
+msgstr ".ru 和 .рф"
+
+msgid "Domain zones are separate from the updateable Russian service catalog."
+msgstr "域名后缀与可更新的俄罗斯服务目录相互独立。"
+
+msgid "Russian service catalog"
+msgstr "俄罗斯服务目录"
+
+msgid "Rule databases"
+msgstr "规则数据库"
+
+msgid "Updates of selected rules"
+msgstr "已选规则的更新"
+
+msgid "Only groups selected in route lists are updated. Russian service groups are optional; they are not required for other countries."
+msgstr "仅更新路由列表使用的组。俄罗斯服务组是可选的，其他国家不需要启用它们。"
+
+msgid "Catalog updates"
+msgstr "目录更新"
+
+msgid "Request catalog update"
+msgstr "请求更新目录"
+
+msgid "Catalog update request failed."
+msgstr "目录更新请求失败。"
+
+msgid "Catalog update requested. Current routes remain active."
+msgstr "已请求更新目录。当前路由继续生效。"
+
+msgid "Updated"
+msgstr "已更新"
+
+msgid "Unchanged"
+msgstr "无变化"
+
+msgid "Last good copy"
+msgstr "上次可用副本"
+
+msgid "Built in"
+msgstr "内置"
+
+msgid "No catalog update yet."
+msgstr "目录尚未更新。"
+
+msgid "Current catalog state"
+msgstr "当前目录状态"
+
+msgid "Service group"
+msgstr "服务组"
+
+msgid "State"
+msgstr "状态"
+
+msgid "Rules"
+msgstr "规则"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "%s · %d rules"
+msgstr "%s · %d 条规则"
+
+msgid "Route monitoring"
+msgstr "路由监控"
+
+msgid "Shared settings for all route lists"
+msgstr "所有路由列表的共用设置"
+
+msgid "Older per-list intervals remain active until you apply these shared settings."
+msgstr "应用这些共用设置前，原有的各列表间隔继续生效。"
+
+msgid "Active availability (seconds)"
+msgstr "活动节点可用性检查（秒）"
+
+msgid "Retry after failure (seconds)"
+msgstr "失败后重试（秒）"
+
+msgid "Other nodes when all are down (seconds)"
+msgstr "全部故障时检查其他节点（秒）"
+
+msgid "Active quality (seconds)"
+msgstr "活动节点质量检查（秒）"
+
+msgid "Reserve check (seconds)"
+msgstr "备用节点检查（秒）"
+
+msgid "Maximum nodes per check"
+msgstr "每次检查的最大节点数"
+
+msgid "Automatic: best 2, priority 3"
+msgstr "自动：最佳模式 2，优先级模式 3"
+
+msgid "Switching rules"
+msgstr "切换规则"
+
+msgid "Nodes in active pool"
+msgstr "活动池节点数"
+
+msgid "Quality sample window"
+msgstr "质量采样窗口"
+
+msgid "Maximum packet loss (%)"
+msgstr "最大丢包率（%）"
+
+msgid "HTTPS median limit (ms)"
+msgstr "HTTPS 延迟中位数上限（毫秒）"
+
+msgid "0 disables this limit."
+msgstr "设为 0 表示不限制。"
+
+msgid "Ordinary failure confirmations"
+msgstr "普通故障确认次数"
+
+msgid "Recovery confirmations"
+msgstr "恢复确认次数"
+
+msgid "Response improvement (ms)"
+msgstr "响应延迟改善值（毫秒）"
+
+msgid "Speed improvement (%)"
+msgstr "速度改善值（%）"
+
+msgid "A speed-led switch may add at most 50 ms of HTTPS latency."
+msgstr "因速度而切换时，HTTPS 延迟最多可增加 50 毫秒。"
+
+msgid "Switch cooldown (seconds)"
+msgstr "切换冷却时间（秒）"
+
+msgid "Reusable rule groups"
+msgstr "可复用规则组"
+
+msgid "Create a group here, then select it in a route list. Group order within a route list determines precedence."
+msgstr "先在此创建规则组，再在路由列表中选用。组在列表中的顺序决定优先级。"
+
+msgid "Rule ID"
+msgstr "规则 ID"
+
+msgid "Action"
+msgstr "操作"
+
+msgid "Proxy through this route list"
+msgstr "通过此路由列表代理"
+
+msgid "Domains — one per line"
+msgstr "域名，每行一个"
+
+msgid "IP networks — one per line"
+msgstr "IP 网段，每行一个"
+
+msgid "At least one domain or IP network is required. Domain and IP matches are alternatives, not a combined condition."
+msgstr "至少填写一个域名或 IP 网段。域名和 IP 任一匹配即可，无需同时满足。"
+
+msgid "Routing rules"
+msgstr "路由规则"
+
+msgid "Rule groups in priority order"
+msgstr "按优先级排列的规则组"
+
+msgid "The first matching group decides the route. Select groups created under Rule databases."
+msgstr "首个匹配的组决定路由。请选择在“规则数据库”中创建的组。"
+
+msgid "Add at least one domain or IP network."
+msgstr "至少添加一个域名或 IP 网段。"
+
+msgid "Only country data selected by route lists is stored and loaded. Routine updates do not restart Xray."
+msgstr "仅存储并加载路由列表选用的国家数据。日常更新不会重启 Xray。"
+
+msgid "Update rules"
+msgstr "更新规则"
+
+msgid "Create a group here, then select it in a route list. Each group can combine custom domains, IP networks and one country. Domain and IP matches are alternatives."
+msgstr "先在此创建组，再在路由列表中选用。每组可组合自定义域名、IP 网段和一个国家。域名和 IP 任一匹配即可。"
+
+msgid "Add domains, IP networks or a country with a Geo mode."
+msgstr "添加域名、IP 网段或带 Geo 模式的国家。"
+
+msgid "Country"
+msgstr "国家"
+
+msgid "No country"
+msgstr "不选国家"
+
+msgid "Russia (RU)"
+msgstr "俄罗斯（RU）"
+
+msgid "China (CN)"
+msgstr "中国（CN）"
+
+msgid "Iran (IR)"
+msgstr "伊朗（IR）"
+
+msgid "Country data"
+msgstr "国家数据"
+
+msgid "GeoSite — domains"
+msgstr "GeoSite — 域名"
+
+msgid "GeoIP — IP networks"
+msgstr "GeoIP — IP 网段"
+
+msgid "GeoSite and GeoIP"
+msgstr "GeoSite 和 GeoIP"
+
+msgid "GeoSite matches domains; GeoIP matches destination IP addresses. They can be used together. The selected data is fetched after Apply; until it is ready, custom entries continue to work."
+msgstr "GeoSite 匹配域名，GeoIP 匹配目标 IP，可同时使用。所选数据在应用后下载；准备完成前，自定义条目仍可使用。"
+
+msgid "Optional. Add a country above to use GeoSite, GeoIP or both."
+msgstr "可选。先在上方选择国家，再使用 GeoSite、GeoIP 或两者。"
+
+msgid "Additional domain lists"
+msgstr "附加域名列表"
+
+msgid "Optional reviewed lists; currently the catalog contains Russian services. These update without restarting Xray."
+msgstr "可选的已审核列表；当前目录包含俄罗斯服务。更新不会重启 Xray。"
+
+msgid "Ready-made rules"
+msgstr "预设规则"
+
+msgid "Available presets"
+msgstr "可用预设"
+
+msgid "Other country — custom rules"
+msgstr "其他国家 — 自定义规则"
+
+msgid "Custom rules"
+msgstr "自定义规则"
+
+msgid "For another country, create your own domain and IP rules in “Advanced rule groups”, then add the group to a route list."
+msgstr "其他国家请在“高级规则组”中创建域名和 IP 规则，再将组添加到路由列表。"
+
+msgid "Open custom rule groups"
+msgstr "打开自定义规则组"
+
+msgid "Thematic lists"
+msgstr "主题列表"
+
+msgid "Selected presets"
+msgstr "已选预设"
+
+msgid "Add selected to route list"
+msgstr "将所选项添加到路由列表"
+
+msgid "Select at least one preset and a route list."
+msgstr "至少选择一个预设和一个路由列表。"
+
+msgid "Selected presets are already in this route list."
+msgstr "所选预设已在此路由列表中。"
+
+msgid "Updates"
+msgstr "更新"
+
+msgid "Rule"
+msgstr "规则"
+
+msgid "Add ready-made rule"
+msgstr "添加预设规则"
+
+msgid "Add to route list"
+msgstr "添加到路由列表"
+
+msgid "Then use Apply to activate the rule. Only data used by route lists is downloaded."
+msgstr "然后应用以启用规则。仅下载路由列表使用的数据。"
+
+msgid "Select a rule and a route list first."
+msgstr "请先选择规则和路由列表。"
+
+msgid "The limit of 32 rule groups has been reached."
+msgstr "已达到 32 个规则组的上限。"
+
+msgid "This rule is already in the selected route list."
+msgstr "所选路由列表中已有此规则。"
+
+msgid "Added to route lists"
+msgstr "已添加到路由列表"
+
+msgid "Not assigned"
+msgstr "未分配"
+
+msgid "Remove"
+msgstr "移除"
+
+msgid "No ready-made rules have been added."
+msgstr "尚未添加预设规则。"
+
+msgid "Advanced rule groups"
+msgstr "高级规则组"
+
+msgid "Selection"
+msgstr "选择"
+
+msgid "New rule group"
+msgstr "新规则组"
+
+msgid "Rule name"
+msgstr "规则名称"
+
+msgid "Rule ID: %s"
+msgstr "规则 ID：%s"
+
+msgid "Generated automatically. Renaming a rule keeps its route-list references."
+msgstr "自动生成。规则改名不会改变路由列表对它的引用。"
+
+msgid "Enter a name of up to 120 characters."
+msgstr "输入不超过 120 个字符的名称。"
+
+msgid "This rule name already exists."
+msgstr "此规则名称已存在。"
+
+msgid "Create selected rules"
+msgstr "创建所选规则"
+
+msgid "Select at least one preset."
+msgstr "至少选择一个预设。"
+
+msgid "Selected rules already exist."
+msgstr "所选规则已存在。"
+
+msgid "The limit of 128 rules has been reached."
+msgstr "已达到 128 条规则的上限。"
+
+msgid "Created rules"
+msgstr "已创建的规则"
+
+msgid "No preset rules created yet."
+msgstr "尚未创建预设规则。"
+
+msgid "Create a named rule, then select it in a route list. Domain and IP matches are alternatives; protocol, network, ports and source restrict each match."
+msgstr "创建命名规则，再在路由列表中选用。域名和 IP 任一匹配即可；协议、网络、端口和来源限制每次匹配。"
+
+msgid "For another country, create a named domain and IP rule under “Custom rules”, then select it in a route list."
+msgstr "其他国家请在“自定义规则”中创建命名的域名和 IP 规则，再在路由列表中选用。"
+
+msgid "Inbound connection"
+msgstr "入站连接"
+
+msgid "Transparent proxy"
+msgstr "透明代理"
+
+msgid "SOCKS proxy"
+msgstr "SOCKS 代理"
+
+msgid "Leave unchecked to match both. SOCKS listens locally on port %s."
+msgstr "两项均不选表示同时匹配。SOCKS 仅在本机端口 %s 监听。"
+
+msgid "Network"
+msgstr "网络"
+
+msgid "TCP and UDP"
+msgstr "TCP 和 UDP"
+
+msgid "Source IP or subnet"
+msgstr "来源 IP 或子网"
+
+msgid "IPv4, IPv6, CIDR, or geoip:private for local/private source addresses."
+msgstr "输入 IPv4、IPv6、CIDR，或用 geoip:private 匹配本地／私有来源地址。"
+
+msgid "Destination ports"
+msgstr "目标端口"
+
+msgid "Source ports"
+msgstr "来源端口"
+
+msgid "Use ports 1–65535 separated by commas, or ranges such as 1000-2000."
+msgstr "输入 1–65535 的端口，以逗号分隔，或使用 1000-2000 这样的范围。"
+
+msgid "Saved country and lists"
+msgstr "已保存的国家与列表"
+
+msgid "Optional. A rule may match only ports, source addresses or a detected protocol. Leave domains and IP empty in that case."
+msgstr "可选。规则可仅匹配端口、来源地址或识别出的协议；此时域名和 IP 留空。"
+
+msgid "Add a domain, IP network or traffic condition."
+msgstr "添加域名、IP 网段或流量条件。"
+
+msgid "The first matching rule decides the route. Create rules independently under Rule databases, then select them here by name."
+msgstr "首个匹配的规则决定路由。在“规则数据库”中独立创建规则，然后按名称在此选用。"
+
+msgid "For example: Work services through WAN"
+msgstr "例如：工作服务通过 WAN"
+
+msgid "Select rules by name; stable IDs keep the links. The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+msgstr "按名称选择规则，固定 ID 保持引用。首个匹配的规则决定路由。创建此列表前后均可在“规则数据库”中创建规则。"
+
+msgid "Finance"
+msgstr "金融"
+
+msgid "Education and science"
+msgstr "教育与科研"
+
+msgid "Media and communication"
+msgstr "媒体与通信"
+
+msgid "Games"
+msgstr "游戏"
+
+msgid "Work and IT"
+msgstr "工作与 IT"
+
+msgid "Internet and networks"
+msgstr "互联网与网络"
+
+msgid "Everyday services"
+msgstr "日常服务"
+
+msgid "Electronics and cars"
+msgstr "电子产品与汽车"
+
+msgid "Government services"
+msgstr "政府服务"
+
+msgid "Shopping and travel"
+msgstr "购物与出行"
+
+msgid "Technology"
+msgstr "技术"
+
+msgid "Advertising"
+msgstr "广告"
+
+msgid "Select all: %s"
+msgstr "全选：%s"
+
+msgid "%d of %d selected"
+msgstr "已选 %d／%d"
+
+msgid "%d lists"
+msgstr "%d 个列表"
+
+msgid "Communication and ecosystems"
+msgstr "通信与生态系统"
+
+msgid "Media and entertainment"
+msgstr "媒体与娱乐"
+
+msgid "Education, work and IT"
+msgstr "教育、工作与 IT"
+
+msgid "All Russian services"
+msgstr "所有俄罗斯服务"
+
+msgid "All Chinese services"
+msgstr "所有中国服务"
+
+msgid "All Iranian services"
+msgstr "所有伊朗服务"
+
+msgid "Rule database updates"
+msgstr "规则数据库更新"
+
+msgid "Automatic update interval"
+msgstr "自动更新间隔"
+
+msgid "Interval units"
+msgstr "时间单位"
+
+msgid "Seconds"
+msgstr "秒"
+
+msgid "Minutes"
+msgstr "分钟"
+
+msgid "Hours"
+msgstr "小时"
+
+msgid "Applies to all loaded rule databases. Minimum: 1 hour; maximum: 7 days."
+msgstr "适用于所有已加载的规则数据库。最短 1 小时，最长 7 天。"
+
+msgid "Choose an interval from 1 hour to 7 days, with whole seconds."
+msgstr "选择 1 小时至 7 天之间的间隔，精确到整数秒。"
+
+msgid "Custom rule %d"
+msgstr "自定义规则 %d"
+
+msgid "Connection type — advanced"
+msgstr "连接类型 — 高级"
+
+msgid "Network devices — transparent proxy"
+msgstr "网络设备 — 透明代理"
+
+msgid "Router applications — SOCKS5"
+msgstr "路由器应用 — SOCKS5"
+
+msgid "Usually leave both unchecked. This filter separates network-device traffic from applications explicitly using SOCKS5 on the router at 127.0.0.1:%s."
+msgstr "通常两项均不选。此筛选将网络设备流量与在路由器上明确使用 127.0.0.1:%s SOCKS5 的应用区分开。"
+
+msgid "Optional. Empty means all devices allowed by this route list. Enter IPv4, IPv6, CIDR or geoip:private to narrow the source; both the list and rule restrictions apply."
+msgstr "可选。留空表示该路由列表允许的所有设备。可输入 IPv4、IPv6、CIDR 或 geoip:private 限定来源；列表和规则的限制同时生效。"
+
+msgid "Select rules by name; The first matching rule decides the route. Create rules under Rule databases before or after creating this list."
+msgstr "按名称选择规则；首个匹配的规则决定路由。创建此列表前后均可在“规则数据库”中创建规则。"
+
+msgid "Route monitoring — shared settings"
+msgstr "路由监控 — 共用设置"
+
+msgid "Changed intervals apply to every route list. Unchanged legacy per-list settings are preserved."
+msgstr "更改的间隔会应用到所有路由列表。未更改的原有各列表设置将保留。"
+
+msgid "Opening route lists..."
+msgstr "正在打开路由列表…"
+
+msgid "Saved source restriction"
+msgstr "已保存的来源限制"
+
+msgid "Existing restriction remains active. Select devices in route lists when creating new rules."
+msgstr "现有限制继续生效。创建新规则时请在路由列表中选择设备。"
+
+msgid "Optional. A rule may match only ports or a detected protocol. Leave domains and IP empty in that case."
+msgstr "可选。规则可仅匹配端口或识别出的协议；此时域名和 IP 留空。"
+
+msgid "These settings apply to all route lists."
+msgstr "这些设置适用于所有路由列表。"
+
+msgid "Not loaded"
+msgstr "未加载"
+
+msgid "Traffic rules"
+msgstr "流量规则"
+
+msgid "Devices in this list"
+msgstr "此列表中的设备"
+
+msgid "All devices"
+msgstr "所有设备"
+
+msgid "Selected devices"
+msgstr "指定设备"
+
+msgid "Only one list can cover all devices. Select devices in the other lists."
+msgstr "只能有一个列表涵盖所有设备。其他列表请选择指定设备。"
+
+msgid "Rules — top to bottom"
+msgstr "规则 — 从上到下"
+
+msgid "Without country"
+msgstr "未标注国家"
+
+msgid "Find in list"
+msgstr "在列表中查找"
+
+msgid "Country, city or node name"
+msgstr "国家、城市或节点名称"
+
+msgid "Subscription: %s"
+msgstr "订阅：%s"
+
+msgid "Unavailable selection: %s"
+msgstr "所选项不可用：%s"
+
+msgid "Selected — top to bottom"
+msgstr "已选 — 从上到下"
+
+msgid "Nothing selected. Choose countries, cities or nodes below."
+msgstr "尚未选择。请在下方选择国家、城市或节点。"
+
+msgid "Move up: %s"
+msgstr "上移：%s"
+
+msgid "Move down: %s"
+msgstr "下移：%s"
+
+msgid "Remove: %s"
+msgstr "移除：%s"
+
+msgid "Matching nodes: %d"
+msgstr "匹配节点：%d"
+
+msgid "View matching nodes"
+msgstr "查看匹配节点"
+
+msgid "Showing the first 50 of %d nodes."
+msgstr "显示 %d 个节点中的前 50 个。"
+
+msgid "No matching nodes. This list will not use another location automatically."
+msgstr "没有匹配节点。此列表不会自动改用其他位置。"
+
+msgid "No subscription nodes loaded. Add or update a subscription first."
+msgstr "尚未加载订阅节点。请先添加或更新订阅。"
+
+msgid "Node selection"
+msgstr "节点选择"
+
+msgid "Choose locations"
+msgstr "选择位置"
+
+msgid "By filter"
+msgstr "按筛选条件"
+
+msgid "Display order"
+msgstr "显示顺序"
+
+msgid "By country"
+msgstr "按国家"
+
+msgid "As in subscription"
+msgstr "按订阅原始顺序"
+
+msgid "Filter subscription"
+msgstr "筛选订阅"
+
+msgid "All subscriptions"
+msgstr "所有订阅"
+
+msgid "Countries — empty means any"
+msgstr "国家 — 留空表示任意"
+
+msgid "Protocols — empty means any"
+msgstr "协议 — 留空表示任意"
+
+msgid "Include names"
+msgstr "包含名称"
+
+msgid "Any comma-separated fragment may match. Double quotes require the full name: Sweden, \"Amsterdam Premium 01\"."
+msgstr "使用英文逗号（,）分隔，任一片段匹配即可。英文双引号要求完整名称匹配，例如 Sweden, \"Amsterdam Premium 01\"。"
+
+msgid "Exclude names"
+msgstr "排除名称"
+
+msgid "Same syntax as inclusion. Any match excludes the node, even if it matches inclusion."
+msgstr "语法与包含条件相同。任一条件匹配即排除此节点，即使它符合包含条件。"
+
+msgid "Filter membership is recalculated when subscriptions update. Matching nodes keep their subscription order."
+msgstr "订阅更新时会重新计算筛选结果。匹配节点保持订阅中的顺序。"
+
+msgid "Select at least one country, city or node, or configure a filter."
+msgstr "至少选择一个国家、城市或节点，或配置筛选条件。"
+
+msgid "Close the double quotes around the full name."
+msgstr "请补全完整名称两侧的双引号。"
+
+msgid "A quoted full name cannot be empty."
+msgstr "双引号中的完整名称不能为空。"
+
+msgid "Separate names with a comma or | after a closing quote."
+msgstr "闭合引号后，请用英文逗号（,）或 | 分隔名称。"
+
+msgid "Name filters cannot contain control characters."
+msgstr "名称筛选条件不能包含控制字符。"
+
+msgid "The name filter is too long. Shorten the list."
+msgstr "名称筛选条件过长。请缩短列表。"
+
+msgid "Display order does not change selection priority."
+msgstr "显示顺序不影响选择优先级。"
+
+msgid "Global exceptions and IPv6"
+msgstr "全局例外与 IPv6"
+
+msgid "IPv6 handling"
+msgstr "IPv6 处理方式"
+
+msgid "Through proxy"
+msgstr "通过代理"
+
+msgid "Direct — without proxy"
+msgstr "直连，不经过代理"
+
+msgid "Block internet access"
+msgstr "阻断互联网访问"
+
+msgid "Blocking preserves local IPv6 connectivity and takes precedence over user IPv6 exceptions."
+msgstr "阻断仍保留本地 IPv6 通信，并优先于用户设置的 IPv6 例外。"
+
+msgid "Direct IP addresses and networks"
+msgstr "直连 IP 地址与网段"
+
+msgid "Maximum: 256 IP addresses or networks."
+msgstr "最多 256 个 IP 地址或网段。"
+
+msgid "Enter IPv4, IPv6 or CIDR networks, one per line."
+msgstr "输入 IPv4、IPv6 或 CIDR 网段，每行一个。"
+
+msgid "One IP or CIDR per line. These destinations bypass the proxy; router DNS is managed separately."
+msgstr "每行一个 IP 或 CIDR。这些目标绕过代理；路由器 DNS 单独管理。"
+
+msgid "The country filters the list below."
+msgstr "国家用于筛选下方列表。"
+
+msgid "BitTorrent"
+msgstr "BitTorrent"
+
+msgid "Matches traffic detected by Xray as BitTorrent."
+msgstr "匹配被 Xray 识别为 BitTorrent 的流量。"
+
+msgid "Save the rules, then select them by name in a route list."
+msgstr "保存规则后，在路由列表中按名称选用。"
+
+msgid "Create a rule, then select it in a route list."
+msgstr "创建规则后，在路由列表中选用。"
+
+msgid "Applies to network-device traffic in all route lists."
+msgstr "适用于所有路由列表中的网络设备流量。"
+
+msgid "Selected-device lists take precedence. If selected lists overlap, the first list wins."
+msgstr "指定设备列表优先。若指定列表重叠，以首个列表为准。"
+
+msgid "Select rules. The first match decides the route."
+msgstr "选择规则。首个匹配项决定路由。"
+
+msgid "Today (UTC)"
+msgstr "今天（UTC）"
+
+msgid "Sort nodes"
+msgstr "节点排序"
+
+msgid "By availability"
+msgstr "按可用性"
+
+msgid "By latency"
+msgstr "按延迟"
+
+msgid "By name"
+msgstr "按名称"
+
+msgid "Active · unavailable"
+msgstr "活动节点 · 不可用"
+
+msgid "Availability / loss"
+msgstr "可用性／丢包率"
+
+msgid "p95 latency"
+msgstr "p95 延迟"
+
+msgid "Previous"
+msgstr "上一页"
+
+msgid "Next"
+msgstr "下一页"
+
+msgid "No matching nodes."
+msgstr "没有匹配的节点。"
+
+msgid "%d–%d of %d"
+msgstr "第 %d–%d 个，共 %d 个"
+
+msgid "%d candidates · %d healthy reserves"
+msgstr "%d 个候选节点 · %d 个健康备用节点"
+
+msgid "No fresh data: %s"
+msgstr "缺少最新数据：%s"
+
+msgid "No data"
+msgstr "无数据"
+
+msgid "DNS mode"
+msgstr "DNS 模式"
+
+msgid "LAN capture disabled"
+msgstr "LAN 接管已禁用"
+
+msgid "OpenWrt DNS"
+msgstr "OpenWrt DNS"
+
+msgid "Package DNS"
+msgstr "软件包 DNS"
+
+msgid "Selected node"
+msgstr "已选节点"
+
+msgid "Healthy reserves"
+msgstr "健康备用节点"
+
+msgid "Blocked"
+msgstr "已阻断"
+
+msgid "Waiting for checks"
+msgstr "等待检查"
+
+msgid "Starting"
+msgstr "启动中"
+
+msgid "Status data is stale"
+msgstr "状态数据已过期"
+
+msgid "DNS takeover failed; previous DNS restored. See the journal."
+msgstr "DNS 接管失败，已恢复原有 DNS。请查看日志。"
+
+msgid "%d downloaded · %d cached · %d unavailable"
+msgstr "已下载 %d · 来自缓存 %d · 不可用 %d"
+
+msgid "Downloaded"
+msgstr "已更新"
+
+msgid "Rule database update was not applied; previous rules remain active. %s"
+msgstr "规则数据库更新未应用，原有规则继续生效。%s"
+
+msgid "Some rule databases could not be updated. See Rule databases for details."
+msgstr "部分规则数据库更新失败。请查看“规则数据库”。"
+
+msgid "Not confirmed"
+msgstr "未确认"
+
+msgid "No route lists."
+msgstr "没有路由列表。"
+
+msgid "DNS requests"
+msgstr "DNS 请求"
+
+msgid "Queries"
+msgstr "查询"
+
+msgid "Fallback WAN"
+msgstr "备用 WAN"
+
+msgid "Cache"
+msgstr "缓存"
+
+msgid "Local"
+msgstr "本地"
+
+msgid "Errors"
+msgstr "错误"
+
+msgid "Since service start"
+msgstr "自服务启动以来"
+
+msgid "https-dns-proxy is running. Configure DNS takeover on the DNS page."
+msgstr "https-dns-proxy 正在运行。请在 DNS 页面配置接管。"
+
+msgid "Another DNS service is running; DNS capture is disabled."
+msgstr "其他 DNS 服务正在运行，DNS 接管已禁用。"
+
+msgid "Another DNS redirect is present; DNS capture is disabled."
+msgstr "存在其他 DNS 重定向规则，DNS 接管已禁用。"
+
+msgid "Unable to inspect firewall; DNS capture is disabled."
+msgstr "无法检查防火墙，DNS 接管已禁用。"
+
+msgid "DNS listener failed. See the journal."
+msgstr "DNS 监听器启动失败。请查看日志。"
+
+msgid "%d loaded · %d cached · %d unavailable"
+msgstr "已加载 %d · 来自缓存 %d · 不可用 %d"
+
+msgid "Updated at %s"
+msgstr "更新于 %s"
+
+msgid "List"
+msgstr "列表"
+
+msgid "ms"
+msgstr "毫秒"
+
+msgid "Enable SB Gateway"
+msgstr "启用 SB Gateway"
+
+msgid "Device routing"
+msgstr "设备路由"
+
+msgid "On schedule"
+msgstr "按计划"
+
+msgid "Update time"
+msgstr "更新时间"
+
+msgid "Router time"
+msgstr "路由器时间"
+
+msgid "Specify time as HH:MM."
+msgstr "请使用 HH:MM 格式。"
+
+msgid "Choose an interval from 5 minutes to 24 hours, with whole seconds."
+msgstr "选择 5 分钟至 24 小时之间的间隔，精确到整数秒。"
+
+msgid "Save and load"
+msgstr "保存并加载"
+
+msgid "Loading…"
+msgstr "加载中…"
+
+msgid "Use 1–32 Latin letters, digits, spaces, underscores or hyphens; start with a letter."
+msgstr "使用 1–32 个拉丁字母、数字、空格、下划线或连字符，并以字母开头。"
+
+msgid "This source name is already used."
+msgstr "此来源名称已被使用。"
+
+msgid "Enter an HTTPS subscription address."
+msgstr "输入 HTTPS 订阅地址。"
+
+msgid "Check the subscription fields."
+msgstr "请检查订阅字段。"
+
+msgid "Could not save subscription settings."
+msgstr "无法保存订阅设置。"
+
+msgid "Subscription saved. Enable SB Gateway in Overview."
+msgstr "订阅已保存。请在概览中启用 SB Gateway。"
+
+msgid "Could not apply subscription settings."
+msgstr "无法应用订阅设置。"
+
+msgid "Could not start subscription loading."
+msgstr "无法开始加载订阅。"
+
+msgid "Subscription loading started."
+msgstr "已开始加载订阅。"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Status unavailable"
+msgstr "状态不可用"
+
+msgid "No nodes loaded"
+msgstr "未加载节点"
+
+msgid "Updated: %s"
+msgstr "更新时间：%s"
+
+msgid "Added: %d · Removed: %d"
+msgstr "新增：%d · 移除：%d"
+
+msgid "Subscription download failed"
+msgstr "订阅下载失败"
+
+msgid "Subscription server error"
+msgstr "订阅服务器错误"
+
+msgid "No reachable nodes; previous nodes retained"
+msgstr "没有可连接的节点，已保留原有节点"
+
+msgid "Loading interrupted"
+msgstr "加载中断"
+
+msgid "Subscription update failed"
+msgstr "订阅更新失败"
+
+msgid "Loading is taking longer than expected."
+msgstr "加载时间超出预期。"
+
+msgid "Selected"
+msgstr "已选"
+
+msgid "Countries"
+msgstr "国家"
+
+msgid "Protocols"
+msgstr "协议"
+
+msgid "All countries"
+msgstr "所有国家"
+
+msgid "All protocols"
+msgstr "所有协议"
+
+msgid "Selected: %d"
+msgstr "已选：%d"
+
+msgid "One IP or CIDR per line. # marks detected VPN addresses."
+msgstr "每行一个 IP 或 CIDR。# 标记检测到的 VPN 地址。"
+
+msgid "Shadowsocks plugins"
+msgstr "Shadowsocks 插件"
+
+msgid "Install"
+msgstr "安装"
+
+msgid "Installed"
+msgstr "已安装"
+
+msgid "Not installed"
+msgstr "未安装"
+
+msgid "Installing…"
+msgstr "安装中…"
+
+msgid "Plugin installation failed."
+msgstr "插件安装失败。"
+
+msgid "Plugin status unavailable."
+msgstr "插件状态不可用。"
+
+msgid "Unsupported router architecture."
+msgstr "不支持此路由器架构。"
+
+msgid "Matching nodes"
+msgstr "匹配节点"
+
+msgid "Find a country"
+msgstr "查找国家"
+
+msgid "Choose a rule"
+msgstr "选择规则"
+
+msgid "Create rules"
+msgstr "创建规则"
+
+msgid "Unavailable rule: %s"
+msgstr "规则不可用：%s"
+
+msgid "Add a variant"
+msgstr "添加方案"
+
+msgid "Variant name"
+msgstr "方案名称"
+
+msgid "Enter a name of up to 40 characters."
+msgstr "输入不超过 40 个字符的名称。"
+
+msgid "Variant %d"
+msgstr "方案 %d"
+
+msgid "%d rules"
+msgstr "%d 条规则"
+
+msgid "Not used"
+msgstr "未使用"
+
+msgid "Rule variants"
+msgstr "规则方案"
+
+msgid "Individual rules"
+msgstr "单独规则"
+
+msgid "Enter a name"
+msgstr "输入名称"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Edit variant"
+msgstr "编辑方案"
+
+msgid "Save changes"
+msgstr "保存更改"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Other presets"
+msgstr "其他预设"
+
+msgid "Keep existing actions"
+msgstr "保留现有操作"
+
+msgid "Latency"
+msgstr "延迟"
+
+msgid "Last measured speed"
+msgstr "上次测得速度"
+
+msgid "Last successful measurement"
+msgstr "上次成功测量"
+
+msgid "Mbit/s"
+msgstr "Mbit/s"
+
+msgid "Speed drop (%)"
+msgstr "速度下降（%）"
+
+msgid "Drop from this node’s recent speed. 0 disables speed-drop switching."
+msgstr "相对此节点近期速度的下降幅度。设为 0 可禁用因速度下降而切换。"
+
+msgid "A reserve must confirm its gain in fresh paired measurements."
+msgstr "备用节点必须在新的配对测量中确认优势。"
+
+msgid "Shared node budget per cycle"
+msgstr "每轮共用节点检查预算"
+
+msgid "Automatic: 5 nodes"
+msgstr "自动：5 个节点"
+
+msgid "Availability / HTTPS errors"
+msgstr "可用性／HTTPS 错误"
+
+msgid "Delta, %"
+msgstr "差值，%"
+
+msgid "HTTPS latency (seconds)"
+msgstr "HTTPS 延迟（秒）"
+
+msgid "Concurrent node checks"
+msgstr "并发节点检查数"
+
+msgid "Shared across route lists. Emergency recovery has priority."
+msgstr "所有路由列表共用。紧急恢复优先。"
+
+msgid "Switch after two fresh confirmations of this HTTPS latency improvement."
+msgstr "HTTPS 延迟改善达到此值并经过两次新测量确认后切换。"
+
+msgid "Compared with the active node using fresh HTTPS measurements. Negative means lower latency; positive means higher latency."
+msgstr "与活动节点的新 HTTPS 测量相比。负值表示延迟更低，正值表示更高。"
+
+msgid "Delta: negative means lower latency; positive means higher latency than the active node."
+msgstr "差值：负值表示延迟低于活动节点，正值表示更高。"
+
+msgid "Name fragments, separated by commas"
+msgstr "以英文逗号（,）分隔的名称片段"
+
+msgid "Services without country restriction"
+msgstr "不限制国家的服务"
+
+msgid "Exchanges"
+msgstr "交易所"
+
+msgid "Services"
+msgstr "服务"
+
+msgid "Preset section"
+msgstr "预设分类"
+
+msgid "Choose a country or services."
+msgstr "选择国家或服务。"
+
+msgid "Response improvement for URLTest (ms)"
+msgstr "URLTest 响应改善值（毫秒）"
+
+msgid "Only for URLTest (Best available). Switch after two fresh confirmations of this HTTPS latency improvement."
+msgstr "仅用于 URLTest（最佳可用节点）。HTTPS 延迟改善达到此值并经过两次新测量确认后切换。"
+
+msgid "No fresh successful HTTPS measurement for the active node."
+msgstr "活动节点没有近期成功的 HTTPS 测量。"
+
+msgid "No fresh successful HTTPS measurement for this node."
+msgstr "此节点没有近期成功的 HTTPS 测量。"
+
+msgid "Node history RAM budget (KiB)"
+msgstr "节点历史内存预算（KiB）"
+
+msgid "Shared by all route lists. Older history is removed when the budget is reached. Current routing evidence is kept. History survives service restart and is cleared on router reboot."
+msgstr "所有路由列表共用。达到预算后删除较旧历史，保留当前路由证据。服务重启保留历史，路由器重启后清空。"
+
+msgid "History budget: %d / %d KiB across all route lists"
+msgstr "所有路由列表的历史预算：%d／%d KiB"
+
+msgid "Older history removed to stay within the RAM budget"
+msgstr "已删除较旧历史以保持在内存预算内"
+
+msgid "The draft is too large. Save the form before continuing."
+msgstr "草稿过大。请先保存表单再继续。"
+
+msgid "Draft not saved. Apply was not started."
+msgstr "草稿未保存。未开始应用。"
+
+msgid "A save is already in progress."
+msgstr "正在保存，请勿重复操作。"
+
+msgid "Compact updates keep a recovery copy in RAM. A power loss during installation may require reinstalling the package."
+msgstr "紧凑更新在内存中保留恢复副本。安装期间断电可能需要重新安装软件包。"
+
+msgid "Showing %d of %d nodes"
+msgstr "显示 %d／%d 个节点"
+
+msgid "Availability, s"
+msgstr "可用性检查，秒"
+
+msgid "HTTPS check, s"
+msgstr "HTTPS 检查，秒"
+
+msgid "Parallel checks"
+msgstr "并行检查数"
+
+msgid "URLTest improvement, ms"
+msgstr "URLTest 改善值，毫秒"
+
+msgid "RAM history, KiB"
+msgstr "历史内存，KiB"
+
+msgid "Check for updates"
+msgstr "检查更新"
+
+msgid "Update from GitHub"
+msgstr "从 GitHub 更新"
+
+msgid "Available: %s"
+msgstr "可用版本：%s"
+
+msgid "Latest version is installed."
+msgstr "已安装最新版本。"
+
+msgid "Release notes"
+msgstr "发行说明"
+
+msgid "No published APK for this router yet."
+msgstr "尚无适用于此路由器的已发布 APK。"
+
+msgid "Checking GitHub…"
+msgstr "正在检查 GitHub…"
+
+msgid "Downloading APK…"
+msgstr "正在下载 APK…"
+
+msgid "Settings are kept. The proxy service restarts during installation."
+msgstr "设置将保留。安装期间代理服务会重启。"
+
+msgid "Install an APK file"
+msgstr "安装 APK 文件"
+
+msgid "No updates available."
+msgstr "没有可用更新。"
+
+msgid "When all proxies fail"
+msgstr "所有代理均故障时"
+
+msgid "Through WAN"
+msgstr "通过 WAN"
+
+msgid "Keep existing behavior"
+msgstr "保留原有行为"
+
+msgid "WAN by rules"
+msgstr "按规则使用 WAN"
+
+msgid "Block"
+msgstr "阻断"
+
+msgid "Block WAN ping"
+msgstr "阻断 WAN ping"
+
+msgid "Blocking TCP/UDP preserves local IPv6. Ping follows its separate setting."
+msgstr "阻断 TCP/UDP 仍保留本地 IPv6。Ping 由单独设置控制。"
+
+msgid "Controller RAM"
+msgstr "控制器内存"
+
+msgid "Xray RAM"
+msgstr "Xray 内存"
+
+msgid "Xray sessions"
+msgstr "Xray 会话"
+
+msgid "Available RAM"
+msgstr "可用内存"
+
+msgid "RssAnon: %s · Files: %s / %s"
+msgstr "RssAnon：%s · 文件：%s／%s"
+
+msgid "%s TCP · %s UDP"
+msgstr "%s TCP · %s UDP"
+
+msgid "Low available router memory. Reduce connection load or selected rule sets."
+msgstr "路由器可用内存不足。请减少连接负载或所选规则集。"
+
+msgid "Xray is near its open-file limit."
+msgstr "Xray 已接近打开文件数上限。"
+
+msgid "Xray was stopped by the kernel for lack of memory. See the journal."
+msgstr "Xray 因内存不足被内核终止。请查看日志。"
+
+msgid "Finish configuring route lists before enabling SB Gateway."
+msgstr "启用 SB Gateway 前请先完成路由列表配置。"
+
+msgid "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
+msgstr "最近一次有效的配对 HTTPS 比较。负值表示延迟更低，正值表示更高。"
+
+msgid "Waiting for HTTPS measurements completed within 10 seconds of each other."
+msgstr "等待完成时间相差不超过 10 秒的 HTTPS 测量。"
+
+msgid "Candidate"
+msgstr "候选节点"
+
+msgid "Active node"
+msgstr "活动节点"
+
+msgid "LAN client DNS"
+msgstr "LAN 客户端 DNS"
+
+msgid "Stop https-dns-proxy and take over DNS"
+msgstr "停止 https-dns-proxy 并接管 DNS"
+
+msgid "I confirm the switch. Service settings are kept; its previous state is restored when returning to OpenWrt DNS or if takeover fails."
+msgstr "我确认切换。服务设置将保留；切回 OpenWrt DNS 或接管失败时会恢复原状态。"
+
+msgid "Protocol through proxy"
+msgstr "通过代理的协议"
+
+msgid "Plain DNS/TCP"
+msgstr "普通 DNS/TCP"
+
+msgid "DNS provider through proxy"
+msgstr "通过代理的 DNS 提供商"
+
+msgid "Custom address"
+msgstr "自定义地址"
+
+msgid "DNS address through proxy"
+msgstr "通过代理的 DNS 地址"
+
+msgid "Protocol through WAN"
+msgstr "通过 WAN 的协议"
+
+msgid "Plain DNS/UDP"
+msgstr "普通 DNS/UDP"
+
+msgid "DNS provider through WAN"
+msgstr "通过 WAN 的 DNS 提供商"
+
+msgid "DNS address through WAN"
+msgstr "通过 WAN 的 DNS 地址"
+
+msgid "Local DNS port"
+msgstr "本地 DNS 端口"
+
+msgid "Yandex"
+msgstr "Yandex"
+
+msgid "Device DNS"
+msgstr "设备 DNS"
+
+msgid "Add"
+msgstr "添加"
+
+msgid "Delete"
+msgstr "删除"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Protocol"
+msgstr "协议"
+
+msgid "Downloading…"
+msgstr "下载中…"
+
+msgid "Waiting…"
+msgstr "等待中…"
+
+msgid "Catalog read failed."
+msgstr "无法读取目录。"
+
+msgid "Government portals and public services"
+msgstr "政府门户与公共服务"
+
+msgid "Federal and regional portals, taxes, Goskey and related services."
+msgstr "联邦及地区门户、税务、Goskey 和相关服务。"
+
+msgid "Russian banks and payments"
+msgstr "俄罗斯银行与支付"
+
+msgid "Russian banks, SBP/NSPK and major payment portals."
+msgstr "俄罗斯银行、SBP/NSPK 及主要支付门户。"
+
+msgid "Russian marketplaces, classifieds, delivery and retail"
+msgstr "俄罗斯电商平台、分类信息、配送与零售"
+
+msgid "Marketplaces, classifieds, shops, delivery services and their CDNs."
+msgstr "电商平台、分类信息、商店、配送服务及其 CDN。"
+
+msgid "Yandex ecosystem"
+msgstr "Yandex 生态系统"
+
+msgid "Search, Maps, Mail, Cloud, Disk, Go, Taxi, Food, Market, Kinopoisk and shared CDNs."
+msgstr "搜索、地图、邮件、云服务、网盘、Go、出租车、餐饮配送、商城、Kinopoisk 及共用 CDN。"
+
+msgid "VK, Mail.ru, OK, Dzen and MAX"
+msgstr "VK、Mail.ru、OK、Dzen 和 MAX"
+
+msgid "Main websites, apps, CDNs and calls in the VK/Mail.ru/MAX ecosystem."
+msgstr "VK/Mail.ru/MAX 生态系统的主要网站、应用、CDN 和通话。"
+
+msgid "Russian transport and travel"
+msgstr "俄罗斯交通与旅游"
+
+msgid "Tickets, airlines, railways, maps and travel."
+msgstr "票务、航空、铁路、地图与出行。"
+
+msgid "Russian mobile operators and internet providers"
+msgstr "俄罗斯移动运营商与互联网服务商"
+
+msgid "Account portals, websites, apps and CDNs of Russian telecom operators."
+msgstr "俄罗斯电信运营商的账户门户、网站、应用和 CDN。"
+
+msgid "Russian media, TV, video streaming and music"
+msgstr "俄罗斯媒体、电视、视频流媒体与音乐"
+
+msgid "News, TV channels, streaming services, video, radio, music and CDNs."
+msgstr "新闻、电视频道、流媒体服务、视频、广播、音乐和 CDN。"
+
+msgid "Russian education, jobs and IT services"
+msgstr "俄罗斯教育、招聘与 IT 服务"
+
+msgid "Learning platforms, job listings, development, cloud services, hosting and IT media."
+msgstr "学习平台、招聘、开发、云服务、托管和 IT 媒体。"
+
+msgid "RU/РФ domains and Russian services"
+msgstr "RU/РФ 域名及俄罗斯服务"
+
+msgid "Broad rule covering most Russian domain zones."
+msgstr "覆盖大部分俄罗斯域名后缀的广泛规则。"
+
+msgid "Russian retail"
+msgstr "俄罗斯零售"
+
+msgid "MegaFon"
+msgstr "MegaFon"
+
+msgid "MTS"
+msgstr "MTS"
+
+msgid "Rostelecom"
+msgstr "Rostelecom"
+
+msgid "T2"
+msgstr "T2"
+
+msgid "Russian entertainment"
+msgstr "俄罗斯娱乐"
+
+msgid "Russian IT media"
+msgstr "俄罗斯 IT 媒体"
+
+msgid "Ozon"
+msgstr "Ozon"
+
+msgid "Chinese banks"
+msgstr "中国银行服务"
+
+msgid "Chinese banks from the public domain-list-community list."
+msgstr "来自 domain-list-community 公开列表的中国银行。"
+
+msgid "Chinese social networks"
+msgstr "中国社交网络"
+
+msgid "Chinese social platforms from the public domain-list-community list."
+msgstr "来自 domain-list-community 公开列表的中国社交平台。"
+
+msgid "Chinese media and news"
+msgstr "中国媒体与新闻"
+
+msgid "Chinese media from the public domain-list-community list."
+msgstr "来自 domain-list-community 公开列表的中国媒体。"
+
+msgid "Iranian banks"
+msgstr "伊朗银行"
+
+msgid "Iranian banks from the public domain-list-community list."
+msgstr "来自 domain-list-community 公开列表的伊朗银行。"
+
+msgid "Iranian government websites"
+msgstr "伊朗政府网站"
+
+msgid "Iranian government resources from the public domain-list-community list."
+msgstr "来自 domain-list-community 公开列表的伊朗政府资源。"
+
+msgid "Iranian shops"
+msgstr "伊朗商店"
+
+msgid "Iranian shops and marketplaces from the public domain-list-community list."
+msgstr "来自 domain-list-community 公开列表的伊朗商店与电商平台。"
+
+msgid "Iranian advertising and analytics"
+msgstr "伊朗广告与分析"
+
+msgid "domain-list-community category: category-ads-ir."
+msgstr "domain-list-community 分类：category-ads-ir。"
+
+msgid "Chinese AI services"
+msgstr "中国 AI 服务"
+
+msgid "domain-list-community category: category-ai-cn."
+msgstr "domain-list-community 分类：category-ai-cn。"
+
+msgid "Chinese automotive services"
+msgstr "中国汽车服务"
+
+msgid "domain-list-community category: category-automobile-cn."
+msgstr "domain-list-community 分类：category-automobile-cn。"
+
+msgid "Chinese blogs"
+msgstr "中国博客"
+
+msgid "domain-list-community category: category-blog-cn."
+msgstr "domain-list-community 分类：category-blog-cn。"
+
+msgid "Iranian exchanges and finance"
+msgstr "伊朗交易所与金融"
+
+msgid "domain-list-community category: category-bourse-ir."
+msgstr "domain-list-community 分类：category-bourse-ir。"
+
+msgid "Chinese CDNs"
+msgstr "中国 CDN"
+
+msgid "domain-list-community category: category-cdn-cn."
+msgstr "domain-list-community 分类：category-cdn-cn。"
+
+msgid "Chinese collaboration services"
+msgstr "中国协作服务"
+
+msgid "domain-list-community category: category-collaborate-cn."
+msgstr "domain-list-community 分类：category-collaborate-cn。"
+
+msgid "Chinese development and IT services"
+msgstr "中国开发与 IT 服务"
+
+msgid "domain-list-community category: category-dev-cn."
+msgstr "domain-list-community 分类：category-dev-cn。"
+
+msgid "Chinese document and office services"
+msgstr "中国文档与办公服务"
+
+msgid "domain-list-community category: category-documents-cn."
+msgstr "domain-list-community 分类：category-documents-cn。"
+
+msgid "Chinese education"
+msgstr "中国教育"
+
+msgid "domain-list-community category: category-education-cn."
+msgstr "domain-list-community 分类：category-education-cn。"
+
+msgid "Iranian education"
+msgstr "伊朗教育"
+
+msgid "domain-list-community category: category-education-ir."
+msgstr "domain-list-community 分类：category-education-ir。"
+
+msgid "Chinese electronics"
+msgstr "中国电子产品"
+
+msgid "domain-list-community category: category-electronic-cn."
+msgstr "domain-list-community 分类：category-electronic-cn。"
+
+msgid "Chinese company registries and verification"
+msgstr "中国企业信息查询与核验"
+
+msgid "domain-list-community category: category-enterprise-query-platform-cn."
+msgstr "domain-list-community 分类：category-enterprise-query-platform-cn。"
+
+msgid "Chinese video, music and entertainment"
+msgstr "中国视频、音乐与娱乐"
+
+msgid "domain-list-community category: category-entertainment-cn."
+msgstr "domain-list-community 分类：category-entertainment-cn。"
+
+msgid "Chinese food and delivery"
+msgstr "中国餐饮与配送"
+
+msgid "domain-list-community category: category-food-cn."
+msgstr "domain-list-community 分类：category-food-cn。"
+
+msgid "Iranian forums"
+msgstr "伊朗论坛"
+
+msgid "domain-list-community category: category-forums-ir."
+msgstr "domain-list-community 分类：category-forums-ir。"
+
+msgid "Chinese game accelerators"
+msgstr "中国游戏加速器"
+
+msgid "domain-list-community category: category-game-accelerator-cn."
+msgstr "domain-list-community 分类：category-game-accelerator-cn。"
+
+msgid "Chinese games"
+msgstr "中国游戏"
+
+msgid "domain-list-community category: category-games-cn."
+msgstr "domain-list-community 分类：category-games-cn。"
+
+msgid "Chinese healthcare providers"
+msgstr "中国医疗机构"
+
+msgid "domain-list-community category: category-hospital-cn."
+msgstr "domain-list-community 分类：category-hospital-cn。"
+
+msgid "Chinese HTTP DNS services"
+msgstr "中国 HTTP DNS 服务"
+
+msgid "domain-list-community category: category-httpdns-cn."
+msgstr "domain-list-community 分类：category-httpdns-cn。"
+
+msgid "Iranian insurance"
+msgstr "伊朗保险"
+
+msgid "domain-list-community category: category-insurance-ir."
+msgstr "domain-list-community 分类：category-insurance-ir。"
+
+msgid "Chinese logistics"
+msgstr "中国物流"
+
+msgid "domain-list-community category: category-logistics-cn."
+msgstr "domain-list-community 分类：category-logistics-cn。"
+
+msgid "Iranian video and media"
+msgstr "伊朗视频与媒体"
+
+msgid "domain-list-community category: category-media-ir."
+msgstr "domain-list-community 分类：category-media-ir。"
+
+msgid "Chinese online courses"
+msgstr "中国在线课程"
+
+msgid "domain-list-community category: category-mooc-cn."
+msgstr "domain-list-community 分类：category-mooc-cn。"
+
+msgid "Chinese cloud storage"
+msgstr "中国云存储"
+
+msgid "domain-list-community category: category-netdisk-cn."
+msgstr "domain-list-community 分类：category-netdisk-cn。"
+
+msgid "Chinese information security"
+msgstr "中国信息安全"
+
+msgid "domain-list-community category: category-network-security-cn."
+msgstr "domain-list-community 分类：category-network-security-cn。"
+
+msgid "Iranian media and news"
+msgstr "伊朗媒体与新闻"
+
+msgid "domain-list-community category: category-news-ir."
+msgstr "domain-list-community 分类：category-news-ir。"
+
+msgid "Chinese time servers"
+msgstr "中国时间服务器"
+
+msgid "domain-list-community category: category-ntp-cn."
+msgstr "domain-list-community 分类：category-ntp-cn。"
+
+msgid "Chinese phone number verification"
+msgstr "中国手机号码验证"
+
+msgid "domain-list-community category: category-number-verification-cn."
+msgstr "domain-list-community 分类：category-number-verification-cn。"
+
+msgid "Chinese freelance services"
+msgstr "中国自由职业服务"
+
+msgid "domain-list-community category: category-outsource-cn."
+msgstr "domain-list-community 分类：category-outsource-cn。"
+
+msgid "Iranian payment services"
+msgstr "伊朗支付服务"
+
+msgid "domain-list-community category: category-payment-ir."
+msgstr "domain-list-community 分类：category-payment-ir。"
+
+msgid "Chinese research resources"
+msgstr "中国科研资源"
+
+msgid "domain-list-community category: category-scholar-cn."
+msgstr "domain-list-community 分类：category-scholar-cn。"
+
+msgid "Iranian research resources"
+msgstr "伊朗科研资源"
+
+msgid "domain-list-community category: category-scholar-ir."
+msgstr "domain-list-community 分类：category-scholar-ir。"
+
+msgid "Chinese exchanges and securities"
+msgstr "中国交易所与证券"
+
+msgid "domain-list-community category: category-securities-cn."
+msgstr "domain-list-community 分类：category-securities-cn。"
+
+msgid "Iranian social networks"
+msgstr "伊朗社交网络"
+
+msgid "domain-list-community category: category-social-media-ir."
+msgstr "domain-list-community 分类：category-social-media-ir。"
+
+msgid "Iranian technology services"
+msgstr "伊朗技术服务"
+
+msgid "domain-list-community category: category-tech-ir."
+msgstr "domain-list-community 分类：category-tech-ir。"
+
+msgid "Iranian transport and travel"
+msgstr "伊朗交通与旅游"
+
+msgid "domain-list-community category: category-travel-ir."
+msgstr "domain-list-community 分类：category-travel-ir。"
+
+msgid "Chinese encyclopedias"
+msgstr "中国百科"
+
+msgid "domain-list-community category: category-wiki-cn."
+msgstr "domain-list-community 分类：category-wiki-cn。"
+
+msgid "CN/中国/中國 domains and Chinese services"
+msgstr "CN/中国/中國 域名及中国服务"
+
+msgid "Country domain zones and all thematic lists. Enable IP networks separately with GeoIP."
+msgstr "国家域名后缀及全部主题列表。IP 网段需单独通过 GeoIP 启用。"
+
+msgid "IR/ایران domains and Iranian services"
+msgstr "IR/ایران 域名及伊朗服务"
+
+msgid "Binance"
+msgstr "Binance"
+
+msgid "Website, app, CDNs, REST/WebSocket APIs and AWS WAF challenge."
+msgstr "网站、应用、CDN、REST/WebSocket API 及 AWS WAF 验证。"
+
+msgid "Bybit"
+msgstr "Bybit"
+
+msgid "Website, app, CDNs, REST/WebSocket APIs, testnet, demo and regional endpoints."
+msgstr "网站、应用、CDN、REST/WebSocket API、测试网、演示环境及地区端点。"
+
+msgid "Bybit · trading API"
+msgstr "Bybit · 交易 API"
+
+msgid "REST, WebSocket, testnet/demo and regional endpoints from Bybit documentation."
+msgstr "Bybit 文档所列的 REST、WebSocket、测试网／演示环境及地区端点。"
+
+msgid "Gate.io"
+msgstr "Gate.io"
+
+msgid "Website, app, CDNs, REST API v4, WebSocket, futures and testnet."
+msgstr "网站、应用、CDN、REST API v4、WebSocket、期货及测试网。"
+
+msgid "Gate.io · trading API"
+msgstr "Gate.io · 交易 API"
+
+msgid "Gate.io REST API v4, WebSocket, futures and testnet endpoints."
+msgstr "Gate.io REST API v4、WebSocket、期货及测试网端点。"
+
+msgid "YouTube"
+msgstr "YouTube"
+
+msgid "Telegram"
+msgstr "Telegram"
+
+msgid "Telegram Web, APIs, official networks and calls."
+msgstr "Telegram 网页版、API、官方网络及通话。"
+
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+msgid "WhatsApp Web, app and related calls."
+msgstr "WhatsApp 网页版、应用及相关通话。"
+
+msgid "Discord"
+msgstr "Discord"
+
+msgid "Instagram"
+msgstr "Instagram"
+
+msgid "Facebook"
+msgstr "Facebook"
+
+msgid "TikTok"
+msgstr "TikTok"
+
+msgid "Netflix"
+msgstr "Netflix"
+
+msgid "Spotify"
+msgstr "Spotify"
+
+msgid "OpenAI / ChatGPT"
+msgstr "OpenAI / ChatGPT"
+
+msgid "Claude"
+msgstr "Claude"
+
+msgid "Claude, Claude Code, Anthropic API and first-party static assets; no broad rules for third-party CDNs."
+msgstr "Claude、Claude Code、Anthropic API 及第一方静态资源，不包含第三方 CDN 的宽泛规则。"
+
+msgid "Antigravity"
+msgstr "Antigravity"
+
+msgid "Antigravity and required Google AI APIs; no broad rule for google.com or googleapis.com."
+msgstr "Antigravity 及所需的 Google AI API，不包含 google.com 或 googleapis.com 的全域规则。"
+
+msgid "GitHub"
+msgstr "GitHub"
+
+msgid "Steam"
+msgstr "Steam"
+
+msgid "OKX"
+msgstr "OKX"
+
+msgid "Website, app, CDNs, REST, WebSocket, demo and regional endpoints."
+msgstr "网站、应用、CDN、REST、WebSocket、演示环境及地区端点。"
+
+msgid "OKX · trading API"
+msgstr "OKX · 交易 API"
+
+msgid "OKX REST, public/private/business WebSocket, demo and regional endpoints."
+msgstr "OKX REST、公共／私有／业务 WebSocket、演示环境及地区端点。"
+
+msgid "eWeLink / Sonoff"
+msgstr "eWeLink / Sonoff"
+
+msgid "eWeLink APIs, regional dispatchers and cloud connections."
+msgstr "eWeLink API、地区调度服务及云连接。"
+
+msgid "Xiaomi Home / Mi Home"
+msgstr "Xiaomi Home / Mi Home"
+
+msgid "MIoT API, MQTT and Xiaomi account sign-in."
+msgstr "MIoT API、MQTT 及小米账户登录。"
+
+msgid "Tuya / Smart Life"
+msgstr "Tuya / Smart Life"
+
+msgid "Tuya regional APIs and cloud MQTT."
+msgstr "Tuya 地区 API 及云端 MQTT。"
+
+msgid "Aqara Home"
+msgstr "Aqara Home"
+
+msgid "Regional app APIs and cloud services for Aqara devices."
+msgstr "Aqara 设备的地区应用 API 及云服务。"
+
+msgid "Shelly Smart Control"
+msgstr "Shelly Smart Control"
+
+msgid "Cloud API and WebSocket connections for Shelly devices."
+msgstr "Shelly 设备的云 API 及 WebSocket 连接。"
+
+msgid "Save & Apply"
+msgstr "保存并应用"
+
+msgid "Apply unchecked"
+msgstr "不经检查直接应用"
+
+msgid "Reset"
+msgstr "重置"
+
+msgid "Apply"
+msgstr "应用"
+
+msgid "Close"
+msgstr "关闭"
+
+msgid "Dismiss"
+msgstr "关闭"
+
+msgid "Changes"
+msgstr "更改"
+
+msgid "Configuration"
+msgstr "配置"
