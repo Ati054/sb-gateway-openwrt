@@ -730,7 +730,9 @@ return view.extend({
 		groups.parse = function() {
 			var invalid = uci.sections('resproxy', 'rule').find(function(saved) {
 				var section = saved['.name'];
-				return groups.filter(section) && ![domains, cidrs, protocol, inbound, network, ports].some(function(field) {
+				// Imported country and service rules need not have a preset marker.
+				var savedCondition = String(saved.country || '').trim() || values(saved.service_packs).length;
+				return groups.filter(section) && !savedCondition && ![domains, cidrs, protocol, inbound, network, ports].some(function(field) {
 					var current = field.formvalue(section); return Array.isArray(current) ? current.length > 0 : !!String(current || '').trim();
 				});
 			});

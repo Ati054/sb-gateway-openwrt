@@ -40,6 +40,8 @@ try {
   const form=new (new Function('ui','uci','rpc','dom','baseclass','L','E','_',formSource)(ui,uci,rpc,dom,baseclass,L,E,_))();
   const safeDOM=new (new Function('baseclass','dom',sources.safe_dom)(baseclass,dom))();
   const Drafts=new (new Function('baseclass','ui','safeDOM','L','_',sources.drafts)(baseclass,ui,safeDOM,L,_))();
+  let ruleMap;const attachDraft=Drafts.attach;
+  Drafts.attach=function(map,page){if(page==='rulesets')ruleMap=map;return attachDraft.apply(this,arguments);};
   const IntervalValue=new (new Function('baseclass','form','safeDOM','_',sources.interval)(baseclass,form,safeDOM,_))();
   const rulesets=new (new Function('sbgTheme','view','Drafts','form','IntervalValue','uci','fs','ui','validation','poll','safeDOM','_',sources.rulesets)({decorate:n=>n},baseclass,Drafts,form,IntervalValue,uci,fs,ui,validation,poll,safeDOM,_))();
   const view=await rulesets.render(await rulesets.load());document.body.append(view);
@@ -61,6 +63,22 @@ try {
   const edited={geo:withDraft.querySelector('input[value="geoip:ru"]').checked,torrent:withDraft.querySelector('[data-name="_preset_traffic"] input').checked,outage:withDraft.querySelector('select[id$="._preset_outage_action"]').value};
   if(withDraft.querySelector('select[id$=".ipv6_mode"]').value!=='block')throw Error('Generic settings draft was lost');
   if(config.geo.proxy_outage_action!=='wan')throw Error('Viewing or drafting changed saved UCI rules');
+  // Rules from UCI or older versions need not carry the preset-editor marker.
+  // Saving an unrelated interval must keep their real match conditions.
+  withDraft.remove();window.dispatchEvent(new Event('pagehide'));
+  config.legacygeo={'.name':'legacygeo','.type':'rule',id:'legacy-geo',name:'Legacy country',action:'direct',country:'cn',geo_mode:'geoip'};
+  config.legacypack={'.name':'legacypack','.type':'rule',id:'legacy-pack',name:'Legacy service',action:'direct',service_packs:['ru-government']};
+  config.legacydomain={'.name':'legacydomain','.type':'rule',id:'legacy-domain',name:'Legacy domain',action:'direct',domains:['example.com']};
+  config.legacycidr={'.name':'legacycidr','.type':'rule',id:'legacy-cidr',name:'Legacy network',action:'direct',cidrs:['203.0.113.0/24']};
+  const legacyView=await rulesets.render(await rulesets.load());document.body.append(legacyView);
+  await ruleMap.parse();
+  if(config.legacygeo.country!=='cn'||config.legacygeo.geo_mode!=='geoip'||config.legacypack.service_packs[0]!=='ru-government')throw Error('Saving erased a legacy rule condition');
+  legacyView.remove();window.dispatchEvent(new Event('pagehide'));
+  config.emptyrule={'.name':'emptyrule','.type':'rule',id:'empty-rule',name:'Empty rule',action:'direct'};
+  const emptyView=await rulesets.render(await rulesets.load());document.body.append(emptyView);
+  let rejectedEmpty=false;try{await ruleMap.parse();}catch(error){rejectedEmpty=/Add a domain/.test(error.message);}
+  if(!rejectedEmpty)throw Error('A genuinely empty custom rule passed validation');
+  delete config.emptyrule;emptyView.remove();window.dispatchEvent(new Event('pagehide'));
   const instantiate=(source,deps)=>new (new Function(...Object.keys(deps),source)(...Object.values(deps)))();
   const monitor={externalDNS:async()=>'',sources:async()=>({})};
   config.main.dns_proxy_provider='quad9'; config.main.dns_direct_provider='yandex';config.main.dns_port='1153';
