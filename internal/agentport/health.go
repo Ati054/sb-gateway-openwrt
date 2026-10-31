@@ -218,6 +218,8 @@ type probeEvidence struct {
 	QualityUnmeasured    bool
 	PrimaryQualityFailed bool
 	ObservedAt           time.Time
+	QualityStartedAt     time.Time
+	QualityWave          uint64
 	Deferred             bool
 	LocalFailure         bool
 	LocalError           error
@@ -1008,11 +1010,12 @@ func (controller *healthController) tickPolicy(now time.Time, policyID string, c
 		if runtime, ok := controller.runtime.(interface{ qualityProbeParallelism() int }); ok {
 			pairSettings.batch = minInt(p.batch, maxInt(1, runtime.qualityProbeParallelism()))
 		}
-		probeTargets = qualityBatchTargets(now, selected, probeTargets, item, pairSettings)
+		probeTargets = qualityBatchTargets(now, selected, probeTargets, item, pairSettings, qualityProbeWidth(controller.runtime) > 1)
 	}
 	if !outage {
 		var deferred []string
-		probeTargets, deferred = controller.claimProbeTargets(policyID, contract, probeTargets, false)
+		atomicPair := contract.Mode == "best" && qualityProbeWidth(controller.runtime) > 1 && len(probeTargets) > 1
+		probeTargets, deferred = controller.claimProbeTargets(policyID, contract, probeTargets, atomicPair)
 		item.ScanQueue = uniqueCandidates(append(deferred, item.ScanQueue...))
 	}
 	measured := make(map[string]probeEvidence)

@@ -67,8 +67,6 @@ msgstr "Subscription update"
 msgid "Update"
 msgstr "Update"
 
-msgid "APK SHA-256: "
-msgstr "APK SHA-256: "
 
 msgid "Overview"
 msgstr "Overview"

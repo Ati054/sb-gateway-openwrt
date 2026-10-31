@@ -110,8 +110,11 @@ func pairContinuationValid(now time.Time, item *policyHealthState) bool {
 
 // Refresh the baseline within a large sweep, using the same batch and global
 // request budgets. With one slot, the reserved peer follows on the next wake.
-func qualityBatchTargets(now time.Time, selected string, targets []string, item *policyHealthState, p effectivePolicySettings) []string {
+func qualityBatchTargets(now time.Time, selected string, targets []string, item *policyHealthState, p effectivePolicySettings, concurrent bool) []string {
 	if pairContinuationValid(now, item) {
+		if concurrent && p.mode == "best" && p.batch > 1 {
+			return []string{selected, item.qualityPair.Candidate}
+		}
 		return []string{item.qualityPair.Node}
 	}
 	item.qualityPair = nil
@@ -120,6 +123,9 @@ func qualityBatchTargets(now time.Time, selected string, targets []string, item 
 	}
 	if len(targets) == 0 || contains(targets, selected) {
 		return targets
+	}
+	if concurrent && p.mode == "best" && p.batch > 1 {
+		return append([]string{selected}, targets...)[:minInt(len(targets)+1, p.batch)]
 	}
 	active, good := latestQuality(item, selected)
 	age := float64(now.UnixNano())/1e9 - active.At

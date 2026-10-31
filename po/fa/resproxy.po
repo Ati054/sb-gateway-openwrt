@@ -67,8 +67,6 @@ msgstr "به‌روزرسانی اشتراک"
 msgid "Update"
 msgstr "به‌روزرسانی"
 
-msgid "APK SHA-256: "
-msgstr "SHA-256 فایل APK: "
 
 msgid "Overview"
 msgstr "نمای کلی"

@@ -8,7 +8,7 @@ var E = safeDOM.create;
 
 function decorate(node) {
  var language = (document.documentElement.lang || 'en').replace(/_/g, '-');
- var menuVersion = 'r104-i18n:' + language;
+ var menuVersion = 'r105-i18n:' + language;
  // LuCI keeps its menu in browser-session storage across package upgrades.
  if (session.getLocalData('sbg-menu-version') !== menuVersion) {
   ui.menu.flushCache();
@@ -20,7 +20,7 @@ function decorate(node) {
 		document.head.appendChild(E('link', {
 			'id': 'sbg-ui-style',
 			'rel': 'stylesheet',
-			'href': L.resource('view/resproxy/style.css') + '?v=r104-i18n'
+			'href': L.resource('view/resproxy/style.css') + '?v=r105-i18n'
 		}));
 	node.classList.add('sbg-page');
 	node.setAttribute('dir', /^(ar|fa|he|ur)(-|$)/i.test(language) ? 'rtl' : 'ltr');

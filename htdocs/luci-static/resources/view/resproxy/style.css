@@ -432,12 +432,12 @@
 
 /* Technical values retain their reading order within right-to-left forms. */
 .sbg-page :is(code,pre),
-.sbg-page input:is([type="url"],[type="number"],[id$=".url"],[id$="_url"],[id$="_port"],[id$=".id"],[id$=".source_ip"],[id$=".client_cidrs"]) {
+.sbg-page input:is([type="url"],[type="number"],[id$=".url"],[id$="_url"],[id$="_port"],[id$=".ports"],[id$=".id"],[id$=".source_ip"],[id$=".cidrs"],[id$="_cidrs"]) {
  direction:ltr;
  unicode-bidi:isolate;
  text-align:start;
 }
-.sbg-page :is([data-name="client_cidrs"],[data-name="source_ip"],[data-name="domains"],[data-name="ip_cidrs"],[data-name="destination_ports"],[data-name="source_ports"]) :is(input,textarea) {
+.sbg-page :is([data-name="client_cidrs"],[data-name="source_cidrs"],[data-name="bypass_cidrs"],[data-name="source_ip"],[data-name="domains"],[data-name="cidrs"],[data-name="ip_cidrs"],[data-name="ports"],[data-name="destination_ports"],[data-name="source_ports"]) :is(input,textarea,.cbi-dynlist > .item > span) {
  direction:ltr;
  unicode-bidi:isolate;
  text-align:start;

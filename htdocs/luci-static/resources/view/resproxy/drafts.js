@@ -46,7 +46,11 @@ function queue(save, onError) {
  };
 }
 function attach(map, page) {
- var snapshot = read(page) || { fields: {} }, root = null, explicit = false, saving = false, saveFlight = null;
+ var snapshot = read(page) || { fields: {}, dirty: false }, root = null, explicit = false, saving = false, saveFlight = null;
+ var legacySnapshot = snapshot.dirty == null;
+ function comparable(value) {
+  return JSON.stringify((Array.isArray(value) ? value : [value]).filter(function(item) { return item != null && item !== ''; }).map(String));
+ }
  var lastError = '', saveOriginal = map.save, parseOriginal = map.parse;
  var parsing = false, lastStaged = {};
  function report(error) {
@@ -119,7 +123,12 @@ function attach(map, page) {
   field.renderWidget = function(section, index, value) {
    var args = Array.prototype.slice.call(arguments), stored = snapshot.fields[section + '.' + this.option];
    if (!root && stored) {
-    if (JSON.stringify(value) === JSON.stringify(stored.base) || JSON.stringify(value) === JSON.stringify(stored.staged)) args[2] = stored.value;
+    if (JSON.stringify(value) === JSON.stringify(stored.base) || JSON.stringify(value) === JSON.stringify(stored.staged)) {
+     args[2] = stored.value;
+     // Older drafts have no edit marker. Preserve real edits, while an
+     // unchanged rendered default is still only a read-only visit.
+     if (legacySnapshot && comparable(stored.value) !== comparable(stored.base == null ? this.default : stored.base)) snapshot.dirty = true;
+    }
     else delete snapshot.fields[section + '.' + this.option];
    }
    return render.apply(this, args);
@@ -132,7 +141,7 @@ function attach(map, page) {
    saving = true;
    var release = freeze('input,select,textarea,button');
    return Promise.resolve().then(function() { return saveOriginal.apply(map, args); }).then(function(node) {
-    saves.discard(); lastStaged = {}; snapshot = { fields: {} }; write(page, null); return node;
+    saves.discard(); lastStaged = {}; snapshot = { fields: {}, dirty: false }; write(page, null); return node;
    }).finally(function() { saving = false; release(); });
   }).finally(function() { saveFlight = null; });
   return saveFlight;
@@ -160,10 +169,10 @@ function attach(map, page) {
  return {
   bind: function(node) {
    root = node;
-   function changed() { if (saving || map.readonly) return; try { capture(); saves.mark(); } catch (error) { report(error); } }
+   function changed() { if (saving || map.readonly) return; try { snapshot.dirty = true; capture(); saves.mark(); } catch (error) { report(error); } }
    ['input', 'change', 'widget-change'].forEach(function(type) { node.addEventListener(type, changed); });
    // Restored invalid values remain local and visible until corrected.
-   if (Object.keys(snapshot.fields).length) saves.mark();
+   if (snapshot.dirty && Object.keys(snapshot.fields).length) saves.mark();
    return node;
   },
   flush: flush

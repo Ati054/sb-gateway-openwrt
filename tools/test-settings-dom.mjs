@@ -31,7 +31,8 @@ try {
   String.prototype.format=function(...args){let i=0;return this.replace(/%[sdh]/g,()=>String(args[i++]));};
   const L=window.L={bind:(fn,obj,...args)=>fn.bind(obj,...args),isObject:v=>v!==null&&typeof v==='object',toArray:v=>v==null?[]:Array.isArray(v)?v:[v],env:{sessionid:'fixture'},error:(t,m)=>{throw Error(t+': '+m);},resolveDefault:(p,d)=>Promise.resolve(p).catch(()=>d),resource:x=>x,url:(...parts)=>'/'+parts.join('/'),naturalCompare:(a,b)=>String(a).localeCompare(String(b))};
   const config={main:{'.name':'main','.type':'main',ipv6_mode:'direct'},geo:{'.name':'geo','.type':'rule',id:'geo',name:'Geo',preset_key:'geoip:ru',preset_variant:'ru',preset_variant_name:'RU',action:'direct',proxy_outage_action:'wan'},pack:{'.name':'pack','.type':'rule',id:'pack',name:'Pack',preset_key:'group:ru-government',preset_variant:'ru',preset_variant_name:'RU',action:'direct',proxy_outage_action:'wan'},torrent:{'.name':'torrent','.type':'rule',id:'torrent',name:'Torrent',preset_key:'traffic:bittorrent',preset_variant:'ru',preset_variant_name:'RU',action:'direct',proxy_outage_action:'wan'}};
-  const uci={loadPackage:async()=>{},load:async()=>{},get:(_c,s,o)=>o?config[s]?.[o]:config[s],sections:(_c,t)=>Object.values(config).filter(s=>s['.type']===t),resolveSID:(_c,s)=>s,set:(_c,s,o,v)=>{config[s][o]=v;},unset:(_c,s,o)=>{delete config[s][o];},save:async()=>{}};
+  let uciSaves=0;
+  const uci={loadPackage:async()=>{},load:async()=>{},get:(_c,s,o)=>o?config[s]?.[o]:config[s],sections:(_c,t)=>Object.values(config).filter(s=>s['.type']===t),resolveSID:(_c,s)=>s,set:(_c,s,o,v)=>{config[s][o]=v;},unset:(_c,s,o)=>{delete config[s][o];},save:async()=>{uciSaves++;}};
   const rpc={declare:()=>async()=>true}; const fs={exec:async()=>({code:0,stdout:JSON.stringify({choices:[{id:'ru-government',name:'Government',country:'ru'}],automatic_ips:[]})})};
   const poll={add:()=>{},remove:()=>{}}; const validation={create:()=>({validate:()=>true}),types:{}};
   const findParent=(node,selector)=>node.closest(selector);
@@ -49,8 +50,15 @@ try {
   const read=()=>({geo:view.querySelector('input[value="geoip:ru"]').checked,torrent:view.querySelector('[data-name="_preset_traffic"] input')?.checked,outage:view.querySelector('select[id$="._preset_outage_action"]')?.value,storage:JSON.parse(sessionStorage.getItem('resproxy.draft.fixture.preset-editor'))});
   const before=read();view.querySelector('.sbg-ready-variant').open=true;await turn();const after=read();await turn();
   const normal={before,after,later:read()};
+  // A read-only visit may capture local form values on pagehide, but opening
+  // them again must not stage defaults into the rpcd UCI session.
+  window.dispatchEvent(new Event('pagehide'));view.remove();
+  const savesBeforeViewing=uciSaves;
+  const unchanged=await rulesets.render(await rulesets.load());document.body.append(unchanged);
+  await new Promise(resolve=>setTimeout(resolve,800));
+  if(uciSaves!==savesBeforeViewing)throw Error('Reopening unchanged stock form staged default settings');
+  window.dispatchEvent(new Event('pagehide'));unchanged.remove();
   // Restore an open variant before any user edit has created its local draft.
-  view.remove();
   // A legacy page-wide draft must not override the per-variant editor.
   sessionStorage.setItem('resproxy.draft.fixture.rulesets',JSON.stringify({at:Date.now(),value:{fields:{'main._preset_outage_action':{value:'block',base:'wan'}}}}));
   const reloaded=await rulesets.render(await rulesets.load());document.body.append(reloaded);await turn();

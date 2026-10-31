@@ -438,33 +438,34 @@ func (runtime *responsiveSelectorRuntime) probeParallel(candidates []string, onR
 	}
 	ctx, cancel := context.WithCancel(runtime.ctx)
 	defer cancel()
-	jobs := make(chan string, len(candidates))
 	results := make(chan result, len(candidates))
-	for _, candidate := range candidates {
-		jobs <- candidate
-	}
-	close(jobs)
 	workerCount := minInt(len(lanes), len(candidates))
+	jobsByLane := probeLaneJobs(candidates, workerCount, quality, cancel)
 	var workers sync.WaitGroup
 	workers.Add(workerCount)
-	for _, lane := range lanes[:workerCount] {
+	for index, lane := range lanes[:workerCount] {
 		lane := lane
+		jobs := jobsByLane[index]
 		go func() {
 			defer workers.Done()
 			lane.probeContext = ctx
 			if _, _, err := lane.Reload(); err != nil {
-				for candidate := range jobs {
-					results <- result{candidate: candidate, evidence: probeEvidence{Failure: probeFailureTransient, LocalFailure: true}}
+				for job := range jobs {
+					job.start.arrive()
+					results <- result{candidate: job.node, evidence: probeEvidence{Failure: probeFailureTransient, LocalFailure: true}}
 				}
 				return
 			}
-			for candidate := range jobs {
+			for job := range jobs {
 				if ctx.Err() != nil {
 					return
 				}
 				var evidence probeEvidence
+				candidate := job.node
 				if quality {
+					lane.qualityStart = job.start
 					evidence = lane.Probe(candidate)
+					lane.qualityStart = nil
 				} else if !checkOtherPolicies {
 					evidence = lane.ProbeEmergencyAvailability(candidate)
 				} else {

@@ -34,6 +34,27 @@ func (controller *healthController) incoherentSharedComparison(policyID string, 
 	if contract.Mode != "best" || len(nodes) < 2 || controller.probeBudget == nil {
 		return false
 	}
+	if qualityProbeWidth(controller.runtime) > 1 {
+		cachedPeer, missingPeer, wave := false, false, uint64(0)
+		for _, node := range nodes {
+			key := controller.probeKey(policyID, node, contract)
+			cached, ok := controller.probeBudget.Quality[key]
+			if ok && now.Sub(cached.At) <= sharedProbeLifetime {
+				id := cached.Evidence.QualityWave
+				if id == 0 || wave != 0 && wave != id {
+					return true
+				}
+				cachedPeer, wave = true, id
+			} else if controller.probeBudget.QualityAttempted[key] {
+				return true
+			} else {
+				missingPeer = true
+			}
+		}
+		if cachedPeer && missingPeer {
+			return true
+		}
+	}
 	var oldest, latest time.Time
 	pending := false
 	for _, node := range nodes {
@@ -83,10 +104,14 @@ func (controller *healthController) sharedQualityBatch(policyID string, contract
 		}
 	}
 	if runtime, ok := controller.runtime.(parallelQualityRuntime); ok && len(pending) > 1 {
+		wave := qualityWaveSequence.Add(1)
 		for _, node := range pending {
 			controller.probeBudget.QualityAttempted[controller.probeKey(policyID, node, contract)] = true
 		}
 		for node, evidence := range runtime.ProbeQualityParallel(pending) {
+			if evidence.QualityWave == 0 {
+				evidence.QualityWave = wave
+			}
 			result[node] = evidence
 			if evidence.OK && contract.Nodes[node].Fingerprint != "" {
 				controller.probeBudget.Quality[controller.probeKey(policyID, node, contract)] = sharedProbeResult{At: probeObservedAt(evidence), Evidence: evidence}

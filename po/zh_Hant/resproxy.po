@@ -67,8 +67,6 @@ msgstr "訂閱更新"
 msgid "Update"
 msgstr "更新"
 
-msgid "APK SHA-256: "
-msgstr "APK SHA-256： "
 
 msgid "Overview"
 msgstr "概覽"

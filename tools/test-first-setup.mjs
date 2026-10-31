@@ -35,6 +35,15 @@ function fixture(storage=new Map()) {
   }};
 }
 
+// Reopening an untouched page must not queue a save of its default values.
+const untouched=fixture();untouched.leave();
+const viewedAgain=fixture(untouched.storage);
+assert.equal(viewedAgain.navigate(),false,'Viewing unchanged settings queued a draft write');
+viewedAgain.leave();
+const oldDraft=new Map([['resproxy.draft.test.routes',JSON.stringify({at:Date.now(),value:{fields:{'main.id':{base:'old',value:'legacy edit'}}}})]]);
+const legacy=fixture(oldDraft);assert.equal(legacy.get(),'legacy edit');
+assert.equal(legacy.navigate(),true);await turn();await turn();assert.equal(legacy.server(),'legacy edit');legacy.leave();
+
 // A half-configured list must not trap the user or apply an invalid route.
 let f=fixture();f.set('unfinished');f.invalid(true);
 assert.equal(f.navigate(),true);await turn();await turn();

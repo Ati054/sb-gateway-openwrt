@@ -47,6 +47,7 @@ type xraySelectorRuntime struct {
 	probeRuntimeTag   string
 	probeSelector     string
 	probeContext      context.Context
+	qualityStart      *qualityStartTicket
 	control           *xrayControlClient
 }
 
@@ -877,6 +878,10 @@ const (
 func (runtime *xraySelectorRuntime) Probe(candidate string) (evidence probeEvidence) {
 	trace := beginHealthStage("quality_probe", runtime.stageLane(), "", candidate)
 	defer func() {
+		if runtime.qualityStart != nil {
+			runtime.qualityStart.arrive()
+			evidence.QualityWave = runtime.qualityStart.barrier.id
+		}
 		evidence.ObservedAt = time.Now()
 		trace.finish(evidence.OK)
 	}()
@@ -947,9 +952,14 @@ func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) 
 	}
 	// Compare one origin only; alternate origins prove availability, not speed.
 	target := healthTargets[0]
+	if err := runtime.qualityStart.wait(runtime.requestContext()); err != nil {
+		evidence.LocalFailure, evidence.LocalError = true, err
+		return evidence
+	}
 	trace := beginHealthStage("https", runtime.stageLane(), "", "")
 	trace.target(target.label)
 	started := time.Now()
+	evidence.QualityStartedAt = started
 	_, err := requestThroughProxyContext(runtime.requestContext(), runtime.opts.ProbeURL, target.url, http.MethodHead, 5*time.Second, 0, target.status)
 	trace.finish(err == nil)
 	if err == nil {

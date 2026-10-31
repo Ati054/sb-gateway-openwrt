@@ -82,6 +82,8 @@ def check():
             assert value, f'{locale}: empty translation for {key!r}'
             if not key:
                 continue
+            assert key == key.strip(), f'{locale}: message key has surrounding whitespace: {key!r}'
+            assert key == key.strip(), f'{locale}: message key has surrounding whitespace: {key!r}'
             assert re.findall(r'%[sdh]', key) == re.findall(r'%[sdh]', value), f'{locale}: format arguments changed in {key!r}'
             assert '\ufffd' not in value, f'{locale}: damaged UTF-8 in {key!r}'
             if locale.startswith('zh') and not re.search('[\u0600-\u06ff]', key):
