@@ -98,3 +98,9 @@ func qualityProbeWidth(runtime selectorRuntime) int {
 	}
 	return 1
 }
+
+func qualityIntervalsOverlap(active, candidate probeEvidence) bool {
+	return !active.QualityStartedAt.IsZero() && !candidate.QualityStartedAt.IsZero() &&
+		active.QualityStartedAt.Before(active.ObservedAt) && candidate.QualityStartedAt.Before(candidate.ObservedAt) &&
+		active.QualityStartedAt.Before(candidate.ObservedAt) && candidate.QualityStartedAt.Before(active.ObservedAt)
+}

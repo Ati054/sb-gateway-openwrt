@@ -202,6 +202,7 @@ func TestInterleavedQualityWavePreservesIndependentConfirmation(t *testing.T) {
 		a, b := successfulEvidence(700), successfulEvidence(300)
 		a.ObservedAt, b.ObservedAt = at, at
 		a.QualityWave, b.QualityWave = wave, wave
+		a.QualityStartedAt, b.QualityStartedAt = at.Add(-700*time.Millisecond), at.Add(-300*time.Millisecond)
 		return map[string]probeEvidence{"a": a, "b": b}
 	}
 	firstAt := now.Add(-time.Second)

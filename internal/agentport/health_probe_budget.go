@@ -104,7 +104,10 @@ func (controller *healthController) sharedQualityBatch(policyID string, contract
 		}
 	}
 	if runtime, ok := controller.runtime.(parallelQualityRuntime); ok && len(pending) > 1 {
-		wave := qualityWaveSequence.Add(1)
+		wave := uint64(0)
+		if qualityProbeWidth(controller.runtime) > 1 {
+			wave = qualityWaveSequence.Add(1)
+		}
 		for _, node := range pending {
 			controller.probeBudget.QualityAttempted[controller.probeKey(policyID, node, contract)] = true
 		}

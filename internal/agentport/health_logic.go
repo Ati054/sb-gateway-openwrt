@@ -462,6 +462,11 @@ func regularOptimizationComparison(now time.Time, selected, candidate string, me
 		// candidate. Keep its independent proof until a comparable pair or expiry.
 		return nil
 	}
+	if activeWave != 0 && !qualityIntervalsOverlap(pair[selected], pair[candidate]) {
+		// A worker can be descheduled after the preparation barrier. The wave
+		// label alone cannot make two sequential measurements comparable.
+		return nil
+	}
 	comparison := compareOptimization(now, selected, candidate, pair, quality, available, p)
 	comparison.ActiveAt, comparison.CandidateAt = times[selected], times[candidate]
 	comparison.ActiveMedianMS = recentQualityMedian(now, item.Samples[selected], p)
