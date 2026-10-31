@@ -165,8 +165,8 @@ func TestDifferentQualityWavesCannotWinOptimization(t *testing.T) {
 		active.QualityWave, candidate.QualityWave = 1, wave
 		comparison := regularOptimizationComparison(time.Now(), "a", "b", map[string]probeEvidence{"a": active, "b": candidate},
 			&policyHealthState{}, true, true, effectivePolicySettings{mode: "best", active: 60, improvement: 200})
-		if comparison == nil || comparison.Result != optimizationInconclusive || comparison.Reason != "pair-not-concurrent" {
-			t.Fatalf("different physical waves counted as a win: %+v", comparison)
+		if comparison != nil {
+			t.Fatalf("different physical waves were treated as comparative evidence: %+v", comparison)
 		}
 	}
 }
@@ -188,4 +188,50 @@ func TestQualityPreparationWaitYieldsOnCancellation(t *testing.T) {
 		t.Fatal("preparation retained a cancelled worker")
 	}
 	second.start.arrive()
+}
+
+func TestInterleavedQualityWavePreservesIndependentConfirmation(t *testing.T) {
+	now := time.Now()
+	p := effectivePolicySettings{mode: "best", active: 60, improvement: 200}
+	item := newPolicyHealthState()
+	for node, ms := range map[string]int{"a": 700, "b": 300} {
+		value := ms
+		item.Samples[node] = []healthSample{{At: float64(now.Add(-time.Second).UnixNano()) / 1e9, OK: true, DelayMS: &value}}
+	}
+	pair := func(at time.Time, wave uint64) map[string]probeEvidence {
+		a, b := successfulEvidence(700), successfulEvidence(300)
+		a.ObservedAt, b.ObservedAt = at, at
+		a.QualityWave, b.QualityWave = wave, wave
+		return map[string]probeEvidence{"a": a, "b": b}
+	}
+	firstAt := now.Add(-time.Second)
+	first := regularOptimizationComparison(firstAt, "a", "b", pair(firstAt, 1), item, true, true, p)
+	selected, _ := gatePlannedOptimization(firstAt, "a", "b", "meaningfully-faster", first, item, p)
+	if selected != "a" || item.OptimizationChecks != 1 {
+		t.Fatal("first independent confirmation was not retained")
+	}
+	for _, activeMS := range []int{700, 250} {
+		other := pair(now, 2)
+		delete(other, "b")
+		active := other["a"]
+		active.DelayMS = &activeMS
+		other["a"] = active
+		middle := regularOptimizationComparison(now, "a", "b", other, item, true, true, p)
+		selected, _ = gatePlannedOptimization(now, "a", "b", "meaningfully-faster", middle, item, p)
+		if selected != "a" || item.OptimizationChecks != 1 || item.OptimizationCandidate != "b" {
+			t.Fatalf("checking another reserve erased a valid independent confirmation: %+v", middle)
+		}
+		expired := *item
+		expiry := now.Add(3 * time.Minute)
+		gatePlannedOptimization(expiry, "a", "b", "meaningfully-faster", nil, &expired, p)
+		if expired.OptimizationChecks != 0 || expired.OptimizationCandidate != "" {
+			t.Fatal("unpaired waves prevented pending proof expiry")
+		}
+	}
+	nextAt := now.Add(time.Second)
+	next := regularOptimizationComparison(nextAt, "a", "b", pair(nextAt, 3), item, true, true, p)
+	selected, reason := gatePlannedOptimization(nextAt, "a", "b", "meaningfully-faster", next, item, p)
+	if selected != "b" || reason != "meaningfully-faster" {
+		t.Fatal("second independent coherent pair did not complete the switch")
+	}
 }

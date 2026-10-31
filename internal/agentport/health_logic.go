@@ -456,6 +456,12 @@ func regularOptimizationComparison(now time.Time, selected, candidate string, me
 			}
 		}
 	}
+	activeWave, candidateWave := pair[selected].QualityWave, pair[candidate].QualityWave
+	if (activeWave != 0 || candidateWave != 0) && (activeWave == 0 || activeWave != candidateWave) {
+		// Another reserve's wave is neither a win nor a loss for this pending
+		// candidate. Keep its independent proof until a comparable pair or expiry.
+		return nil
+	}
 	comparison := compareOptimization(now, selected, candidate, pair, quality, available, p)
 	comparison.ActiveAt, comparison.CandidateAt = times[selected], times[candidate]
 	comparison.ActiveMedianMS = recentQualityMedian(now, item.Samples[selected], p)
@@ -474,11 +480,6 @@ func regularOptimizationComparison(now time.Time, selected, candidate string, me
 	}
 	if comparison.Result == optimizationWin && math.Abs(comparison.ActiveAt-comparison.CandidateAt) > qualityPairWindow.Seconds() {
 		comparison.Result, comparison.Reason = optimizationInconclusive, "pair-too-far-apart"
-	}
-	activeWave, candidateWave := pair[selected].QualityWave, pair[candidate].QualityWave
-	if comparison.Result == optimizationWin && (activeWave != 0 || candidateWave != 0) &&
-		(activeWave == 0 || activeWave != candidateWave) {
-		comparison.Result, comparison.Reason = optimizationInconclusive, "pair-not-concurrent"
 	}
 	previous := item.OptimizationLastResult
 	if comparison.Result == optimizationWin && item.OptimizationChecks > 0 &&
