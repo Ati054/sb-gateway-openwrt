@@ -5,6 +5,7 @@ import "time"
 
 // Continue a bounded sweep without waiting another full quality interval.
 func (controller *healthController) remainingProbeInterval(now time.Time, contract healthPolicyContract, item *policyHealthState) time.Duration {
+	item = warmPlanningScheduleView(item)
 	p := policySettings(contract.Policy, contract.Mode)
 	interval := controller.regularInterval(contract)
 	for _, candidate := range contract.Candidates {

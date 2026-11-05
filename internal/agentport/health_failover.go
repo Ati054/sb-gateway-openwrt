@@ -118,8 +118,7 @@ func freshEmergencyReserves(now time.Time, selected string, candidates []string,
 			continue
 		}
 		fresh = append(fresh, candidate)
-		samples := item.Samples[candidate]
-		delays[candidate] = samples[len(samples)-1].DelayMS
+		delays[candidate] = latestQualityObservation(item, candidate).DelayMS
 	}
 	return rankCandidates(fresh, mode, groups, nil, delays)
 }
@@ -142,7 +141,7 @@ func emergencyRankingDelays(now time.Time, candidates []string, measured map[str
 			}
 		}
 		if age, valid := qualitySampleAge(now, item, candidate); valid && age <= float64(p.backup) {
-			delays[candidate] = item.Samples[candidate][len(item.Samples[candidate])-1].DelayMS
+			delays[candidate] = latestQualityObservation(item, candidate).DelayMS
 		}
 	}
 	return delays

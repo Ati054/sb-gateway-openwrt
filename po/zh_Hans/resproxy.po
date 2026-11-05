@@ -2326,3 +2326,42 @@ msgstr "更改"
 
 msgid "Configuration"
 msgstr "配置"
+
+msgid "Waiting for service startup to load rule databases."
+msgstr "等待服务启动后加载规则数据库。"
+
+msgid "Automatic rule database check is scheduled."
+msgstr "已安排自动检查规则数据库。"
+
+msgid "Rule database update is waiting for its turn."
+msgstr "规则数据库更新正在排队等待。"
+
+msgid "Downloading rule databases..."
+msgstr "正在下载规则数据库…"
+
+msgid "Applying rule databases..."
+msgstr "正在应用规则数据库…"
+
+msgid "No downloadable rule databases are used by route lists."
+msgstr "路由列表未使用需要下载的规则数据库。"
+
+msgid "Rule database update finished with errors."
+msgstr "规则数据库更新已完成，但存在错误。"
+
+msgid "Start SB Gateway to load rule databases."
+msgstr "请启动 SB Gateway 以加载规则数据库。"
+
+msgid "Waiting for automatic rule database loading."
+msgstr "等待自动加载规则数据库。"
+
+msgid "Cached"
+msgstr "已缓存"
+
+msgid "Waiting for download"
+msgstr "等待下载"
+
+msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
+msgstr "将规则关联到路由列表并应用设置。SB Gateway 运行时会自动加载缺失的数据库。"
+
+msgid "All supported nodes are imported; data-size and storage limits still apply."
+msgstr "导入所有受支持的节点；数据大小和存储空间限制仍然适用。"

@@ -2326,3 +2326,42 @@ msgstr "Changes"
 
 msgid "Configuration"
 msgstr "Configuration"
+
+msgid "Waiting for service startup to load rule databases."
+msgstr "Waiting for service startup to load rule databases."
+
+msgid "Automatic rule database check is scheduled."
+msgstr "Automatic rule database check is scheduled."
+
+msgid "Rule database update is waiting for its turn."
+msgstr "Rule database update is waiting for its turn."
+
+msgid "Downloading rule databases..."
+msgstr "Downloading rule databases..."
+
+msgid "Applying rule databases..."
+msgstr "Applying rule databases..."
+
+msgid "No downloadable rule databases are used by route lists."
+msgstr "No downloadable rule databases are used by route lists."
+
+msgid "Rule database update finished with errors."
+msgstr "Rule database update finished with errors."
+
+msgid "Start SB Gateway to load rule databases."
+msgstr "Start SB Gateway to load rule databases."
+
+msgid "Waiting for automatic rule database loading."
+msgstr "Waiting for automatic rule database loading."
+
+msgid "Cached"
+msgstr "Cached"
+
+msgid "Waiting for download"
+msgstr "Waiting for download"
+
+msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
+msgstr "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
+
+msgid "All supported nodes are imported; data-size and storage limits still apply."
+msgstr "All supported nodes are imported; data-size and storage limits still apply."

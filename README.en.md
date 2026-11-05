@@ -12,7 +12,7 @@ Route devices and services through proxies with automatic node selection. Config
 - **Protocols:** VLESS, VMess, Trojan, Shadowsocks, and Hysteria2. Shadowsocks SIP003 plugins v2ray-plugin and obfs-local can be installed from the interface.
 - **Route lists:** separate settings for all devices, selected IP addresses, or subnets. Pick devices from OpenWrt static DHCP reservations or enter addresses manually. Select nodes by name, subscription, country, location, protocol, and filters.
 - **Name filters:** comma-separated or `|`-separated fragments are alternatives. Double quotes require a full name: `Sweden, "Amsterdam Premium 01"` matches names containing Sweden and the specific Amsterdam node. Exclusion uses the same syntax and takes precedence.
-- **URLTest:** compares full HTTPS response times using a short median of up to three fresh measurements. Switching requires two independent confirmations of the configured improvement; active and candidate measurements must complete within 10 seconds of each other. Failure checks run separately.
+- **URLTest:** full HTTPS latency over a new connection for each measurement. Planned switching requires two coherent fresh pairs with the configured interval between confirmations. Both the latest measurement and a median of up to three recent measurements must show an improvement. Pair measurements must finish within 10 seconds of each other. Frequent active-node references update the latest result while median history admits samples at the quality interval. Errors and recovery are processed immediately. Failure checks remain independent.
 - **Priority / reserve:** uses nodes in the specified order, falls back when a node fails, and returns to an available node with higher priority.
 - **Presets:** country rules for Russia, China, and Iran; service cards for YouTube, Discord, Telegram, WhatsApp, social networks, AI services, games, exchanges, and smart homes. Each exchange card includes its website and API.
 - **Custom rules:** domains, IP networks, ports, TCP/UDP, and detected protocols. Send traffic through the route list's proxy or directly through WAN; the first matching rule determines the route.
@@ -22,7 +22,7 @@ Route devices and services through proxies with automatic node selection. Config
 - **Monitoring:** active nodes and backups, availability, HTTPS errors, latency, and the last valid paired Delta. Hover over Delta to see both measurement times; negative means faster and positive means slower. Data refreshes without reloading the page; the active node appears first, with up to 10 nodes in the table. Process memory, available RAM, and active TCP/UDP sessions are shown.
 - **Updates:** check GitHub and install with a button while preserving settings; manual APK upload is also available. Packages are verified against the project signing key. Compact updates keep the APK and backup in RAM.
 
-The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Applying settings preserves history and the selected node if it remains eligible for the route list. If no working proxy node is available, the behavior selected in the rule database applies: blocking or WAN fallback. Direct WAN rules remain active. DNS follows the same rule when the proxy fails. Strict route lists stay protected during router boot, service restarts and package updates. Direct IP exceptions and VPN routes remain available, including for DNS. Explicitly stopping the service removes interception.
+The controller and Xray run as two processes from one executable. Measurement history and logs stay in RAM with size limits. Routine history writes are batched for up to 10 seconds; route changes, failures and live status are published immediately. Applying settings preserves history and the selected node if it remains eligible for the route list. If no working proxy node is available, the behavior selected in the rule database applies: blocking or WAN fallback. Direct WAN rules remain active. DNS follows the same rule when the proxy fails. Strict route lists stay protected during router boot, service restarts and package updates. Direct IP exceptions and VPN routes remain available, including for DNS. Explicitly stopping the service removes interception.
 
 Keep the router powered during an update. When flash space is low, compact installation keeps the recovery copy in RAM; a power interruption at that point may require reinstalling the APK. Configuration is retained. To recover, transfer the APK using the instructions below and run `apk --no-cache add --force-reinstall /tmp/sb-gateway.apk`.
 
@@ -74,6 +74,10 @@ The service is disabled after the first installation. Open **Services → SB Gat
 1. Add subscriptions and download nodes while the service is still disabled.
 2. Create rules and route lists, then select devices and nodes.
 3. Configure DNS, enable SB Gateway, save, and apply settings.
+
+Subscriptions are imported without a node-count cap. Data size and free space are checked; full connection definitions stay on disk and are loaded as needed.
+
+Databases are downloaded for rules attached to route lists. Attach a rule later and apply the settings to load its missing databases automatically. Download progress and errors appear on the overview page.
 
 When switching from PassWall2, stop it and disable its autostart in **System → Startup** before enabling SB Gateway. Subscriptions and rules can be prepared while SB Gateway is disabled. Without an all-device list, other addresses continue to use WAN.
 

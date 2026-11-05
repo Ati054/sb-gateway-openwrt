@@ -2326,3 +2326,42 @@ msgstr "Изменения"
 
 msgid "Configuration"
 msgstr "Настройки"
+
+msgid "Waiting for service startup to load rule databases."
+msgstr "Ожидание запуска службы для загрузки баз правил."
+
+msgid "Automatic rule database check is scheduled."
+msgstr "Автоматическая проверка баз правил запланирована."
+
+msgid "Rule database update is waiting for its turn."
+msgstr "Обновление баз правил ожидает своей очереди."
+
+msgid "Downloading rule databases..."
+msgstr "Загрузка баз правил…"
+
+msgid "Applying rule databases..."
+msgstr "Применение баз правил…"
+
+msgid "No downloadable rule databases are used by route lists."
+msgstr "Маршрутные листы не используют скачиваемые базы правил."
+
+msgid "Rule database update finished with errors."
+msgstr "Обновление баз правил завершилось с ошибками."
+
+msgid "Start SB Gateway to load rule databases."
+msgstr "Включите SB Gateway для загрузки баз правил."
+
+msgid "Waiting for automatic rule database loading."
+msgstr "Ожидание автоматической загрузки баз правил."
+
+msgid "Cached"
+msgstr "Из кэша"
+
+msgid "Waiting for download"
+msgstr "Ожидание загрузки"
+
+msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
+msgstr "Подключите правила к маршрутному листу и примените настройки. Если SB Gateway включён, недостающие базы загрузятся автоматически."
+
+msgid "All supported nodes are imported; data-size and storage limits still apply."
+msgstr "Импортируются все поддерживаемые узлы. Ограничения размера данных и свободного места сохраняются."

@@ -41,6 +41,12 @@ func (controller *healthController) incoherentSharedComparison(policyID string, 
 			cached, ok := controller.probeBudget.Quality[key]
 			if ok && now.Sub(cached.At) <= sharedProbeLifetime {
 				id := cached.Evidence.QualityWave
+				if isPairedPlanningMeasurement(controller.qualityMeasurementForPolicy(policyID, contract)) {
+					id = 0
+					if validPlanningQuality(cached.Evidence.planningQuality(), controller.qualityMeasurementForPolicy(policyID, contract)) {
+						id = cached.Evidence.planningQuality().Wave
+					}
+				}
 				if id == 0 || wave != 0 && wave != id {
 					return true
 				}
@@ -62,6 +68,9 @@ func (controller *healthController) incoherentSharedComparison(policyID string, 
 		cached, ok := controller.probeBudget.Quality[key]
 		if ok && now.Sub(cached.At) <= sharedProbeLifetime {
 			at := cached.Evidence.ObservedAt
+			if isPairedPlanningMeasurement(controller.qualityMeasurementForPolicy(policyID, contract)) && validPlanningQuality(cached.Evidence.planningQuality(), controller.qualityMeasurementForPolicy(policyID, contract)) {
+				at = cached.Evidence.planningQuality().ObservedAt
+			}
 			if at.IsZero() {
 				at = cached.At
 			}
@@ -85,6 +94,15 @@ func (controller *healthController) incoherentSharedComparison(policyID string, 
 
 func (controller *healthController) sharedQualityBatch(policyID string, contract healthPolicyContract, nodes []string) map[string]probeEvidence {
 	result := make(map[string]probeEvidence, len(nodes))
+	for _, node := range nodes {
+		if cached, ok := controller.probeBudget.Quality[controller.probeKey(policyID, node, contract)]; ok && time.Since(cached.At) <= sharedProbeLifetime && controller.warmCachedBeforeConfirmation(policyID, node, cached.Evidence) {
+			controller.deferSharedProbe(policyID)
+			for _, id := range nodes {
+				result[id] = probeEvidence{Deferred: true}
+			}
+			return result
+		}
+	}
 	if controller.incoherentSharedComparison(policyID, contract, nodes, time.Now()) {
 		controller.deferSharedProbe(policyID)
 		for _, node := range nodes {
@@ -111,12 +129,20 @@ func (controller *healthController) sharedQualityBatch(policyID string, contract
 		for _, node := range pending {
 			controller.probeBudget.QualityAttempted[controller.probeKey(policyID, node, contract)] = true
 		}
-		for node, evidence := range runtime.ProbeQualityParallel(pending) {
+		observations := map[string]probeEvidence{}
+		if warm, ok := controller.runtime.(interface {
+			ProbeQualityParallelWithMeasurement([]string, qualityMeasurement) map[string]probeEvidence
+		}); ok {
+			observations = warm.ProbeQualityParallelWithMeasurement(pending, controller.qualityMeasurementForPolicy(policyID, contract))
+		} else {
+			observations = runtime.ProbeQualityParallel(pending)
+		}
+		for node, evidence := range observations {
 			if evidence.QualityWave == 0 {
 				evidence.QualityWave = wave
 			}
 			result[node] = evidence
-			if evidence.OK && contract.Nodes[node].Fingerprint != "" {
+			if controller.cacheableQualityEvidence(policyID, node, contract, evidence) {
 				controller.probeBudget.Quality[controller.probeKey(policyID, node, contract)] = sharedProbeResult{At: probeObservedAt(evidence), Evidence: evidence}
 			}
 		}
@@ -181,10 +207,10 @@ func (controller *healthController) beginProbeBudget(pool healthPool, policyIDs 
 
 func (controller *healthController) probeKey(policyID, node string, contract healthPolicyContract) string {
 	if fingerprint := contract.Nodes[node].Fingerprint; fingerprint != "" {
-		return fingerprint
+		return string(controller.qualityMeasurementForPolicy(policyID, contract)) + ":" + controller.qualityContextKey() + ":" + fingerprint
 	}
 	// An unverified legacy endpoint cannot share evidence across policies.
-	return policyID + ":" + node
+	return string(controller.qualityMeasurementForPolicy(policyID, contract)) + ":" + controller.qualityContextKey() + ":" + policyID + ":" + node
 }
 
 func (controller *healthController) claimProbeTargets(policyID string, contract healthPolicyContract, targets []string, atomicPair bool) (accepted, deferred []string) {
@@ -246,19 +272,45 @@ func (controller *healthController) claimProbeTargets(policyID string, contract 
 func (controller *healthController) sharedQualityProbe(policyID, node string, contract healthPolicyContract) probeEvidence {
 	budget := controller.probeBudget
 	if budget == nil {
-		return controller.runtime.Probe(node)
+		return controller.probeQuality(policyID, node, contract)
 	}
 	key := controller.probeKey(policyID, node, contract)
 	if result, ok := budget.Quality[key]; ok && time.Since(result.At) <= sharedProbeLifetime {
+		if controller.warmCachedBeforeConfirmation(policyID, node, result.Evidence) {
+			controller.deferSharedProbe(policyID)
+			return probeEvidence{Deferred: true}
+		}
 		return result.Evidence
 	}
 	if budget.QualityAttempted[key] {
 		return probeEvidence{Deferred: true}
 	}
 	budget.QualityAttempted[key] = true
-	evidence := controller.runtime.Probe(node)
-	if evidence.OK && contract.Nodes[node].Fingerprint != "" {
+	evidence := controller.probeQuality(policyID, node, contract)
+	if controller.cacheableQualityEvidence(policyID, node, contract, evidence) {
 		budget.Quality[key] = sharedProbeResult{At: probeObservedAt(evidence), Evidence: evidence}
 	}
 	return evidence
+}
+
+// An early shared result cannot move this policy's producer clock and postpone
+// its next independent confirmation, even though its peer already paid the job.
+func (controller *healthController) warmCachedBeforeConfirmation(policyID, node string, evidence probeEvidence) bool {
+	item := controller.state[policyID]
+	if item == nil || item.WarmPlanningMarker == "" || item.OptimizationChecks == 0 || item.OptimizationCandidate != node || item.OptimizationLastResult == nil || !validPlanningQuality(evidence.planningQuality(), qualityMeasurement(item.WarmPlanningMarker)) {
+		return false
+	}
+	return float64(evidence.planningQuality().ObservedAt.UnixNano())/1e9 < item.OptimizationLastResult.CandidateAt+float64(item.ProbeLimits.ActiveSeconds)
+}
+
+func (controller *healthController) probeQuality(policyID, node string, contract healthPolicyContract) probeEvidence {
+	if r, ok := controller.runtime.(interface {
+		ProbeWithQualityRequest(string, qualityProbeRequest) probeEvidence
+	}); ok {
+		return r.ProbeWithQualityRequest(node, qualityProbeRequest{Measurement: controller.qualityMeasurementForPolicy(policyID, contract)})
+	}
+	return controller.runtime.Probe(node)
+}
+func (controller *healthController) cacheableQualityEvidence(policyID, node string, contract healthPolicyContract, evidence probeEvidence) bool {
+	return evidence.OK && contract.Nodes[node].Fingerprint != "" && (!isPairedPlanningMeasurement(controller.qualityMeasurementForPolicy(policyID, contract)) || validPlanningQuality(evidence.planningQuality(), controller.qualityMeasurementForPolicy(policyID, contract)))
 }

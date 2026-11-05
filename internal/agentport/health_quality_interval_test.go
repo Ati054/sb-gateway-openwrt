@@ -26,8 +26,10 @@ func TestOneQualityWaveRequiresOverlappingMeasurements(t *testing.T) {
 			if candidate.ObservedAt.After(now) {
 				now = candidate.ObservedAt
 			}
+			item := newPolicyHealthState()
+			seedCadenceComparisonHistory(item, now, map[string]probeEvidence{"a": active, "b": candidate})
 			comparison := regularOptimizationComparison(now, "a", "b", map[string]probeEvidence{"a": active, "b": candidate},
-				newPolicyHealthState(), true, true, effectivePolicySettings{mode: "best", active: 60, improvement: 200})
+				item, true, true, effectivePolicySettings{mode: "best", active: 60, improvement: 200})
 			if scenario.wantWin {
 				if comparison == nil || comparison.Result != optimizationWin {
 					t.Fatalf("overlapping wave lost valid result: %+v", comparison)

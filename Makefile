@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sb-gateway-openwrt
-PKG_VERSION:=0.1.17
+PKG_VERSION:=0.1.18
 PKG_RELEASE:=
 PKG_LICENSE:=AGPL-3.0-only AND MPL-2.0 AND MIT AND Apache-2.0 AND BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE XRAY-LICENSE DOMAIN-LIST-LICENSE
@@ -33,6 +33,7 @@ endef
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
 	$(CP) $(CURDIR)/go.mod $(CURDIR)/go.sum $(PKG_BUILD_DIR)/
+	$(CP) $(CURDIR)/tools/check-xray-vendor.py $(PKG_BUILD_DIR)/
 	$(CP) $(CURDIR)/cmd $(CURDIR)/internal $(CURDIR)/vendor $(CURDIR)/third_party $(PKG_BUILD_DIR)/
 	$(CP) $(CURDIR)/LICENSE $(PKG_BUILD_DIR)/
 	$(CP) $(CURDIR)/files/domain-list-community.LICENSE $(PKG_BUILD_DIR)/DOMAIN-LIST-LICENSE
@@ -50,8 +51,9 @@ else ifeq ($(DUMP),)
   $(error Unsupported SB Gateway target architecture: $(ARCH))
 endif
 define Build/Compile
+	python3 $(PKG_BUILD_DIR)/check-xray-vendor.py --root $(PKG_BUILD_DIR)
 	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.3 GOMAXPROCS=2 \
-		GOOS=linux GOARCH=$(RESPROXY_GOARCH) CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=0afec66085a85191e9dd2a4a6646c7c9a94688d1' \
+		GOOS=linux GOARCH=$(RESPROXY_GOARCH) CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=a4a3dff5b20c2faae567b742c172c7b95e75c083' \
 		-o $(PKG_BUILD_DIR)/resproxyd ./cmd/resproxyd
 endef
 

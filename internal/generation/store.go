@@ -3,6 +3,7 @@
 package generation
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -28,6 +29,11 @@ type Store struct {
 // and private credentials are separate files; neither becomes current until
 // Publish is called after the runtime has confirmed activation.
 func (s Store) Stage(nodes []catalog.Node) (string, error) {
+	for _, node := range nodes {
+		if node.Record != nil {
+			return s.StageIndexed(context.Background(), nodes, nil)
+		}
+	}
 	if err := validateNodes(nodes); err != nil {
 		return "", err
 	}
@@ -84,12 +90,16 @@ func (s Store) Stage(nodes []catalog.Node) (string, error) {
 // Publish atomically changes the small pointer only after a complete staged
 // generation has been verified. It does not itself switch Xray.
 func (s Store) Publish(id string) error {
-	if _, err := s.Load(id); err != nil {
+	if _, err := s.LoadMetadata(id); err != nil {
 		return err
 	}
 	// Rechecking an identical subscription must not rewrite a flash pointer.
-	if current, err := os.ReadFile(filepath.Join(s.Root, "CURRENT")); err == nil && strings.TrimSpace(string(current)) == id {
+	if current, err := s.currentID(); err == nil && current == id {
 		return nil
+	}
+	pointer, err := s.publicationPointer(id)
+	if err != nil {
+		return err
 	}
 
 	if err := os.MkdirAll(s.Root, 0o700); err != nil {
@@ -116,18 +126,22 @@ func (s Store) Publish(id string) error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(path, filepath.Join(s.Root, "CURRENT")); err != nil {
+	if err := os.Rename(path, filepath.Join(s.Root, pointer)); err != nil {
 		return err
+	}
+	if pointer == "CURRENT" {
+		if err := os.Remove(filepath.Join(s.Root, indexedPointer)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 	}
 	return syncDirectory(s.Root)
 }
 
 func (s Store) Current() (string, []catalog.Node, error) {
-	body, err := os.ReadFile(filepath.Join(s.Root, "CURRENT"))
+	id, err := s.currentID()
 	if err != nil {
 		return "", nil, err
 	}
-	id := strings.TrimSpace(string(body))
 	nodes, err := s.Load(id)
 	if err == nil {
 		s.applyMetadata(id, nodes)
@@ -138,6 +152,9 @@ func (s Store) Current() (string, []catalog.Node, error) {
 // ClearCurrent removes only the published pointer. Complete generations stay
 // on disk for bounded rollback pruning, but no node remains active.
 func (s Store) ClearCurrent() error {
+	if err := os.Remove(filepath.Join(s.Root, indexedPointer)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	path := filepath.Join(s.Root, "CURRENT")
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -148,6 +165,22 @@ func (s Store) ClearCurrent() error {
 func (s Store) Load(id string) ([]catalog.Node, error) {
 	if !validID(id) {
 		return nil, errors.New("invalid generation ID")
+	}
+	if _, err := os.Lstat(filepath.Join(s.IndexedRoot(), id)); err == nil {
+		nodes, err := s.LoadMetadata(id)
+		if err != nil {
+			return nil, err
+		}
+		defer catalog.ReleaseRecordReaders(s.IndexedRoot())
+		for i, node := range nodes {
+			nodes[i], err = node.Materialize(context.Background())
+			if err != nil {
+				return nil, err
+			}
+		}
+		return nodes, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
 	}
 	path := filepath.Join(s.Root, "generations", id)
 	public, err := readLimited(filepath.Join(path, "catalog.json"))
@@ -192,6 +225,9 @@ func (s Store) Load(id string) ([]catalog.Node, error) {
 func (s Store) Prune(keep int) error {
 	if keep < 2 {
 		return errors.New("at least two generations must be retained")
+	}
+	if err := s.pruneIndexed(keep); err != nil {
+		return err
 	}
 	base := filepath.Join(s.Root, "generations")
 	baseInfo, err := os.Lstat(base)

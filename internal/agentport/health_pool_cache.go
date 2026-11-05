@@ -68,6 +68,22 @@ func (cache *healthPoolCache) load(path string) (healthPoolSnapshot, error) {
 		if pool.Version < 3 {
 			return healthPoolSnapshot{}, errors.New("health pool contract predates the 1.6.15 release baseline")
 		}
+
+		if pool.Version > 5 {
+			return healthPoolSnapshot{}, errors.New("unsupported health pool schema")
+		}
+		if pool.Version == 5 {
+			if pool.CatalogRef == nil || pool.CatalogRef.Ref.Schema != 1 || len(pool.Outbounds) != 0 || uint64(len(pool.CatalogKeys)) != pool.CatalogRef.Ref.Count || len(pool.CatalogRuntimeKeys) != len(pool.CatalogKeys) {
+				return healthPoolSnapshot{}, errors.New("invalid indexed health pool contract")
+			}
+			for id, digest := range pool.CatalogKeys {
+				if len(digest) != 64 || len(pool.CatalogRuntimeKeys[id]) != 12 {
+					return healthPoolSnapshot{}, errors.New("invalid indexed outbound digest")
+				}
+			}
+		} else if pool.CatalogRef != nil || len(pool.CatalogKeys) != 0 {
+			return healthPoolSnapshot{}, errors.New("indexed pool requires schema 5")
+		}
 		for id, contract := range pool.HealthPolicies {
 			contract.Policy.LatencyMeasurement = "gstatic-head-v1"
 			pool.HealthPolicies[id] = contract

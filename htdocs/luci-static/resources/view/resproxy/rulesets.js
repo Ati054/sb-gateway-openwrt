@@ -824,6 +824,7 @@ return view.extend({
         };
         bypass.description = _('One IP or CIDR per line. # marks detected VPN addresses.');
 		var updates = map.section(form.NamedSection, 'main', 'main', _('Rule database updates'));
+		updates.description = _('Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running.');
 		updates.addremove = false;
 		var renderUpdates = updates.renderContents;
 		updates.renderContents = function() {

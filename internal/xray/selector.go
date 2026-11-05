@@ -27,6 +27,8 @@ var MutationMu sync.RWMutex
 const maxDynamicOutboundsPerSelector = 10
 
 type Manager struct {
+	// Capture before a transaction; its callback is used only after readback.
+	RouteObserver   func() func(string, string)
 	Binary          string
 	Server          string
 	LivenessSOCKS   string
@@ -59,6 +61,10 @@ func (m *Manager) Switch(ctx context.Context, selector, nodeID string, definitio
 	defer MutationMu.Unlock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	var observed func(string, string)
+	if m.RouteObserver != nil {
+		observed = m.RouteObserver()
+	}
 	if m.Binary == "" || m.Server == "" || m.Run == nil || selector == "" || nodeID == "" {
 		return SwitchResult{}, errors.New("incomplete Xray selector configuration")
 	}
@@ -94,6 +100,9 @@ func (m *Manager) Switch(ctx context.Context, selector, nodeID string, definitio
 				return SwitchResult{}, errors.New("selected Xray outbound was not restored")
 			}
 		}
+		if observed != nil {
+			observed(selector, tag)
+		}
 		return SwitchResult{SelectedTag: tag, PreviousTag: previous}, nil
 	}
 	if err := m.admit(ctx, selector, tag); err != nil {
@@ -122,6 +131,9 @@ func (m *Manager) Switch(ctx context.Context, selector, nodeID string, definitio
 			return SwitchResult{}, fmt.Errorf("Xray selector state uncertain after readback: got %q: %w", actual, err)
 		}
 		return SwitchResult{}, fmt.Errorf("Xray selector update not confirmed: got %q: %w", actual, err)
+	}
+	if observed != nil {
+		observed(selector, tag)
 	}
 	return SwitchResult{SelectedTag: tag, PreviousTag: previous, Changed: true}, nil
 }
@@ -243,6 +255,10 @@ func (m *Manager) Restore(ctx context.Context, selector, tag string) error {
 	defer MutationMu.Unlock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	var observed func(string, string)
+	if m.RouteObserver != nil {
+		observed = m.RouteObserver()
+	}
 	if selector == "" || tag == "" {
 		return errors.New("selector and handler tag are required")
 	}
@@ -252,6 +268,9 @@ func (m *Manager) Restore(ctx context.Context, selector, tag string) error {
 	actual, err := m.current(ctx, selector)
 	if err != nil || actual != tag {
 		return errors.New("Xray selector restore was not confirmed")
+	}
+	if observed != nil {
+		observed(selector, tag)
 	}
 	return nil
 }

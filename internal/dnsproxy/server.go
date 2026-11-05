@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
 	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
 	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
 	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
@@ -51,6 +52,7 @@ type Rule struct {
 }
 
 type Config struct {
+	Routes            *dnsroute.Registry // confirmed in-process production routes
 	Port              int
 	ProxyPort         int
 	PolicyProxyPorts  map[string]int // one local Xray HTTP inbound per route list
@@ -66,6 +68,8 @@ type Config struct {
 }
 
 type server struct {
+	routeMu               sync.Mutex
+	routeClients          map[string]routeClient
 	generationStarted     string
 	workers               sync.WaitGroup
 	config                Config
@@ -153,23 +157,42 @@ type domainActionRule struct {
 // Start binds UDP and TCP before returning, so LAN capture cannot be enabled
 // with a missing DNS listener. Closing the returned function releases both.
 func Start(ctx context.Context, config Config) (func(), func([]Policy) error, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	prepared, err := Prepare(config)
+	if err != nil {
+		return nil, nil, err
+	}
+	return prepared.Start(ctx)
+}
+
+// Prepared owns compiled routing but no sockets or running workers.
+type Prepared struct {
+	server  *server
+	started atomic.Bool
+}
+
+// Prepare can overlap an external resolver's shutdown. It neither binds the
+// listener nor changes system DNS; Start still confirms both sockets first.
+func Prepare(config Config) (*Prepared, error) {
 	if config.Port < 1024 || config.Port > 65535 || config.ProxyPort < 1024 || config.ProxyPort > 65535 ||
 		config.DefaultPolicy == "" || (config.Mode != "proxy-only" && config.Mode != "proxy-fallback-wan") {
-		return nil, nil, errors.New("invalid DNS listener configuration")
+		return nil, errors.New("invalid DNS listener configuration")
 	}
 	if _, err := ParseEndpoint(config.ProxyURL, false); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if _, err := ParseEndpoint(config.DirectURL, true); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	directEndpoint, _ := ParseEndpoint(config.DirectURL, true)
 	if config.DirectBootstrapIP != "" && net.ParseIP(config.DirectBootstrapIP) == nil {
-		return nil, nil, errors.New("invalid direct DNS bootstrap IP")
+		return nil, errors.New("invalid direct DNS bootstrap IP")
 	}
 	matchers, err := compilePolicyMatchers(config.Policies)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	proxyTransport := proxyHTTPTransport(config.ProxyPort)
 	directTransport := &http.Transport{ForceAttemptHTTP2: true, MaxIdleConns: 8,
@@ -200,7 +223,7 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 	for _, policy := range config.Policies {
 		if port := config.PolicyProxyPorts[policy.ID]; port != 0 {
 			if port < 1024 || port > 65535 {
-				return nil, nil, fmt.Errorf("invalid DNS proxy port for %s", policy.ID)
+				return nil, fmt.Errorf("invalid DNS proxy port for %s", policy.ID)
 			}
 			transport := proxyHTTPTransport(port)
 			s.policyProxies[policy.ID] = newDoHClient(transport)
@@ -208,23 +231,41 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 		for _, raw := range policy.SourceCIDRs {
 			prefix, err := netip.ParsePrefix(raw)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			s.prefixes = append(s.prefixes, policyPrefix{policy.ID, prefix})
 		}
 	}
+	return &Prepared{server: s}, nil
+}
+
+// Start consumes a preparation once and returns only after UDP and TCP bind.
+func (prepared *Prepared) Start(ctx context.Context) (func(), func([]Policy) error, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	if prepared == nil || prepared.server == nil || !prepared.started.CompareAndSwap(false, true) {
+		return nil, nil, errors.New("DNS preparation already consumed")
+	}
+	s := prepared.server
+	config := s.config
 	address := net.JoinHostPort("", fmt.Sprint(config.Port))
 	udp, err := net.ListenPacket("udp", address)
 	if err != nil {
 		return nil, nil, err
 	}
 	s.udpBufferBytes = configureUDPQueue(udp, s.requestBudget)
-	tcp, err := net.Listen("tcp", address)
+	tcpConfig := dnsListenConfig()
+	tcp, err := tcpConfig.Listen(ctx, "tcp", address)
 	if err != nil {
 		_ = udp.Close()
 		return nil, nil, err
 	}
 	ctx, cancel := context.WithCancel(ctx)
+	var unsubscribe func()
+	if config.Routes != nil {
+		unsubscribe = config.Routes.Subscribe(s.routeChanged)
+	}
 	var once sync.Once
 	// Listener loops count as workers before Wait begins; their accepted jobs
 	// cannot race WaitGroup.Add against an empty counter during shutdown.
@@ -240,10 +281,14 @@ func Start(ctx context.Context, config Config) (func(), func([]Policy) error, er
 	closeAll := func() {
 		once.Do(func() {
 			cancel()
+			if unsubscribe != nil {
+				unsubscribe()
+			}
 			_ = udp.Close()
 			_ = tcp.Close()
 			s.requests().close()
 			s.workers.Wait()
+			s.closeRouteClients()
 			s.proxy.CloseIdleConnections()
 			s.direct.CloseIdleConnections()
 			for _, client := range s.policyProxies {
@@ -337,8 +382,18 @@ func compileMatcher(policy Policy) (domainMatcher, error) {
 }
 
 func compileMatcherWithIndex(policy Policy, allowCompact bool) (domainMatcher, error) {
+	return (&matcherCompiler{}).compile(policy, allowCompact)
+}
+
+func (compiler *matcherCompiler) compile(policy Policy, allowCompact bool) (domainMatcher, error) {
 	if policy.ProxyOutageAction != "" && policy.ProxyOutageAction != "block" && policy.ProxyOutageAction != "wan" {
 		return domainMatcher{}, errors.New("invalid proxy traffic outage action")
+	}
+	cacheable := len(policy.Rules) == 0 && policy.ProxyOutageAction == ""
+	if cacheable {
+		if cached, exists := compiler.cachedLeaf(policy, allowCompact); exists {
+			return cached, nil
+		}
 	}
 	result := domainMatcher{proxyWAN: policy.ProxyOutageAction == "wan"}
 	// Reuse the core's pointer-free arena for large custom lists. Building it
@@ -394,7 +449,7 @@ func compileMatcherWithIndex(policy Policy, allowCompact bool) (domainMatcher, e
 			}
 			expressions = append(expressions, value)
 		}
-		matcher, err := compileMatcherWithIndex(Policy{DirectServiceExpressions: expressions}, allowCompact)
+		matcher, err := compiler.compile(Policy{DirectServiceExpressions: expressions}, allowCompact)
 		if err != nil {
 			return domainMatcher{}, err
 		}
@@ -452,8 +507,15 @@ func compileMatcherWithIndex(policy Policy, allowCompact bool) (domainMatcher, e
 		if err := result.compact.Build(); err != nil {
 			// MPH has a bounded set of hash multipliers. A collision must not
 			// make an otherwise valid custom rule impossible to apply.
-			return compileMatcherWithIndex(policy, false)
+			fallback, err := compiler.compile(policy, false)
+			if err == nil && cacheable {
+				compiler.rememberLeaf(policy, allowCompact, fallback)
+			}
+			return fallback, err
 		}
+	}
+	if cacheable {
+		compiler.rememberLeaf(policy, allowCompact, result)
 	}
 	return result, nil
 }
@@ -599,6 +661,9 @@ func (s *server) readState() {
 	// Retire before publishing the new selection to DNS jobs. Existing requests
 	// drain on their original route and have a separate route-scoped cache key.
 	for _, tag := range changed {
+		if s.config.Routes != nil {
+			continue
+		}
 		policy := strings.TrimPrefix(tag, "resproxy-")
 		client := s.policyProxies[policy]
 		if client == nil && policy == s.config.DefaultPolicy {
@@ -800,15 +865,32 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	// devices and policies can share its cache and pending lookup. Proxy
 	// answers stay isolated by policy and selected exit, even at the same URL.
 	var key, selected string
+	var routeStamp dnsroute.Stamp
+	var routeClient *http.Client
+	var routeCached []byte
+	managedRoute := !viaWAN && s.config.Routes != nil
 	if viaWAN {
 		key = "wan:" + string(query[2:])
+	} else if managedRoute {
+		key, routeClient, routeStamp, routeCached = s.routeLookup(policy, query)
+		if routeClient == nil {
+			s.failures.Add(1)
+			finish(servfail(query))
+			return
+		}
 	} else {
 		s.stateMu.RLock()
 		selected = s.proxySelections["resproxy-"+policy]
 		s.stateMu.RUnlock()
 		key = "proxy:" + policy + ":" + selected + ":" + string(query[2:])
 	}
-	if cached := s.cached(key, query[:2]); cached != nil {
+	var cached []byte
+	if managedRoute {
+		cached = routeCached
+	} else {
+		cached = s.cached(key, query[:2])
+	}
+	if cached != nil {
 		s.cacheHits.Add(1)
 		finish(cached)
 		return
@@ -816,6 +898,9 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	client, endpoint := s.proxy, s.config.ProxyURL
 	if specific := s.policyProxies[policy]; specific != nil {
 		client = specific
+	}
+	if managedRoute {
+		client = routeClient
 	}
 	proxyPort := s.config.ProxyPort
 	if specific := s.config.PolicyProxyPorts[policy]; specific != 0 {
@@ -846,7 +931,15 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 		path = "proxy:" + policy
 	}
 	err = s.requests().submit(ctx, path, key, query, func(lookupCtx context.Context) ([]byte, error) {
-		if cached := s.cached(key, query[:2]); cached != nil {
+		var cached []byte
+		if managedRoute {
+			if !s.routeCurrent(policy, routeStamp, func() { cached = s.cached(key, query[:2]) }) {
+				return nil, errDNSRouteChanged
+			}
+		} else {
+			cached = s.cached(key, query[:2])
+		}
+		if cached != nil {
 			return cached, nil
 		}
 		var body []byte
@@ -870,6 +963,14 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 		if !matchingQuestion(query, body) {
 			return nil, errors.New("DNS response does not match question")
 		}
+		if managedRoute {
+			s.routeCurrent(policy, routeStamp, func() {
+				if lookupCtx.Err() == nil {
+					s.remember(key, body)
+				}
+			})
+			return body, nil
+		}
 		current := true
 		if !viaWAN {
 			s.stateMu.RLock()
@@ -883,7 +984,7 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	}, func(body []byte, err error) {
 		if err != nil {
 			s.failures.Add(1)
-			if errors.Is(err, errDNSQueued) {
+			if errors.Is(err, errDNSQueued) || errors.Is(err, errDNSRouteChanged) {
 				finish(body)
 				return
 			}

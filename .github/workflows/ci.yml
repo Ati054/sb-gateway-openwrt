@@ -20,6 +20,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Check pinned Xray vendor
+        run: python3 tools/check-xray-vendor.py
       - name: Build native gateway
         run: |
           mkdir -p /tmp/sb-gateway

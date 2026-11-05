@@ -10,12 +10,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
 )
 
 // Options contains only the fields used by the client health controller.
 // RouterOS/container telemetry and service supervision are intentionally
 // outside this OpenWrt port.
 type Options struct {
+	DNSRoutes               *dnsroute.Registry
+	URLTestWarmCompare      bool
+	URLTestPlanningMode     URLTestPlanningMode
 	BackgroundBusy          func() bool
 	OnProgress              func()
 	XrayProcessName         string

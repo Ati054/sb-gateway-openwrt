@@ -2,6 +2,7 @@ package agentport
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,15 +10,19 @@ import (
 
 var qualityWaveSequence atomic.Uint64
 
+var errWarmPeerFailed = errors.New("paired cold request could not enter warm comparison")
+
 // Preparation is outside the HTTPS measurement. A stuck peer must yield the
 // batch rather than start a comparison against an already completed request.
 const qualityPreparationTimeout = 5 * time.Second
 
 type qualityStartBarrier struct {
-	id     uint64
-	left   atomic.Int32
-	ready  chan struct{}
-	cancel context.CancelFunc
+	id             uint64
+	left           atomic.Int32
+	ready          chan struct{}
+	cancel         context.CancelFunc
+	readyCloseOnce sync.Once
+	aborted        atomic.Bool
 }
 
 type qualityStartTicket struct {
@@ -29,9 +34,41 @@ func (ticket *qualityStartTicket) arrive() {
 	if ticket != nil {
 		ticket.once.Do(func() {
 			if ticket.barrier.left.Add(-1) == 0 {
-				close(ticket.barrier.ready)
+				ticket.barrier.readyCloseOnce.Do(func() { close(ticket.barrier.ready) })
 			}
 		})
+	}
+}
+
+// Failure of a cold peer withdraws only the second phase. The other cold
+// request retains its full independent deadline and availability result.
+func (ticket *qualityStartTicket) abortWarm() {
+	if ticket == nil {
+		return
+	}
+	ticket.barrier.aborted.Store(true)
+	ticket.barrier.readyCloseOnce.Do(func() { close(ticket.barrier.ready) })
+	ticket.arrive()
+}
+
+func (ticket *qualityStartTicket) waitWarm(ctx context.Context) error {
+	if ticket == nil {
+		return ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		ticket.abortWarm()
+		return err
+	}
+	ticket.arrive()
+	select {
+	case <-ticket.barrier.ready:
+		if ticket.barrier.aborted.Load() {
+			return errWarmPeerFailed
+		}
+		return ctx.Err()
+	case <-ctx.Done():
+		ticket.abortWarm()
+		return ctx.Err()
 	}
 }
 
@@ -54,15 +91,20 @@ func (ticket *qualityStartTicket) wait(ctx context.Context) error {
 }
 
 type probeLaneJob struct {
-	node  string
-	start *qualityStartTicket
+	node      string
+	start     *qualityStartTicket
+	warmStart *qualityStartTicket
 }
 
 // Availability keeps its first-result worker pool. Quality assigns one peer to
 // each lane and gates each physical wave after selector preparation.
 func probeLaneJobs(candidates []string, workers int, quality bool, cancel context.CancelFunc) []<-chan probeLaneJob {
+	return probeLaneJobsWithMeasurement(candidates, workers, quality, cancel, qualityMeasurementCold)
+}
+
+func probeLaneJobsWithMeasurement(candidates []string, workers int, quality bool, cancel context.CancelFunc, measurement qualityMeasurement) []<-chan probeLaneJob {
 	queues := make([]<-chan probeLaneJob, workers)
-	if !quality {
+	if !quality || workers < 2 {
 		jobs := make(chan probeLaneJob, len(candidates))
 		for _, candidate := range candidates {
 			jobs <- probeLaneJob{node: candidate}
@@ -79,12 +121,21 @@ func probeLaneJobs(candidates []string, workers int, quality bool, cancel contex
 		queues[i] = lanes[i]
 	}
 	var barrier *qualityStartBarrier
+	var warmBarrier *qualityStartBarrier
 	for i, candidate := range candidates {
 		if i%workers == 0 {
 			barrier = &qualityStartBarrier{id: qualityWaveSequence.Add(1), ready: make(chan struct{}), cancel: cancel}
 			barrier.left.Store(int32(minInt(workers, len(candidates)-i)))
+			if measurement == qualityMeasurementWarm {
+				warmBarrier = &qualityStartBarrier{id: qualityWaveSequence.Add(1), ready: make(chan struct{}), cancel: cancel}
+				warmBarrier.left.Store(int32(minInt(workers, len(candidates)-i)))
+			}
 		}
-		lanes[i%workers] <- probeLaneJob{node: candidate, start: &qualityStartTicket{barrier: barrier}}
+		job := probeLaneJob{node: candidate, start: &qualityStartTicket{barrier: barrier}}
+		if warmBarrier != nil {
+			job.warmStart = &qualityStartTicket{barrier: warmBarrier}
+		}
+		lanes[i%workers] <- job
 	}
 	for _, lane := range lanes {
 		close(lane)
@@ -103,4 +154,13 @@ func qualityIntervalsOverlap(active, candidate probeEvidence) bool {
 	return !active.QualityStartedAt.IsZero() && !candidate.QualityStartedAt.IsZero() &&
 		active.QualityStartedAt.Before(active.ObservedAt) && candidate.QualityStartedAt.Before(candidate.ObservedAt) &&
 		active.QualityStartedAt.Before(candidate.ObservedAt) && candidate.QualityStartedAt.Before(active.ObservedAt)
+}
+
+// Serial observations need no wave label. Parallel observations must belong to
+// the same wave and overlap in actual measurement time, regardless of completion order.
+func compatibleQualityPhases(active, candidate probeEvidence) bool {
+	if active.QualityWave == 0 && candidate.QualityWave == 0 {
+		return true
+	}
+	return active.QualityWave != 0 && active.QualityWave == candidate.QualityWave && qualityIntervalsOverlap(active, candidate)
 }

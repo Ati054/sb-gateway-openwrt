@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	confserial "github.com/xtls/xray-core/infra/conf/serial"
 	_ "github.com/xtls/xray-core/main/distro/all"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -51,20 +53,37 @@ func StartEmbedded(config []byte, server string) (*Embedded, error) {
 // NewAPIClient shares a bounded, persistent control connection for either core
 // execution model. A process comparison must not reintroduce CLI subprocesses.
 func NewAPIClient(server string) (*APIClient, error) {
-	conn, err := grpc.NewClient(server, grpc.WithTransportCredentials(insecure.NewCredentials()),
+	options := apiClientDialOptions(server)
+	controlOptions := append(append([]grpc.DialOption(nil), options...),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(32<<20), grpc.MaxCallSendMsgSize(32<<20)))
+	conn, err := grpc.NewClient(server, controlOptions...)
 	if err != nil {
 		return nil, err
 	}
 	// Handler/routing mutations can fill or stall their HTTP/2 transport.
 	// Keep the small watchdog RPC independent so transport backpressure does
 	// not cause a healthy core and all its client streams to be restarted.
-	heartbeat, err := grpc.NewClient(server, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	heartbeat, err := grpc.NewClient(server, options...)
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
 	return &APIClient{conn: conn, heartbeat: heartbeat, server: server}, nil
+}
+
+func apiClientDialOptions(server string) []grpc.DialOption {
+	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	host, _, err := net.SplitHostPort(server)
+	if err == nil && net.ParseIP(host).IsLoopback() {
+		// The client is created before the local core finishes starting. The
+		// remote-server backoff otherwise hides its ready API for extra seconds.
+		policy := backoff.DefaultConfig
+		policy.BaseDelay, policy.MaxDelay = 100*time.Millisecond, time.Second
+		options = append(options, grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: policy, MinConnectTimeout: 20 * time.Second,
+		}))
+	}
+	return options
 }
 
 func (e *APIClient) Close() error { return errors.Join(e.heartbeat.Close(), e.conn.Close()) }

@@ -58,11 +58,39 @@ func historyLimitBytes(pool healthPool) int {
 
 func (controller *healthController) publishState(path string, state healthState, now time.Time) error {
 	enforceHistoryBudget(state, now, controller.historyLimitBytes)
-	if err := writeJSONAtomic(path, state); err != nil {
+	fingerprint, err := healthCheckpointFingerprint(state)
+	if err != nil {
+		return err
+	}
+	controller.checkpointPending = true
+	if err := publishRuntimeSnapshot(path, state); err != nil {
+		return err
+	}
+	if err := writeJSONAtomic(path, healthCheckpointState(state)); err != nil {
 		return err
 	}
 	controller.persistPreferredSelections(state, now)
+	controller.checkpointAt, controller.checkpointFingerprint = controller.checkpointClock(), fingerprint
+	controller.checkpointPending = false
 	return controller.publishMonitor(path, state, now)
+}
+
+// Warm confirmations belong to this running session. Persist cold history and
+// working routes in the legacy format, without relabelling warm evidence.
+func healthCheckpointState(state healthState) healthState {
+	result := make(healthState, len(state))
+	for id, item := range state {
+		if item == nil || item.WarmPlanningMarker == "" {
+			result[id] = item
+			continue
+		}
+		copy := *item
+		copy.OptimizationBaseline, copy.OptimizationCandidate = "", ""
+		copy.OptimizationChecks = 0
+		copy.OptimizationLastResult = nil
+		result[id] = &copy
+	}
+	return result
 }
 
 // Compact duplicate raw samples first; daily aggregates keep the full counts.

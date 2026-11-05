@@ -160,11 +160,7 @@ func applyCrashFallback(config settings.Config, paths Paths) error {
 	if err := setFirewall(ctx, "emergency", config.LANInterface, config.Base.TransparentPort, 0, config.Capture); err != nil {
 		return err
 	}
-	// Publish only after nft accepted the complete table. Strict DNS is already
-	// blocked before restoring the user's ordinary resolver.
-	if err := writeDurableDNSMarker(crashFallbackFile(paths), []byte("source-policy WAN fallback\n")); err != nil {
-		return err
-	}
+	// The script commits the marker with the rules before DNS is restored.
 	if err := RestoreManagedDNS(paths); err != nil {
 		return fmt.Errorf("emergency WAN active; restore DNS: %w", err)
 	}

@@ -79,18 +79,40 @@ func PreparePool(nodes []catalog.Node, policies []settings.Policy) (*PreparedPoo
 		Outbounds:        make(map[string]json.RawMessage, len(nodes)),
 		DialTargets:      make(map[string]healthDialTarget),
 	}
+
+	var commonRoot *catalog.RecordRoot
+	for _, node := range nodes {
+		if node.Record == nil || node.Record.Root == nil || node.Record.ID != node.ID || (len(node.DefinitionDigest) != 64 || len(node.RuntimeTagDigest) != 12) || commonRoot != nil && *commonRoot != *node.Record.Root {
+			commonRoot = nil
+			break
+		}
+		commonRoot = node.Record.Root
+	}
 	fingerprints := make(map[string]string, len(nodes))
 	for _, node := range nodes {
 		if node.ID == "" {
 			return nil, errors.New("health pool node has no ID")
 		}
-		body, err := xray.RenderOutbound(node)
-		if err != nil {
-			return nil, fmt.Errorf("render node %q: %w", node.ID, err)
+
+		if commonRoot != nil {
+			pool.Version = 5
+			pool.CatalogRef = node.Record.Root
+			if pool.CatalogKeys == nil {
+				pool.CatalogKeys = map[string]string{}
+				pool.CatalogRuntimeKeys = map[string]string{}
+			}
+			pool.CatalogKeys[node.ID] = node.DefinitionDigest
+			pool.CatalogRuntimeKeys[node.ID] = node.RuntimeTagDigest
+			fingerprints[node.ID] = node.DefinitionDigest
+		} else {
+			body, err := xray.RenderOutbound(node)
+			if err != nil {
+				return nil, fmt.Errorf("render node %q: %w", node.ID, err)
+			}
+			pool.Outbounds[node.ID] = body
+			digest := sha256.Sum256(body)
+			fingerprints[node.ID] = hex.EncodeToString(digest[:])
 		}
-		pool.Outbounds[node.ID] = body
-		digest := sha256.Sum256(body)
-		fingerprints[node.ID] = hex.EncodeToString(digest[:])
 		if strings.EqualFold(node.Protocol, "vless") && net.ParseIP(node.Server) != nil &&
 			!strings.EqualFold(node.Transport, "kcp") && !strings.EqualFold(node.Transport, "quic") {
 			pool.DialTargets[node.ID] = healthDialTarget{Address: node.Server, Port: node.Port}

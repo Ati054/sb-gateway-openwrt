@@ -153,7 +153,7 @@ func TestSharedBudgetDoesNotRepeatFailedOrExpiredAttempts(t *testing.T) {
 	contract := budgetContract("a", "b")
 	controller.sharedQualityProbe("first", "a", contract)
 	controller.sharedQualityProbe("first", "b", contract)
-	controller.probeBudget.Quality["endpoint-b"] = sharedProbeResult{At: time.Now().Add(-sharedProbeLifetime - time.Second), Evidence: successfulEvidence(100)}
+	controller.probeBudget.Quality[controller.probeKey("first", "b", contract)] = sharedProbeResult{At: time.Now().Add(-sharedProbeLifetime - time.Second), Evidence: successfulEvidence(100)}
 	accepted, deferred := controller.claimProbeTargets("second", contract, []string{"a", "b"}, false)
 	if len(accepted) != 0 || len(deferred) != 2 {
 		t.Fatal("failed or expired attempt repeated in the same Tick")

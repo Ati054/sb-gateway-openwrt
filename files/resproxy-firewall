@@ -8,6 +8,8 @@ action="${1:-}"
 interface="${2:-}"
 port="${3:-}"
 dns_port="${4:-0}"
+ready=0
+[ "$action" != ready ] || { ready=1; action=apply; }
 mkdir -p /var/run/resproxy
 rules=/var/run/resproxy/firewall.nft
 [ -f "$rules" ] || : > "$rules"
@@ -15,7 +17,7 @@ exec 9>/var/run/resproxy-firewall.lock
 flock -x 9
 
 case "$action" in
-	apply|emergency|guard)
+	apply|emergency|guard|restore)
 		case "$interface" in
 			''|*[!A-Za-z0-9_.:-]*) echo 'invalid LAN interface' >&2; exit 1 ;;
 		esac
@@ -39,7 +41,16 @@ batch="$(mktemp /var/run/resproxy/.firewall-batch.XXXXXX)"
 trap 'rm -f "$temporary" "$backup" "$batch"' EXIT
 cp -p "$rules" "$backup"
 
-if [ "$action" != remove ]; then
+if [ "$action" = restore ]; then
+	/usr/bin/resproxyd capture-restore-rules > "$temporary"
+	read -r hash tag action interface port dns_port extra < "$temporary"
+	[ "$hash" = '#' ] && [ "$tag" = resproxy-restore ] && [ -z "${extra:-}" ] || exit 1
+	case "$action" in
+		skip) exit 0 ;;
+		apply|emergency|guard) ;;
+		*) exit 1 ;;
+	esac
+elif [ "$action" != remove ]; then
 	[ "$action" = guard ] || [ -d "/sys/class/net/$interface/bridge" ] || {
 		echo 'capture interface must be an existing LAN bridge' >&2
 		exit 1
@@ -52,6 +63,10 @@ if [ "$action" != remove ]; then
 	[ "$action" != guard ] || renderer=capture-guard-rules
 	/usr/bin/resproxyd "$renderer" "$@" > "$temporary"
 
+fi
+
+if [ "$action" = apply ]; then
+	[ -d "/sys/class/net/$interface/bridge" ] || { echo 'capture interface must be an existing LAN bridge' >&2; exit 1; }
 fi
 
 # Serialize with fw4's own start/reload/stop transaction. In particular, its
@@ -139,6 +154,16 @@ if ! nft -c -f "$batch" || ! nft -f "$batch"; then
 	mv "$backup" "$rules"
 	rollback_policy_routes
 	exit 1
+fi
+
+# Phase markers and their kernel rules commit under the same lock. A queued
+# restore therefore cannot reinstall a guard after startup has completed.
+if [ "$action" = guard ]; then
+	printf 'startup or transition protection\n' > /var/run/resproxy/capture-protected.active
+elif [ "$action" = emergency ]; then
+	printf 'source-policy WAN fallback\n' > /var/run/resproxy/crash-fallback.active
+elif [ "$ready" = 1 ] || [ "$action" = remove ]; then
+	rm -f /var/run/resproxy/capture-protected.active /var/run/resproxy/crash-fallback.active
 fi
 
 if [ "$action" = remove ]; then

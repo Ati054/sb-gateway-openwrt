@@ -29,6 +29,13 @@ func (controller *healthController) checkActiveAvailability(now time.Time, polic
 	if full := time.Unix(int64(item.LastProbeAt[selected]), 0); full.After(last) {
 		last = full
 	}
+	// A successful quality probe also proves availability. Keep its fractional
+	// completion time so the next liveness interval cannot start early.
+	if sample, good := latestQuality(item, selected); good {
+		if proof := time.Unix(0, int64(sample.At*float64(time.Second))); proof.After(last) {
+			last = proof
+		}
+	}
 	forced := controller.forceLiveness[policyID]
 	if !forced && now.Sub(last) < interval {
 		return false, nil

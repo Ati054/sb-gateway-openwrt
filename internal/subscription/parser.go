@@ -42,14 +42,21 @@ func parseProxySubscriptionWithStats(body []byte, maxNodes int) ([]map[string]an
 	return parseProxySubscriptionValidated(body, maxNodes, nil)
 }
 func parseProxySubscriptionValidated(body []byte, maxNodes int, validate func(map[string]any) error) ([]map[string]any, ParseStats, error) {
-	stats := ParseStats{}
 	if maxNodes < 1 {
+		return nil, ParseStats{}, &subscriptionParseError{code: "invalid_limit", message: "Subscription node limit is invalid."}
+	}
+	return parseProxySubscriptionTo(body, maxNodes, validate, nil)
+}
+
+func parseProxySubscriptionTo(body []byte, maxNodes int, validate func(map[string]any) error, emit func(map[string]any) error) ([]map[string]any, ParseStats, error) {
+	stats := ParseStats{}
+	if maxNodes < 0 {
 		return nil, stats, &subscriptionParseError{code: "invalid_limit", message: "Subscription node limit is invalid."}
 	}
 	if len(body) > MaxFeedBytes {
 		return nil, stats, &subscriptionParseError{code: "invalid_content", message: "Subscription content exceeds the size limit."}
 	}
-	if nodes, stats, structured, err := structuredSubscription(body, maxNodes, validate); structured {
+	if nodes, stats, structured, err := structuredSubscriptionTo(body, maxNodes, validate, emit); structured {
 		return nodes, stats, err
 	}
 	text := strings.TrimPrefix(strings.TrimSpace(string(body)), "\ufeff")
@@ -67,12 +74,13 @@ func parseProxySubscriptionValidated(body []byte, maxNodes int, validate func(ma
 		if err != nil || !utf8.Valid(decoded) {
 			return nil, stats, &subscriptionParseError{code: "invalid_content", message: "Subscription is neither supported proxy links nor valid base64 text."}
 		}
-		if nodes, stats, structured, err := structuredSubscription(decoded, maxNodes, validate); structured {
+		if nodes, stats, structured, err := structuredSubscriptionTo(decoded, maxNodes, validate, emit); structured {
 			return nodes, stats, err
 		}
 		text = string(decoded)
 	}
-	result := make([]map[string]any, 0, min(maxNodes, 64))
+	result := make([]map[string]any, 0, 64)
+	accepted := 0
 	index := 0
 	for _, line := range strings.Split(strings.ReplaceAll(text, "\r", "\n"), "\n") {
 		link := strings.TrimSpace(line)
@@ -83,7 +91,7 @@ func parseProxySubscriptionValidated(body []byte, maxNodes int, validate func(ma
 			continue
 		}
 		index++
-		if len(result) >= maxNodes {
+		if maxNodes > 0 && accepted >= maxNodes {
 			stats.Limited++
 			continue
 		}
@@ -109,9 +117,16 @@ func parseProxySubscriptionValidated(body []byte, maxNodes int, validate func(ma
 			stats.Invalid++
 			continue
 		}
-		result = append(result, node)
+		if emit != nil {
+			if err := emit(node); err != nil {
+				return nil, stats, err
+			}
+		} else {
+			result = append(result, node)
+		}
+		accepted++
 	}
-	if len(result) == 0 {
+	if accepted == 0 {
 		return nil, stats, &subscriptionParseError{code: "unsupported_nodes", message: "Subscription contains no valid supported proxy nodes."}
 	}
 	deduplicateSubscriptionNodeIDs(result)

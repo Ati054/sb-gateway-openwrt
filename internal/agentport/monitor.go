@@ -104,8 +104,7 @@ func monitorSnapshot(state healthState, runtime RuntimeSnapshot) MonitorSnapshot
 					node.CurrentMedianMS, node.LastGoodAt = delay, at
 				}
 			}
-			if samples := item.Samples[id]; len(samples) > 0 {
-				latest := samples[len(samples)-1]
+			if latest := latestQualityObservation(item, id); latest.At > 0 {
 				if latest.OK && latest.DelayMS != nil && latest.At > 0 {
 					node.LatestDelayMS, node.LatestQualityAt = latest.DelayMS, latest.At
 				}

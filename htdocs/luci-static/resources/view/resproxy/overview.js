@@ -43,7 +43,7 @@ return view.extend({
   var dnsWarning=E('p', { 'class':'alert-message warning', hidden:'' });
   var errors=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
   var checked=E('span', { 'class':'sbg-muted', 'aria-live':'off' });
-  var dbSummary=E('p'), dbBody=E('tbody');
+  var dbSummary=E('p', {role:'status'}), dbBody=E('tbody');
   var dbError=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
   function addPair(list, title, value) { list.appendChild(E('div', {}, [E('dt', {}, title),E('dd', {}, value)])); }
   function paint(result) {
@@ -117,19 +117,31 @@ return view.extend({
    dnsWarning.hidden=!(interop && interop.reason);
    dnsWarning.textContent=interop && interop.reason ? warning[interop.reason] || interop.reason : '';
    health.update(policies);
-   if (result.some(function(item) { return item.key === 'rules' && !item.error; })) {
-    var catalog=values.rules, database=catalog && catalog.status;
+   if (values.rules || status.rulesets) {
+    var catalog=values.rules, database=status.rulesets || catalog && catalog.status;
     dbBody.replaceChildren();
     var packs=database && database.packs || [], names={};
     if (catalog) catalog.choices.forEach(function(c) { names[c.id]=_(c.name); });
     var loaded=packs.filter(function(p) { return p.state==='updated' || p.state==='unchanged'; }).length;
-    var stale=packs.filter(function(p) { return p.state==='stale'; }).length;
+    var stale=packs.filter(function(p) { return p.state==='stale' || p.state==='cached'; }).length;
     var unavailable=packs.filter(function(p) { return p.state==='unavailable'; }).length;
-    dbSummary.textContent=!catalog ? _('No data') : !database ? _('No catalog update yet.') :
+    var phase=database && database.phase;
+    var progress={
+     starting:_('Waiting for service startup to load rule databases.'),
+     scheduled:_('Automatic rule database check is scheduled.'),
+     queued:_('Rule database update is waiting for its turn.'),
+     downloading:_('Downloading rule databases...'),
+     applying:_('Applying rule databases...'),
+     unused:_('No downloadable rule databases are used by route lists.'),
+     error:_('Rule database update finished with errors.')
+    }[phase];
+    var summary=phase==='unused' ? progress : !status.running ? _('Start SB Gateway to load rule databases.') : progress;
+    summary=summary || (!database ? _('Waiting for automatic rule database loading.') :
      _('%d downloaded · %d cached · %d unavailable').format(loaded,stale,unavailable) +
-      (database.checked_at ? ' · '+new Date(database.checked_at).toLocaleString((document.documentElement.lang || 'en').replace(/_/g, '-'), {calendar:'gregory'}) : '');
+      (database.checked_at ? ' · '+new Date(database.checked_at).toLocaleString((document.documentElement.lang || 'en').replace(/_/g, '-'), {calendar:'gregory'}) : ''));
+    if (dbSummary.textContent!==summary) dbSummary.textContent=summary;
     packs.forEach(function(p) {
-     var state={ updated:_('Updated'),unchanged:_('Unchanged'),stale:_('Last good copy'),unavailable:_('Not loaded') }[p.state] || p.state;
+     var state={ updated:_('Updated'),unchanged:_('Unchanged'),stale:_('Last good copy'),unavailable:_('Not loaded'),cached:_('Cached'),pending:_('Waiting for download') }[p.state] || p.state;
      dbBody.appendChild(E('tr', {},[cell(names[p.id] || p.id),cell(state),cell(String(p.entries || 0)),cell(p.error || '—')]));
     });
     var failedPacks=packs.filter(function(p) { return !!p.error; }).length;

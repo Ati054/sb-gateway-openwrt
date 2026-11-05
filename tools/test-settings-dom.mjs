@@ -96,7 +96,8 @@ try {
   const subscription=instantiate(sources.subscription,{sbgTheme:{decorate:n=>n},view:baseclass,plugins:{render:()=>E('div')},form,IntervalValue,fs,uci,ui,rpc,poll,monitor,safeDOM,_});
   config.sub={'.name':'sub','.type':'subscription',id:'Test',url:'https://example.com/sub',fetch_via:'direct-only',update_mode:'daily',update_time:'12:34',max_nodes:'321'};
   const subView=await subscription.render(await subscription.load());document.body.append(subView);
-  const subResult={mode:subView.querySelector('select[id$=".update_mode"]').value,time:subView.querySelector('input[id$=".update_time"]').value,via:subView.querySelector('select[id$=".fetch_via"]').value,limit:subView.querySelector('input[id$=".max_nodes"]').value};
+  const subResult={mode:subView.querySelector('select[id$=".update_mode"]').value,time:subView.querySelector('input[id$=".update_time"]').value,via:subView.querySelector('select[id$=".fetch_via"]').value,countCap:!!subView.querySelector('input[id$=".max_nodes"]')};
+  if(!subView.textContent.includes('All supported nodes are imported'))throw Error('Full-catalogue import is not explained');
   const nameFilter=instantiate(sources.name_filter,{baseclass,_});
   const locationPicker=instantiate(sources.location_picker,{baseclass,form,uci,safeDOM,nameFilter,_});
   const staticClients=instantiate(sources.static_clients,{baseclass,validation});
@@ -127,7 +128,7 @@ try {
  assert.deepEqual(result.restore,{geo:true,torrent:true,outage:'wan'});
  assert.deepEqual(result.edited,{geo:false,torrent:true,outage:'block'});
  assert.deepEqual(result.dnsResult,{proxy:'quad9',direct:'yandex',port:'1153'});
- assert.deepEqual(result.subResult,{mode:'daily',time:'12:34',via:'direct-only',limit:'321'});
+ assert.deepEqual(result.subResult,{mode:'daily',time:'12:34',via:'direct-only',countCap:false});
  assert.equal(result.routeResult.mode,'priority');assert.equal(result.routeResult.scope,'selected');
  assert.match(result.routeResult.refs,/Geo.*Direct WAN/);
  console.log('SETTINGS_SAVED_VALUES_REOPEN_OWN_DRAFTS_DELAYED_UCI_PASS');

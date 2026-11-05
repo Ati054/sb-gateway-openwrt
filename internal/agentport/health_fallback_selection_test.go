@@ -105,6 +105,7 @@ func TestSplitLatencyPairUsesQualitySampleTimeNotAvailabilityTime(t *testing.T) 
 			item.LastProbeAt["active"] = 1000
 			item.Samples["active"] = []healthSample{{At: tc.at, OK: true, DelayMS: &active}}
 			item.DailySamples["active"] = []healthSample{{At: 1000, OK: true}}
+			seedCadenceComparisonHistory(item, now, map[string]probeEvidence{"reserve": successfulEvidence(300)})
 			comparison := regularOptimizationComparison(now, "active", "reserve",
 				map[string]probeEvidence{"reserve": successfulEvidence(300)}, item, true, true,
 				effectivePolicySettings{active: 60, improvement: 50})

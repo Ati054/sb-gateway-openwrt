@@ -102,7 +102,7 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 	config := Config{
 		Enabled: read("enabled") == "1", SubscriptionURL: read("subscription_url"),
 		RouteEnabled: read("route_enabled") == "1",
-		ProviderID:   read("provider_id"), UpdateMode: read("update_mode"), UpdateSeconds: 1800, MaxNodes: 1000,
+		ProviderID:   read("provider_id"), UpdateMode: read("update_mode"), UpdateSeconds: 1800, MaxNodes: 0,
 		Base: xray.DefaultBaseConfig(),
 	}
 	if config.ProviderID == "" {
@@ -134,9 +134,8 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 	if config.UpdateSeconds, err = integer(read("update_interval_seconds"), 1800, 300, 86400); err != nil {
 		return Config{}, fmt.Errorf("update interval: %w", err)
 	}
-	if config.MaxNodes, err = integer(read("max_nodes"), 1000, 1, 5000); err != nil {
-		return Config{}, fmt.Errorf("node limit: %w", err)
-	}
+	// Historical max_nodes values no longer truncate an imported subscription.
+	config.MaxNodes = 0
 	// Rules are always refreshed automatically. Legacy manual UCI values must
 	// not silently leave selected routing catalogs stale after an upgrade.
 	config.RulesetUpdateMode = "automatic"
@@ -212,9 +211,7 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 		if source.UpdateSeconds, err = integer(readSource("update_interval_seconds"), 1800, 300, 86400); err != nil {
 			return Config{}, fmt.Errorf("subscription %q update interval: %w", source.ID, err)
 		}
-		if source.MaxNodes, err = integer(readSource("max_nodes"), 1000, 1, 5000); err != nil {
-			return Config{}, fmt.Errorf("subscription %q node limit: %w", source.ID, err)
-		}
+		source.MaxNodes = 0
 		if err := validateSubscriptionURL(source.URL); err != nil {
 			return Config{}, fmt.Errorf("subscription %q: %w", source.ID, err)
 		}

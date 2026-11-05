@@ -23,6 +23,7 @@ import (
 )
 
 type rulesetStatus struct {
+	Phase         string                `json:"phase,omitempty"`
 	CheckedAt     time.Time             `json:"checked_at"`
 	ActiveUpdated time.Time             `json:"active_updated"`
 	Packs         []rulesets.PackStatus `json:"packs"`
@@ -146,26 +147,20 @@ func withRulesets(base xray.BaseConfig, policies []settings.Policy, snapshot rul
 	return base, base.Validate()
 }
 
-func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths, manager *xray.Manager, initial rulesets.Snapshot, initialBase xray.BaseConfig, updateDNS func([]dnsproxy.Policy) error) {
-	selectedByPolicy := make([][]string, 0, len(config.Policies))
-	for _, policy := range config.Base.Policies {
-		for _, rule := range policy.Rules {
-			selectedByPolicy = append(selectedByPolicy, rule.ServicePacks)
-		}
-	}
-	selected := rulesets.SelectedFromPolicies(selectedByPolicy)
-	countries := map[string]rulesets.CountrySelection{}
-	for _, policy := range config.Base.Policies {
-		for _, rule := range policy.Rules {
-			if rule.Country == "" || (!rule.UseGeosite && !rule.UseGeoIP) {
-				continue
-			}
-			choice := countries[rule.Country]
-			choice.Geosite = choice.Geosite || rule.UseGeosite
-			choice.GeoIP = choice.GeoIP || rule.UseGeoIP
-			countries[rule.Country] = choice
-		}
-	}
+type rulesetRoutingRuntime interface {
+	PublishRouting(context.Context, xray.BaseConfig, xray.BaseConfig) error
+}
+
+type selectedRulesetFetcher func(context.Context, []string, map[string]rulesets.CountrySelection, rulesets.Snapshot, int) (rulesets.Snapshot, []rulesets.PackStatus, error)
+
+func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths, manager rulesetRoutingRuntime, initial rulesets.Snapshot, initialBase xray.BaseConfig, updateDNS func([]dnsproxy.Policy) error) {
+	runRulesetUpdatesUsing(ctx, config, paths, manager, initial, initialBase, updateDNS, fetchSelectedRulesets)
+}
+
+func runRulesetUpdatesUsing(ctx context.Context, config settings.Config, paths Paths, manager rulesetRoutingRuntime, initial rulesets.Snapshot, initialBase xray.BaseConfig, updateDNS func([]dnsproxy.Policy) error, fetch selectedRulesetFetcher) {
+	selected, countries := selectedRulesetSources(config)
+	progress := initialRulesetProgress(config, initial)
+	publishRulesetProgress(paths, progress)
 	if len(selected) == 0 && len(countries) == 0 {
 		// The configuration no longer references any downloaded lists. Do not
 		// retain their previous snapshot on flash or in the running process.
@@ -181,12 +176,9 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 	}
 	current, activeBase := initial, initialBase
 	requestPath := filepath.Join(paths.RunRoot, "rulesets-refresh.request")
-	statusPath := filepath.Join(paths.RunRoot, "rulesets-status.json")
-	_ = os.Remove(requestPath)
-	delay := 120 * time.Second
-	if len(countries) > 0 {
-		delay = 5 * time.Second
-	}
+	delay := initialRulesetDelay(progress, countries)
+	progress.Phase = "scheduled"
+	publishRulesetProgress(paths, progress)
 	initialTimer := time.NewTimer(delay)
 	defer initialTimer.Stop()
 	ticker := time.NewTicker(2 * time.Second)
@@ -209,11 +201,15 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 			continue
 		}
 		next = time.Now().Add(time.Duration(config.RulesetUpdateSeconds) * time.Second)
+		progress.Phase = "queued"
+		publishRulesetProgress(paths, progress)
 		release, leaseErr := resources.BeginUpdate(ctx)
 		if leaseErr != nil {
 			return
 		}
-		candidate, packStatuses, err := fetchSelectedRulesets(ctx, selected, countries, current, config.Base.HTTPPort)
+		progress.Phase = "downloading"
+		publishRulesetProgress(paths, progress)
+		candidate, packStatuses, err := fetch(ctx, selected, countries, current, config.Base.HTTPPort)
 		if err == nil {
 			candidate, _, err = compactRulesetSnapshot(candidate, filepath.Join(paths.DataRoot, "geoip-assets"))
 			if err == nil {
@@ -226,8 +222,12 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 				break
 			}
 		}
+		if err == nil {
+			progress.Phase = "applying"
+			publishRulesetProgress(paths, progress)
+		}
 		coreLifecycleMu.RLock()
-		status := rulesetStatus{CheckedAt: time.Now().UTC(), ActiveUpdated: current.UpdatedAt, Packs: packStatuses}
+		status := rulesetStatus{Phase: "ready", CheckedAt: time.Now().UTC(), ActiveUpdated: current.UpdatedAt, Packs: packStatuses}
 		if err == nil {
 			previousBase := activeBase
 			published := false
@@ -282,6 +282,7 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 		}
 		coreLifecycleMu.RUnlock()
 		if err != nil {
+			status.Phase = "error"
 			status.Error = err.Error()
 			log.Printf("resproxy: service-pack update preserved previous routing: %v", err)
 			// Retry transient failure sooner while avoiding a busy download loop.
@@ -290,11 +291,13 @@ func runRulesetUpdates(ctx context.Context, config settings.Config, paths Paths,
 			}
 		}
 		status.ActiveUpdated = current.UpdatedAt
-		if body, marshalErr := json.Marshal(status); marshalErr == nil {
-			if writeErr := os.WriteFile(statusPath, body, 0o600); writeErr != nil {
-				log.Printf("resproxy: ruleset status unavailable: %v", writeErr)
+		for _, pack := range packStatuses {
+			if pack.Error != "" {
+				status.Phase = "error"
 			}
 		}
+		publishRulesetProgress(paths, status)
+		progress = status
 		release()
 	}
 }

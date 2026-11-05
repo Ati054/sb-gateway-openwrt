@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
 	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 )
@@ -46,6 +47,8 @@ func (budget *coreRecoveryBudget) verified(now time.Time) { budget.stableSince =
 // cancels in-flight calls before a new child is admitted. No second controller
 // or telemetry cache is created, and the old child's Wait completes first.
 type supervisedCore struct {
+	routes          *dnsroute.Registry
+	routeCore       dnsroute.Core
 	onOOM           func()
 	mu              sync.RWMutex
 	current         *runningCore
@@ -78,6 +81,9 @@ func (supervisor *supervisedCore) withdraw(deadline time.Time) {
 	supervisor.ready = false
 	supervisor.recoveringUntil = deadline
 	supervisor.cancel()
+	if supervisor.routes != nil {
+		supervisor.routes.SetCore(dnsroute.Core{})
+	}
 	supervisor.mu.Unlock()
 }
 func (supervisor *supervisedCore) admit(core *runningCore) bool {
@@ -85,6 +91,14 @@ func (supervisor *supervisedCore) admit(core *runningCore) bool {
 	defer supervisor.mu.Unlock()
 	if supervisor.closed {
 		return false
+	}
+	if supervisor.routes != nil {
+		identity, err := dnsroute.ProcessCore(core.pid)
+		if err != nil {
+			return false
+		}
+		supervisor.routeCore = identity
+		supervisor.routes.SetCore(identity)
 	}
 	supervisor.current = core
 	supervisor.generation, supervisor.cancel = context.WithCancel(context.Background())
@@ -102,9 +116,21 @@ func (supervisor *supervisedCore) Close() error {
 	supervisor.closed = true
 	supervisor.ready = false
 	supervisor.cancel()
+	if supervisor.routes != nil {
+		supervisor.routes.SetCore(dnsroute.Core{})
+	}
 	core := supervisor.current
 	supervisor.mu.Unlock()
 	return core.Close()
+}
+
+func (supervisor *supervisedCore) routeObserver() func(string, string) {
+	supervisor.mu.RLock()
+	defer supervisor.mu.RUnlock()
+	if supervisor.routes == nil || !supervisor.ready || supervisor.closed {
+		return nil
+	}
+	return supervisor.routes.Publisher(supervisor.routeCore)
 }
 
 // Two restart attempts share one bounded window. Briefly responsive crash

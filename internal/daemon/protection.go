@@ -18,10 +18,8 @@ func ProtectCapture(ctx context.Context, config settings.Config, paths Paths) er
 	if !config.Enabled || !config.RouteEnabled {
 		return nil
 	}
-	if err := setFirewall(ctx, "guard", config.LANInterface, config.Base.TransparentPort, 0, config.Capture); err != nil {
-		return err
-	}
-	return writeDurableDNSMarker(protectionFile(paths), []byte("startup or transition protection\n"))
+	// The script publishes the marker before releasing the firewall lock.
+	return setFirewall(ctx, "guard", config.LANInterface, config.Base.TransparentPort, 0, config.Capture)
 }
 func ClearProtection(paths Paths) error {
 	err := os.Remove(protectionFile(paths))

@@ -1,6 +1,7 @@
 package xray
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,13 @@ import (
 // `xray api ado`. Adapted from SB Gateway 1.6.21 xray_outbound.go and
 // xray_inbound.go. Manager.Switch adds a versioned tag before sending it.
 func RenderOutbound(node catalog.Node) (json.RawMessage, error) {
+	if node.Record != nil {
+		var err error
+		node, err = node.Materialize(context.Background())
+		if err != nil {
+			return nil, err
+		}
+	}
 	source, err := renderSourceOutbound(node)
 	if err != nil {
 		return nil, err

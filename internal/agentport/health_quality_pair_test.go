@@ -14,6 +14,7 @@ func TestQualityPairUsesActualCompletionTime(t *testing.T) {
 		item := newPolicyHealthState()
 		a, b := successfulEvidence(600), successfulEvidence(400)
 		a.ObservedAt, b.ObservedAt = now, now.Add(gap)
+		seedCadenceComparisonHistory(item, now, map[string]probeEvidence{"a": a, "b": b})
 		comparison := regularOptimizationComparison(now.Add(gap), "a", "b", map[string]probeEvidence{"a": a, "b": b}, item, true, true, p)
 		want := optimizationWin
 		if gap > qualityPairWindow {
@@ -38,7 +39,7 @@ func TestQualityMedianExpiresAndDoesNotSmoothPriorityOrFailures(t *testing.T) {
 		t.Fatal("priority return was smoothed")
 	}
 	p.mode = "best"
-	if value := recentQualityMedian(now.Add(121*time.Second), samples, p); value != nil {
+	if value := recentQualityMedian(now.Add(time.Duration(planningHistoryWindow(p)+1)*time.Second), samples, p); value != nil {
 		t.Fatal("old samples survived expiry")
 	}
 	samples[2].OK = false
@@ -245,6 +246,7 @@ func TestNewActiveAloneCannotConfirmCachedCandidateAgain(t *testing.T) {
 	item := newPolicyHealthState()
 	p := policySettings(healthPolicy{}, "best")
 	now := time.Unix(1000, 0)
+	seedCadenceComparisonHistory(item, now, map[string]probeEvidence{"a": successfulEvidence(600), "b": successfulEvidence(400)})
 	first := regularOptimizationComparison(now, "a", "b", map[string]probeEvidence{"a": successfulEvidence(600), "b": successfulEvidence(400)}, item, true, true, p)
 	gatePlannedOptimization(now, "a", "b", "meaningfully-faster", first, item, p)
 	b := 400

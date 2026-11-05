@@ -27,7 +27,7 @@ cleanup_stage() {
 }
 trap cleanup_stage EXIT
 cd "$source"
-tar -cf - Makefile go.mod go.sum cmd internal LICENSE files htdocs vendor third_party | tar -xf - -C "$stage"
+tar -cf - Makefile go.mod go.sum cmd internal LICENSE files htdocs vendor third_party tools/check-xray-vendor.py | tar -xf - -C "$stage"
 if [ -d "$sdk/package/resproxy" ];then
  previous=$(mktemp -d "$sdk/package/.resproxy-previous-XXXXXX")
  mv "$sdk/package/resproxy" "$previous/source"

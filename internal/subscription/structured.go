@@ -18,6 +18,10 @@ var errStructuredUnsupported = errors.New("unsupported structured proxy settings
 // Only connection entries are imported. Provider routing, DNS, inbounds and
 // scripts must never replace this router's independently configured policy.
 func structuredSubscription(body []byte, maxNodes int, validate func(map[string]any) error) ([]map[string]any, ParseStats, bool, error) {
+	return structuredSubscriptionTo(body, maxNodes, validate, nil)
+}
+
+func structuredSubscriptionTo(body []byte, maxNodes int, validate func(map[string]any) error, emit func(map[string]any) error) ([]map[string]any, ParseStats, bool, error) {
 	text := bytes.TrimPrefix(bytes.TrimSpace(body), []byte("\xef\xbb\xbf"))
 	stats := ParseStats{}
 	isJSON := bytes.HasPrefix(text, []byte("{")) || bytes.HasPrefix(text, []byte("["))
@@ -25,9 +29,14 @@ func structuredSubscription(body []byte, maxNodes int, validate func(map[string]
 	if !isJSON && !isYAML {
 		return nil, stats, false, nil
 	}
-	nodes := make([]map[string]any, 0, min(maxNodes, 64))
+	nodes := make([]map[string]any, 0, 64)
+	accepted := 0
+	var emitErr error
 	appendNode := func(raw map[string]any) {
-		if len(nodes) >= maxNodes {
+		if emitErr != nil {
+			return
+		}
+		if maxNodes > 0 && accepted >= maxNodes {
 			stats.Limited++
 			return
 		}
@@ -41,7 +50,7 @@ func structuredSubscription(body []byte, maxNodes int, validate func(map[string]
 			return
 		}
 		for _, link := range links {
-			if len(nodes) >= maxNodes {
+			if maxNodes > 0 && accepted >= maxNodes {
 				stats.Limited++
 				continue
 			}
@@ -50,7 +59,14 @@ func structuredSubscription(body []byte, maxNodes int, validate func(map[string]
 				stats.Invalid++
 				continue
 			}
-			nodes = append(nodes, parsed[0])
+			if emit != nil {
+				if emitErr = emit(parsed[0]); emitErr != nil {
+					return
+				}
+			} else {
+				nodes = append(nodes, parsed[0])
+			}
+			accepted++
 		}
 	}
 	var err error
@@ -150,7 +166,7 @@ func structuredSubscription(body []byte, maxNodes int, validate func(map[string]
 					err = errors.New("proxy entries must be an array")
 				} else {
 					for _, entry := range proxies.Content {
-						if len(nodes) >= maxNodes {
+						if maxNodes > 0 && accepted >= maxNodes {
 							stats.Limited++
 							continue
 						}
@@ -173,7 +189,10 @@ func structuredSubscription(body []byte, maxNodes int, validate func(map[string]
 	if err != nil {
 		return nil, stats, true, errors.New("Invalid structured subscription")
 	}
-	if len(nodes) == 0 {
+	if emitErr != nil {
+		return nil, stats, true, emitErr
+	}
+	if accepted == 0 {
 		return nil, stats, true, errors.New("Subscription contains no valid supported proxy nodes.")
 	}
 	deduplicateSubscriptionNodeIDs(nodes)

@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
 	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 	"io"
 	"net"
@@ -26,6 +28,10 @@ import (
 )
 
 type xraySelectorRuntime struct {
+	xrayIdentity      dnsroute.Core
+	routeGeneration   uint64
+	routePublisher    func(string, string)
+	catalogRelease    func()
 	opts              Options
 	command           xrayCommandRunner
 	pool              healthPool
@@ -136,12 +142,34 @@ func (runtime *xraySelectorRuntime) Reload() (healthPool, bool, error) {
 			return healthPool{}, false, errors.New("Xray startup selectors are not ready")
 		}
 	}
+	identity := dnsroute.Core{PID: pid}
+	var routeGeneration uint64
+	if runtime.opts.DNSRoutes != nil {
+		var err error
+		identity, err = dnsroute.ProcessCore(pid)
+		if err != nil {
+			return healthPool{}, false, err
+		}
+		routeGeneration = runtime.opts.DNSRoutes.Generation(identity)
+		if routeGeneration == 0 {
+			return healthPool{}, false, errors.New("DNS route core is not admitted")
+		}
+	}
 	pidChanged := pid != runtime.xrayPID
+	if runtime.opts.DNSRoutes != nil {
+		pidChanged = pidChanged || identity != runtime.xrayIdentity || routeGeneration != runtime.routeGeneration
+	}
 	contractChanged := signature != runtime.poolSignature
 	// Inventory can fail after the cached generation advances. Deliver its
 	// reset only with a successful pool, including on a later retry.
 	runtime.pendingReset = runtime.pendingReset || pidChanged || contractChanged
 	if contractChanged {
+		release, err := catalog.PinRecordRoot(runtime.requestContext(), snapshot.pool.CatalogRef)
+		if err != nil {
+			return healthPool{}, false, err
+		}
+		runtime.closeCatalog()
+		runtime.catalogRelease = release
 		runtime.pool = snapshot.pool
 		runtime.poolSignature = signature
 	}
@@ -149,6 +177,11 @@ func (runtime *xraySelectorRuntime) Reload() (healthPool, bool, error) {
 	runtime.poolMTimeUnixNano = snapshot.mtime
 	if pidChanged {
 		runtime.xrayPID = pid
+		runtime.xrayIdentity = identity
+		runtime.routeGeneration = routeGeneration
+		if runtime.opts.DNSRoutes != nil {
+			runtime.routePublisher = runtime.opts.DNSRoutes.Publisher(identity)
+		}
 		runtime.loadedDynamic = make(map[string]bool)
 		runtime.verifiedDynamic = make(map[string]time.Time)
 		runtime.activeByPolicy = make(map[string]string)
@@ -235,6 +268,10 @@ func (runtime *xraySelectorRuntime) Select(selector, member string) (selectionEr
 		xray.MutationMu.Lock()
 		defer xray.MutationMu.Unlock()
 	}
+	return runtime.selectLocked(selector, member)
+}
+
+func (runtime *xraySelectorRuntime) selectLocked(selector, member string) (selectionErr error) {
 	trace := beginHealthStage("select", runtime.stageLane(), selector, member)
 	defer func() { trace.finishError(selectionErr, runtime.requestContext().Err() != nil) }()
 	runtimeMember := member
@@ -286,8 +323,18 @@ func (runtime *xraySelectorRuntime) Select(selector, member string) (selectionEr
 			}
 		}
 	}
+	if policySelector && runtime.routePublisher != nil && runtime.selectorMembers[selector] == runtimeMember {
+		actual, err := runtime.selectedRuntimeMember(selector)
+		if err != nil {
+			return err
+		}
+		runtime.selectorMembers[selector] = actual
+	}
 	if runtime.selectorMembers[selector] == runtimeMember {
 		if policySelector {
+			if runtime.routePublisher != nil {
+				runtime.routePublisher(selector, runtimeMember)
+			}
 			return runtime.commitPolicySelection(selector, member, runtimeMember)
 		}
 		delete(runtime.pendingDynamic, runtimeMember)
@@ -315,6 +362,11 @@ func (runtime *xraySelectorRuntime) Select(selector, member string) (selectionEr
 	}
 	runtime.selectorMembers[selector] = runtimeMember
 	if policySelector {
+		// Publish before retirement RPCs: a slow cleanup must not keep DNS
+		// using an old route after the new production selector was confirmed.
+		if runtime.routePublisher != nil {
+			runtime.routePublisher(selector, runtimeMember)
+		}
 		if err := runtime.commitPolicySelection(selector, member, runtimeMember); err != nil {
 			return err
 		}
@@ -327,9 +379,25 @@ func (runtime *xraySelectorRuntime) Select(selector, member string) (selectionEr
 func (runtime *xraySelectorRuntime) Current(selector string) (selected string, selectionErr error) {
 	trace := beginHealthStage("current", runtime.stageLane(), selector, "")
 	defer func() { trace.finish(selectionErr == nil) }()
+	// Probe lanes may continue installing isolated handlers. Only production
+	// mutations must be excluded between this readback and DNS publication.
+	if runtime.routePublisher != nil {
+		xray.MutationMu.RLock()
+	}
 	member, err := runtime.selectedRuntimeMember(selector)
 	if err != nil {
+		if runtime.routePublisher != nil {
+			xray.MutationMu.RUnlock()
+		}
 		return "", err
+	}
+	if runtime.routePublisher != nil {
+		if _, production := runtime.pool.Policies[selector]; production {
+			runtime.routePublisher(selector, member)
+		}
+	}
+	if runtime.routePublisher != nil {
+		xray.MutationMu.RUnlock()
 	}
 	if member == "" {
 		delete(runtime.selectorMembers, selector)
@@ -358,7 +426,7 @@ func (runtime *xraySelectorRuntime) Current(selector string) (selected string, s
 		// A freshly published health contract may remove the active candidate.
 		// The dynamic outbound is still alive in Xray and all node definitions
 		// remain in the pool, so decode it before asking the controller to move.
-		for candidate := range runtime.pool.Outbounds {
+		for candidate := range runtime.pool.outboundIDs() {
 			if member == runtime.dynamicTag(prefix, candidate) {
 				if err := runtime.ensureOutbound(candidate, member); err != nil {
 					return "", err
@@ -369,7 +437,7 @@ func (runtime *xraySelectorRuntime) Current(selector string) (selected string, s
 	}
 	for node, runtimeTag := range runtime.activeByNode {
 		if runtimeTag == member {
-			if runtime.pool.Outbounds[node] != nil && !runtime.isBase(node) {
+			if runtime.pool.hasOutbound(node) && !runtime.isBase(node) {
 				if runtime.policyRuntimeTag(selector, node) != member {
 					// Apply can publish a refreshed outbound without restarting Xray.
 					// Move new streams to the current generation, retaining the old
@@ -518,7 +586,7 @@ func (runtime *xraySelectorRuntime) admitDynamicTag(tag, prefix string) error {
 }
 
 func (runtime *xraySelectorRuntime) policyRuntimeTag(policyID, nodeID string) string {
-	if runtime.isBase(nodeID) || runtime.pool.Outbounds[nodeID] == nil {
+	if runtime.isBase(nodeID) || !runtime.pool.hasOutbound(nodeID) {
 		return nodeID
 	}
 	return runtime.dynamicTag(runtime.policyPrefix(policyID), nodeID)
@@ -667,7 +735,7 @@ func (runtime *xraySelectorRuntime) probeTag(nodeID string) (string, error) {
 		delete(runtime.loadedDynamic, tag)
 		delete(runtime.verifiedDynamic, tag)
 	}
-	if runtime.pool.Outbounds[nodeID] == nil {
+	if !runtime.pool.hasOutbound(nodeID) {
 		return nodeID, nil
 	}
 	tag := "sb-urltest-probe-" + runtime.dynamicDigest(nodeID)
@@ -696,11 +764,14 @@ func (runtime *xraySelectorRuntime) probeTag(nodeID string) (string, error) {
 }
 
 func (runtime *xraySelectorRuntime) dynamicTag(prefix, nodeID string) string {
-	return prefix + shortHash(nodeID+"\x00"+string(runtime.pool.Outbounds[nodeID]), 12)
+	return prefix + runtime.dynamicDigest(nodeID)
 }
 
 func (runtime *xraySelectorRuntime) dynamicDigest(nodeID string) string {
-	return shortHash(nodeID+"\x00"+string(runtime.pool.Outbounds[nodeID]), 12)
+	if digest := runtime.pool.CatalogRuntimeKeys[nodeID]; digest != "" {
+		return digest
+	}
+	return shortHash(nodeID+"\x00"+runtime.pool.outboundIdentity(nodeID), 12)
 }
 
 func (runtime *xraySelectorRuntime) ensureOutbound(nodeID, tag string) error {
@@ -723,7 +794,11 @@ func (runtime *xraySelectorRuntime) ensureOutbound(nodeID, tag string) error {
 	// A fresh tag needs only AddOutbound's success acknowledgement. Avoid two
 	// full handler listings per candidate during a parallel emergency batch.
 	var outbound map[string]any
-	if err := json.Unmarshal(runtime.pool.Outbounds[nodeID], &outbound); err != nil {
+	definition, err := runtime.pool.outboundDefinition(runtime.requestContext(), nodeID)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(definition, &outbound); err != nil {
 		return err
 	}
 	outbound["tag"] = tag
@@ -882,7 +957,9 @@ func (runtime *xraySelectorRuntime) Probe(candidate string) (evidence probeEvide
 			runtime.qualityStart.arrive()
 			evidence.QualityWave = runtime.qualityStart.barrier.id
 		}
-		evidence.ObservedAt = time.Now()
+		if evidence.ObservedAt.IsZero() {
+			evidence.ObservedAt = time.Now()
+		}
 		trace.finish(evidence.OK)
 	}()
 	return runtime.probe(candidate, xrayQualityProbe)
@@ -914,7 +991,11 @@ func (runtime *xraySelectorRuntime) ProbeAvailabilityConfirmation(candidate stri
 	return runtime.probe(candidate, xrayConfirmationProbe)
 }
 
-func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) (evidence probeEvidence) {
+func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) probeEvidence {
+	return runtime.probeWithQualityRequest(candidate, mode, qualityProbeRequest{Measurement: qualityMeasurementCold, Start: runtime.qualityStart})
+}
+
+func (runtime *xraySelectorRuntime) probeWithQualityRequest(candidate string, mode xrayProbeMode, request qualityProbeRequest) (evidence probeEvidence) {
 	before, known := readProbeCPU("/proc/stat")
 	defer func() {
 		if !known || evidence.OK || evidence.LocalFailure || evidence.Failure != probeFailureTimeout {
@@ -952,7 +1033,7 @@ func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) 
 	}
 	// Compare one origin only; alternate origins prove availability, not speed.
 	target := healthTargets[0]
-	if err := runtime.qualityStart.wait(runtime.requestContext()); err != nil {
+	if err := request.Start.wait(runtime.requestContext()); err != nil {
 		evidence.LocalFailure, evidence.LocalError = true, err
 		return evidence
 	}
@@ -960,10 +1041,29 @@ func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) 
 	trace.target(target.label)
 	started := time.Now()
 	evidence.QualityStartedAt = started
-	_, err := requestThroughProxyContext(runtime.requestContext(), runtime.opts.ProbeURL, target.url, http.MethodHead, 5*time.Second, 0, target.status)
+	var err error
+	var delay int
+	if request.Measurement == qualityMeasurementWarm {
+		observation := requestWarmThroughProxy(runtime.requestContext(), runtime.opts.ProbeURL, target.url, http.MethodHead, 0, 5*time.Second, target.status, request.WarmStart)
+		evidence.Warm = &observation.Warm
+		evidence.QualityStartedAt, evidence.ObservedAt = observation.ColdStartedAt, observation.ColdObservedAt
+		delay, err = observation.ColdDelayMS, observation.ColdError
+	} else {
+		if request.Measurement == qualityMeasurementFreshPaired {
+			evidence.Planning = &planningQualityEvidence{Measurement: qualityMeasurementFreshPaired, StartedAt: started, Failed: true}
+		}
+		_, err = requestThroughProxyContext(runtime.requestContext(), runtime.opts.ProbeURL, target.url, http.MethodHead, 5*time.Second, 0, target.status)
+		evidence.ObservedAt = time.Now()
+		delay = maxInt(1, int(evidence.ObservedAt.Sub(started).Milliseconds()))
+	}
+	if evidence.Planning != nil {
+		evidence.Planning.ObservedAt = evidence.ObservedAt
+	}
 	trace.finish(err == nil)
 	if err == nil {
-		delay := maxInt(1, int(time.Since(started).Milliseconds()))
+		if evidence.Planning != nil {
+			evidence.Planning.DelayMS, evidence.Planning.Failed = &delay, false
+		}
 		evidence.OK, evidence.DelayMS = true, &delay
 		evidence.Targets[target.label] = &delay
 		return evidence
@@ -1289,7 +1389,8 @@ func requestThroughProxyWithTLS(ctx context.Context, proxyURL, target, method st
 	if err != nil {
 		return 0, err
 	}
-	transport := &http.Transport{Proxy: http.ProxyURL(parsed), DisableKeepAlives: true, ForceAttemptHTTP2: false, TLSClientConfig: tlsConfig}
+	transport := &http.Transport{Proxy: http.ProxyURL(parsed), DisableKeepAlives: true, ForceAttemptHTTP2: false, TLSClientConfig: tlsConfig,
+		TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{}}
 	client := &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	defer transport.CloseIdleConnections()
 	request, err := http.NewRequestWithContext(ctx, method, target, nil)
@@ -1359,4 +1460,11 @@ func processPIDAt(root, name string) int {
 func shortHash(value string, length int) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])[:length]
+}
+
+func (runtime *xraySelectorRuntime) closeCatalog() {
+	if runtime.catalogRelease != nil {
+		runtime.catalogRelease()
+		runtime.catalogRelease = nil
+	}
 }

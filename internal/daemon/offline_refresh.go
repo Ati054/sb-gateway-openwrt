@@ -70,7 +70,7 @@ func BeginOfflineRefresh(config settings.Config, paths Paths, id string) error {
 	}
 	defer null.Close()
 	store := generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}
-	_, nodes, loadErr := store.Current()
+	_, nodes, loadErr := store.CurrentMetadata()
 	if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
 		return loadErr
 	}
@@ -107,7 +107,7 @@ func OfflineRefreshWorker(ctx context.Context, paths Paths, id string) (result e
 	defer func() {
 		if result != nil {
 			store := generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}
-			_, nodes, _ := store.Current()
+			_, nodes, _ := store.CurrentMetadata()
 			for source, status := range updates.values {
 				if (source == id || id == "*") && status.State == "loading" {
 					updates.finish(source, status.Attempt, nodes, nodes, result)
@@ -151,7 +151,7 @@ func importOffline(ctx context.Context, config settings.Config, paths Paths, id 
 	service := &refresh.Service{Store: generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}}
 	var failures []error
 	for _, source := range selected {
-		_, before, loadErr := service.Store.Current()
+		_, before, loadErr := service.Store.CurrentMetadata()
 		if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
 			return loadErr
 		}
@@ -171,7 +171,7 @@ func importOffline(ctx context.Context, config settings.Config, paths Paths, id 
 		if err == nil {
 			_, err = service.Import(ctx, source.ID, body, source.MaxNodes)
 		}
-		_, after, _ := service.Store.Current()
+		_, after, _ := service.Store.CurrentMetadata()
 		updates.finish(source.ID, attempt, before, after, err)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("subscription %q: %w", source.ID, err))

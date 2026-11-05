@@ -14,6 +14,7 @@ func TestURLTestSecondConfirmationRequiresNewActiveMeasurement(t *testing.T) {
 			item.Samples["active"] = []healthSample{{At: 999, OK: true, DelayMS: &delay}}
 			check := func(at int64, measured map[string]probeEvidence) string {
 				now := time.Unix(at, 0)
+				seedCadenceComparisonHistory(item, now, measured)
 				comparison := regularOptimizationComparison(now, "active", "reserve", measured, item, true, true, p)
 				desired, _ := gatePlannedOptimization(now, "active", "reserve", "meaningfully-faster", comparison, item, p)
 				return desired
@@ -58,6 +59,7 @@ func TestURLTestPendingPairDoesNotHideFreshFailure(t *testing.T) {
 			delay := 600
 			item.Samples["active"] = []healthSample{{At: 999, OK: true, DelayMS: &delay}}
 			now := time.Unix(1000, 0)
+			seedCadenceComparisonHistory(item, now, map[string]probeEvidence{"reserve": successfulEvidence(400)})
 			first := regularOptimizationComparison(now, "active", "reserve", map[string]probeEvidence{"reserve": successfulEvidence(400)}, item, true, true, p)
 			gatePlannedOptimization(now, "active", "reserve", "meaningfully-faster", first, item, p)
 			measured := map[string]probeEvidence{"reserve": successfulEvidence(400)}

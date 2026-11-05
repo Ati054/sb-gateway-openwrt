@@ -87,7 +87,9 @@ func (m *Manager) Prepare(ctx context.Context, out map[string]any) error {
 		if len(m.entries) >= 256 {
 			return errors.New("plugin inventory limit reached")
 		}
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		var listenConfig net.ListenConfig
+		listenConfig.SetMultipathTCP(false)
+		listener, err := listenConfig.Listen(ctx, "tcp", "127.0.0.1:0")
 		if err != nil {
 			return errors.New("plugin port unavailable")
 		}

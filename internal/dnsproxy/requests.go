@@ -224,6 +224,30 @@ func (r *dnsRequests) cancelQueued(job *dnsJob) {
 	r.deliver(job, nil, errDNSQueued)
 }
 
+// Detach a stale queue in one pass. Delivery runs after the route writer
+// unlocks; canceling thousands of contexts here would spawn a callback
+// goroutine per queued leader. A racing active job validates its own epoch.
+func (r *dnsRequests) retireQueuedPath(path string) func() {
+	r.mu.Lock()
+	p := r.paths[path]
+	if p == nil || len(p.queue) == 0 {
+		r.mu.Unlock()
+		return nil
+	}
+	jobs := p.queue
+	p.queue = nil
+	for _, job := range jobs {
+		delete(r.jobs, job.key)
+	}
+	r.queued -= int64(len(jobs))
+	r.mu.Unlock()
+	return func() {
+		for _, job := range jobs {
+			r.deliver(job, nil, errDNSQueued)
+		}
+	}
+}
+
 func (r *dnsRequests) removeQueued(job *dnsJob) {
 	delete(r.jobs, job.key)
 	p := r.paths[job.path]

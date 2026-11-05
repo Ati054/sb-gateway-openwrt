@@ -67,13 +67,46 @@ func (s *Service) apply(ctx context.Context, providerID string, feed []byte, max
 		return Result{}, err
 	}
 	previous := []catalog.Node{}
-	previousID, current, err := s.Store.Current()
+	previousID, current, err := s.Store.CurrentMetadata()
 	if err == nil {
 		previous = current
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Result{}, fmt.Errorf("current generation cannot be verified: %w", err)
 	}
-	parsed, stats, err := subscription.ParseValidated(providerID, feed, maxNodes, xray.ValidateOutbound)
+
+	importRoot := s.Store.MetadataRoot
+	if importRoot == "" {
+		importRoot = s.Store.Root
+	}
+	if err := os.MkdirAll(importRoot, 0700); err != nil {
+		return Result{}, err
+	}
+	scratch, err := os.MkdirTemp(importRoot, ".subscription-import-")
+	if err != nil {
+		return Result{}, err
+	}
+	defer os.RemoveAll(scratch)
+	defer catalog.ReleaseRecordReaders(scratch)
+	defer catalog.ReleaseRecordReaders(s.Store.IndexedRoot())
+	builder, err := generation.NewNodeBuilder(scratch, nil)
+	if err != nil {
+		return Result{}, err
+	}
+	defer builder.Abort()
+	accepted := 0
+	stats, err := subscription.StreamValidated(ctx, providerID, feed, maxNodes, xray.ValidateOutbound, func(node catalog.Node) error {
+		accepted++
+		return builder.Append(ctx, fmt.Sprintf("row-%d", accepted), node)
+	})
+	if err != nil {
+		return Result{}, err
+	}
+	imported, err := builder.Seal(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	parsed, err := generation.ReadNodeMetadata(ctx, imported)
+
 	if err != nil {
 		return Result{}, err
 	}
@@ -88,12 +121,22 @@ func (s *Service) apply(ctx context.Context, providerID string, feed []byte, max
 		return Result{}, err
 	}
 	next := make([]catalog.Node, 0, len(previous)-len(oldProvider)+len(updated))
+	inserted := false
 	for _, node := range previous {
-		if node.ProviderID != providerID {
-			next = append(next, node)
+		if node.ProviderID == providerID {
+			if !inserted {
+				// Keep the source in its existing catalog position. Moving an
+				// unchanged source to the end also changes priority selectors.
+				next = append(next, updated...)
+				inserted = true
+			}
+			continue
 		}
+		next = append(next, node)
 	}
-	next = append(next, updated...)
+	if !inserted {
+		next = append(next, updated...)
+	}
 	selectedID, err := choose(next)
 	if err != nil {
 		return Result{}, err
@@ -116,9 +159,29 @@ func (s *Service) apply(ctx context.Context, providerID string, feed []byte, max
 		}
 	}
 	metadataOnly := s.Store.MetadataRoot != "" && catalog.InformationalChangesOnly(previous, next)
+	if metadataOnly {
+		view, loadErr := s.Store.LoadMetadata(previousID)
+		if loadErr != nil {
+			return Result{}, loadErr
+		}
+		labels := make(map[string]catalog.Node, len(next))
+		for _, node := range next {
+			labels[node.ID] = node
+		}
+		for i := range view {
+			if label, ok := labels[view[i].ID]; ok {
+				view[i].Label, view[i].City = label.Label, label.City
+			}
+		}
+		next = view
+	}
 	id := previousID
 	if !metadataOnly {
-		id, err = s.Store.Stage(next)
+		id, err = s.Store.StageIndexed(ctx, next, xray.RenderOutbound)
+		if err != nil {
+			return Result{}, err
+		}
+		next, err = s.Store.LoadMetadata(id)
 		if err != nil {
 			return Result{}, err
 		}

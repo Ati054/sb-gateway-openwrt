@@ -2326,3 +2326,42 @@ msgstr "تغییرات"
 
 msgid "Configuration"
 msgstr "پیکربندی"
+
+msgid "Waiting for service startup to load rule databases."
+msgstr "بارگیری پایگاه‌های قواعد پس از راه‌اندازی سرویس آغاز می‌شود."
+
+msgid "Automatic rule database check is scheduled."
+msgstr "بررسی خودکار پایگاه‌های قواعد زمان‌بندی شده است."
+
+msgid "Rule database update is waiting for its turn."
+msgstr "به‌روزرسانی پایگاه‌های قواعد در صف انتظار است."
+
+msgid "Downloading rule databases..."
+msgstr "در حال دریافت پایگاه‌های قواعد…"
+
+msgid "Applying rule databases..."
+msgstr "در حال اعمال پایگاه‌های قواعد…"
+
+msgid "No downloadable rule databases are used by route lists."
+msgstr "فهرست‌های مسیریابی از پایگاه قواعد قابل دریافت استفاده نمی‌کنند."
+
+msgid "Rule database update finished with errors."
+msgstr "به‌روزرسانی پایگاه‌های قواعد با خطا پایان یافت."
+
+msgid "Start SB Gateway to load rule databases."
+msgstr "برای بارگیری پایگاه‌های قواعد، SB Gateway را راه‌اندازی کنید."
+
+msgid "Waiting for automatic rule database loading."
+msgstr "در انتظار بارگیری خودکار پایگاه‌های قواعد."
+
+msgid "Cached"
+msgstr "در حافظهٔ نهان"
+
+msgid "Waiting for download"
+msgstr "در انتظار دریافت"
+
+msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
+msgstr "قواعد را به یک فهرست مسیریابی پیوند دهید و تنظیمات را اعمال کنید. هنگام اجرای SB Gateway، پایگاه‌های موردنیاز به‌طور خودکار بارگیری می‌شوند."
+
+msgid "All supported nodes are imported; data-size and storage limits still apply."
+msgstr "همهٔ گره‌های پشتیبانی‌شده وارد می‌شوند؛ محدودیت حجم داده و فضای ذخیره‌سازی همچنان برقرار است."

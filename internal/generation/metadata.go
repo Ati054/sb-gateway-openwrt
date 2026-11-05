@@ -54,7 +54,7 @@ func (s Store) PublishMetadata(id string, nodes []catalog.Node) error {
 	if s.MetadataRoot == "" {
 		return errors.New("RAM metadata directory is required")
 	}
-	if _, err := s.Load(id); err != nil {
+	if _, err := s.LoadMetadata(id); err != nil {
 		return err
 	}
 	labels := make(map[string]string, len(nodes))

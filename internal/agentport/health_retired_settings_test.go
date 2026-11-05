@@ -37,9 +37,9 @@ func TestSelectionUsesShortQualityWindowNotDailyHistory(t *testing.T) {
 			controller, runtime, item := livenessFixture(t, mode)
 			oldDelay := 1900
 			item.Samples["de"] = []healthSample{
-				{At: 997, OK: true, DelayMS: &oldDelay},
-				{At: 998, OK: true, DelayMS: &oldDelay},
-				{At: 999, OK: true, DelayMS: &oldDelay},
+				{At: 880, OK: true, DelayMS: &oldDelay},
+				{At: 940, OK: true, DelayMS: &oldDelay},
+				{At: 1000, OK: true, DelayMS: &oldDelay},
 			}
 			item.DailySamples["de"] = append([]healthSample(nil), item.Samples["de"]...)
 			// Daily aggregates are authoritative after compacting the raw ring.
@@ -55,7 +55,11 @@ func TestSelectionUsesShortQualityWindowNotDailyHistory(t *testing.T) {
 			if mode == "priority" {
 				want = 400
 			}
-			if got := item.MedianDelayMS["de"]; got == nil || *got != want || len(item.Samples["de"]) != 3 {
+			wantSamples := 3
+			if mode == "priority" {
+				wantSamples = 1
+			}
+			if got := item.MedianDelayMS["de"]; got == nil || *got != want || len(item.Samples["de"]) != wantSamples {
 				t.Fatalf("short quality window not used: delay=%v samples=%v", got, item.Samples["de"])
 			}
 			if stats := item.DailyStats["de"]; stats.MedianMS == nil || *stats.MedianMS != 1900 {

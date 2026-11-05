@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,10 @@ import (
 // Node contains only client-side connection data. Credentials must be stored
 // separately from the public catalog when this package is wired to OpenWrt.
 type Node struct {
+	Record            *RecordLocator    `json:"-"`
+	Identities        *IdentitySet      `json:"-"`
+	DefinitionDigest  string            `json:"-"`
+	RuntimeTagDigest  string            `json:"-"`
 	ID                string            `json:"id"`
 	SelectionIdentity string            `json:"selection_identity"`
 	ProviderID        string            `json:"provider_id"`
@@ -52,12 +57,17 @@ func Reconcile(providerID string, previous, incoming []Node) ([]Node, Delta, err
 		if node.ProviderID != providerID || node.Protocol == "" || node.Server == "" || node.Port < 1 || node.Port > 65535 {
 			return nil, Delta{}, errors.New("invalid or foreign subscription node")
 		}
+		if node.Record != nil && node.Identities != nil && node.Label != node.Identities.Label {
+			if _, err := node.Materialize(context.Background()); err != nil {
+				return nil, Delta{}, err
+			}
+		}
 	}
 	oldBase, newBase := countKeys(previous, stableIdentity), countKeys(incoming, stableIdentity)
 	exactKey := func(node Node, counts map[string]int) string {
 		base := stableIdentity(node)
 		if counts[base] > 1 {
-			return base + ":" + digest(node.Credentials)
+			return base + ":" + credentialIdentity(node)
 		}
 		return base
 	}
@@ -164,6 +174,16 @@ func countKeys(nodes []Node, identity func(Node) string) map[string]int {
 }
 
 func stableIdentity(node Node) string {
+	if node.Identities != nil && node.Identities.Label == node.Label {
+		return node.Identities.Stable
+	}
+	if node.Record != nil {
+		full, err := node.Materialize(context.Background())
+		if err != nil {
+			return "unavailable:" + node.ID
+		}
+		return stableIdentity(full)
+	}
 	return digest(struct {
 		Label, Protocol, Transport, Server string
 		Port                               int
@@ -172,6 +192,9 @@ func stableIdentity(node Node) string {
 }
 
 func endpointIdentity(node Node) string {
+	if node.Identities != nil {
+		return node.Identities.Endpoint
+	}
 	return digest(struct {
 		Protocol, Transport, Server string
 		Port                        int
@@ -184,6 +207,9 @@ func logicalIdentity(node Node) string {
 }
 
 func runtimeIdentity(node Node) string {
+	if node.Identities != nil {
+		return node.Identities.Runtime
+	}
 	return digest(struct {
 		Protocol, Transport, Server string
 		Port                        int
@@ -202,7 +228,7 @@ func newNodeID(node Node, duplicate bool) string {
 	}
 	identity := node.ProviderID + ":" + stableIdentity(node) + ":" + strings.ToUpper(node.Country)
 	if duplicate {
-		identity += digest(node.Credentials)[:12]
+		identity += credentialIdentity(node)[:12]
 	}
 	return slug + "-" + digest(identity)[:10]
 }
@@ -211,6 +237,13 @@ func digest(value any) string {
 	body, _ := json.Marshal(value) // All input types in this package are JSON-compatible.
 	sum := sha256.Sum256(body)
 	return hex.EncodeToString(sum[:])
+}
+
+func credentialIdentity(node Node) string {
+	if node.Identities != nil {
+		return node.Identities.Credentials
+	}
+	return digest(node.Credentials)
 }
 
 func cloneSettings(settings map[string]any) map[string]any {

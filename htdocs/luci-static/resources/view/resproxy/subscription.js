@@ -129,10 +129,7 @@ return view.extend({
 		via.value('direct-only', _('Direct only'));
 		via.default = 'proxy-first';
 		via.rmempty = false;
-		var limit = sources.option(form.Value, 'max_nodes', _('Maximum imported nodes'));
-		limit.datatype = 'range(1,5000)';
-		limit.default = '1000';
-		limit.rmempty = false;
+		sources.description = _('All supported nodes are imported; data-size and storage limits still apply.');
 		var refresh = sources.option(form.Button, '_refresh', _('Subscription update'));
 		refresh.inputtitle = function(section) {
 			var name = sourceName(id.formvalue(section) || uci.get('resproxy', section, 'id'));

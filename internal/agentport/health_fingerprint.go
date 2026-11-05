@@ -31,6 +31,8 @@ func invalidateChangedOutboundHealth(item *policyHealthState, candidates []strin
 		delete(item.AvailabilityFailures, id)
 		delete(item.Recoveries, id)
 		delete(item.Samples, id)
+		delete(item.LatestQuality, id)
+		delete(item.qualityCountedAt, id)
 		delete(item.DailySamples, id)
 		// Preserve dated logical-node history; invalidate present health.
 		delete(item.LastProbeAt, id)
@@ -71,6 +73,8 @@ func pruneRemovedCandidateHealth(item *policyHealthState, candidates []string) {
 	pruneNodeMap(item.AvailabilityFailures, active)
 	pruneNodeMap(item.Recoveries, active)
 	pruneNodeMap(item.Samples, active)
+	pruneNodeMap(item.LatestQuality, active)
+	pruneNodeMap(item.qualityCountedAt, active)
 	pruneNodeMap(item.DailySamples, active)
 	pruneNodeMap(item.HistoryDays, active)
 	pruneNodeMap(item.LastProbeAt, active)

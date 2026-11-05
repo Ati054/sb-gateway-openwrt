@@ -19,6 +19,7 @@ import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
 	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
 	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
+	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
 	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
 	"github.com/Ati054/sb-gateway-openwrt/internal/refresh"
 	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
@@ -76,6 +77,10 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	if err != nil {
 		return fmt.Errorf("prepare shared domain assets: %w", err)
 	}
+	// Reset a stale request before publishing daemon.pid, so a request accepted
+	// during startup cannot be erased by the background worker starting later.
+	_ = os.Remove(filepath.Join(paths.RunRoot, "rulesets-refresh.request"))
+	publishRulesetProgress(paths, initialRulesetProgress(config, rulesetSnapshot))
 	routingBase, err := withRulesets(config.Base, config.Policies, rulesetSnapshot, filepath.Join(paths.DataRoot, "geoip-assets"))
 	if err != nil {
 		return err
@@ -109,7 +114,28 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		return fmt.Errorf("start Xray (%s): %w", CoreExecutionMode, err)
 	}
 	supervisor := newSupervisedCore(engine)
-	defer supervisor.Close()
+	selectors := make([]string, 0, len(config.Policies))
+	for _, policy := range config.Policies {
+		selectors = append(selectors, "resproxy-"+policy.ID)
+	}
+	routes := dnsroute.New(selectors)
+	identity, identityErr := dnsroute.ProcessCore(engine.pid)
+	if identityErr != nil {
+		supervisor.Close()
+		return fmt.Errorf("read Xray process identity: %w", identityErr)
+	}
+	supervisor.routes, supervisor.routeCore = routes, identity
+	routes.SetCore(identity)
+	restoreDNSOnExit := false
+	defer func() {
+		var restore func() error
+		if restoreDNSOnExit {
+			restore = func() error { return RestoreManagedDNS(paths) }
+		}
+		if err := closeCoreAndRestoreDNS(supervisor.Close, restore); err != nil {
+			log.Printf("resproxy: runtime cleanup failed: %v", err)
+		}
+	}()
 	// Cancel slow refresh work immediately if a critical worker or core dies.
 	// Workers finish before their core/API are closed.
 	parentCtx := ctx
@@ -121,6 +147,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	manager := xray.NewManager(paths.Binary, fmt.Sprintf("127.0.0.1:%d", config.Base.APIPort), paths.RunRoot)
 	manager.LivenessSOCKS = fmt.Sprintf("127.0.0.1:%d", config.Base.SocksPort)
 	manager.Run = supervisor.Command
+	manager.RouteObserver = supervisor.routeObserver
 	manager.PrepareOutbound = plugins.Prepare
 	manager.ReleaseOutbound = plugins.Release
 	if err := waitAPI(ctx, manager, "resproxy-"+config.Base.DefaultPolicy, engine.exited, xray.StartupTimeout(routingBase)); err != nil {
@@ -141,7 +168,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	defer os.Remove(readyPath)
 	store := generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}
 	poolPath := filepath.Join(paths.RunRoot, "health-pool.json")
-	_, nodes, err := store.Current()
+	_, nodes, err := store.CurrentMetadata()
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("current subscription generation is invalid: %w", err)
 	}
@@ -165,6 +192,31 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	captureDNSPort := 0
 	dnsInterop := DNSInterop{RequestedMode: config.DNSMode, EffectiveMode: "off"}
 	if config.RouteEnabled {
+		dnsConfig := func(mode, bootstrap string) dnsproxy.Config {
+			policyProxyPorts := make(map[string]int, len(routingBase.Policies))
+			for index, policy := range routingBase.Policies {
+				policyProxyPorts[policy.ID] = routingBase.DNSPolicyBasePort + index
+			}
+			return dnsproxy.Config{
+				Routes: routes,
+				Port:   config.DNSPort, ProxyPort: config.Base.HTTPPort, PolicyProxyPorts: policyProxyPorts,
+				ProxyURL: config.DNSProxyURL, DirectURL: config.DNSDirectURL, DirectBootstrapIP: bootstrap,
+				Mode: mode, DefaultPolicy: config.Base.DefaultPolicy, Policies: dnsPoliciesFromBase(routingBase),
+				HealthStatePath: filepath.Join(paths.RunRoot, "health-state", "selector-runtime.json"),
+				StatusPath:      filepath.Join(paths.RunRoot, "dns-status.json"),
+				GenerationPath:  filepath.Join(paths.RunRoot, "dns-generation.json"),
+			}
+		}
+		var preparationDone chan struct{}
+		var preparedDNS *dnsproxy.Prepared
+		var preparationErr error
+		// Preparation is pure: no socket, worker, or system DNS ownership yet.
+		// Always join it before leaving this startup attempt, including rollback.
+		defer func() {
+			if preparationDone != nil {
+				<-preparationDone
+			}
+		}()
 		handedOff := false
 		directBootstrapIP := ""
 		if config.DNSMode != "system" {
@@ -173,6 +225,12 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				if err != nil {
 					log.Printf("resproxy: direct WAN DNS preflight failed; https-dns-proxy retained: %v", err)
 				} else {
+					preparedConfig := dnsConfig(config.DNSMode, directBootstrapIP)
+					preparationDone = make(chan struct{})
+					go func() {
+						preparedDNS, preparationErr = dnsproxy.Prepare(preparedConfig)
+						close(preparationDone)
+					}()
 					handedOff, err = acquireDNSHandoff(dnsHandoffFile(paths), true, httpsDNSProxyOps())
 					if err != nil {
 						log.Printf("resproxy: https-dns-proxy handoff failed; existing DNS retained: %v", err)
@@ -181,11 +239,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			}
 		}
 		if handedOff {
-			defer func() {
-				if err := RestoreManagedDNS(paths); err != nil {
-					log.Printf("resproxy: restore managed DNS after exit: %v", err)
-				}
-			}()
+			restoreDNSOnExit = true
 		}
 
 		dnsInterop = resolveDNSInterop(ctx, config.DNSMode, currentNFTRules, activeExternalDNSService)
@@ -206,23 +260,26 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				log.Printf("resproxy: restore https-dns-proxy after DNS conflict: %v", err)
 			}
 		}
+		if dnsInterop.EffectiveMode == "system" && preparationDone != nil {
+			<-preparationDone
+			preparedDNS = nil
+		}
 		dnsPort := 0
 		if dnsInterop.EffectiveMode != "system" {
-			policyProxyPorts := make(map[string]int, len(routingBase.Policies))
-			for index, policy := range routingBase.Policies {
-				policyProxyPorts[policy.ID] = routingBase.DNSPolicyBasePort + index
+			startDNS := func() (func(), func([]dnsproxy.Policy) error, error) {
+				if preparationDone != nil {
+					<-preparationDone
+					if dnsInterop.EffectiveMode == config.DNSMode {
+						if preparationErr != nil {
+							return nil, nil, preparationErr
+						}
+						return preparedDNS.Start(ctx)
+					}
+				}
+				return dnsproxy.Start(ctx, dnsConfig(dnsInterop.EffectiveMode, directBootstrapIP))
 			}
-			stopDNS, update, err := dnsproxy.Start(ctx, dnsproxy.Config{
-				Port: config.DNSPort, ProxyPort: config.Base.HTTPPort,
-				PolicyProxyPorts: policyProxyPorts,
-				ProxyURL:         config.DNSProxyURL, DirectURL: config.DNSDirectURL,
-				DirectBootstrapIP: directBootstrapIP,
-				Mode:              dnsInterop.EffectiveMode, DefaultPolicy: config.Base.DefaultPolicy,
-				Policies:        dnsPoliciesFromBase(routingBase),
-				HealthStatePath: filepath.Join(paths.RunRoot, "health-state", "selector-runtime.json"),
-				StatusPath:      filepath.Join(paths.RunRoot, "dns-status.json"),
-				GenerationPath:  filepath.Join(paths.RunRoot, "dns-generation.json"),
-			})
+			stopDNS, update, err := startDNS()
+			preparedDNS = nil
 			if err != nil {
 				dnsInterop.EffectiveMode = "system"
 				dnsInterop.Reason = "listener-failed"
@@ -301,9 +358,11 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	}
 	supervisor.mu.Unlock()
 	healthOptions := agentport.Options{
-		OnProgress:      progress.mark,
-		BackgroundBusy:  resources.NewBackgroundBusy(),
-		XrayProcessName: engine.processName, RunXrayCommand: supervisor.Command,
+		DNSRoutes:           routes,
+		URLTestPlanningMode: agentport.URLTestPlanningFreshPaired,
+		OnProgress:          progress.mark,
+		BackgroundBusy:      resources.NewBackgroundBusy(),
+		XrayProcessName:     engine.processName, RunXrayCommand: supervisor.Command,
 		PrepareOutbound: plugins.Prepare, ReleaseOutbound: plugins.Release,
 		StateRoot:               filepath.Join(paths.RunRoot, "health-state"),
 		PreferredSelectionsFile: preferredSelections,
@@ -419,18 +478,12 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	if err := waitStartupRoutes(ctx, config, paths, nil, healthDone); err != nil {
 		return err
 	}
-	if config.RouteEnabled && recoveringCapture {
+	if config.RouteEnabled {
 		if err := waitInitialCapture(ctx, func(attempt context.Context) error {
-			return setFirewall(attempt, "apply", config.LANInterface, config.Base.TransparentPort, captureDNSPort, config.Capture)
+			return setFirewall(attempt, "ready", config.LANInterface, config.Base.TransparentPort, captureDNSPort, config.Capture)
 		}, 2*time.Second); err != nil {
 			return fmt.Errorf("restore recovered LAN capture: %w", err)
 		}
-		if err := os.Remove(crashFallbackFile(paths)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-	}
-	if err := ClearProtection(paths); err != nil {
-		return err
 	}
 	if err := markCrashReadyNow(paths); err != nil {
 		return err
@@ -521,11 +574,11 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			if source.UpdateMode == "daily" && !wallNow.IsZero() {
 				daily.attempted(source, wallNow)
 			}
-			_, before, _ := store.Current()
+			_, before, _ := store.CurrentMetadata()
 			attempt := sourceUpdates.begin(source.ID, before)
 			cursor := probeCursors[source.ID]
 			newETag, oldTag, err := refreshOnce(ctx, source, config, paths, service, manager, etags[source.ID], &cursor)
-			_, after, _ := store.Current()
+			_, after, _ := store.CurrentMetadata()
 			sourceUpdates.finish(source.ID, attempt, before, after, err)
 			probeCursors[source.ID] = cursor
 			if pruneErr := store.Prune(3); pruneErr != nil {
@@ -537,7 +590,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			} else {
 				etags[source.ID] = newETag
 				retirement.Observe(oldTag, time.Now())
-				if _, current, currentErr := store.Current(); currentErr == nil {
+				if _, current, currentErr := store.CurrentMetadata(); currentErr == nil {
 					log.Printf("resproxy: subscription %s refresh completed; active catalog has %d nodes", source.ID, len(current))
 				}
 				nextRefresh[source.ID] = time.Now().Add(time.Duration(source.UpdateSeconds) * time.Second)
@@ -566,7 +619,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			result := reloadResult{Status: "error"}
 			candidate, reloadErr := settings.ReadSystemUCI(request.ctx)
 			if reloadErr == nil {
-				_, currentNodes, loadErr := store.Current()
+				_, currentNodes, loadErr := store.CurrentMetadata()
 				if errors.Is(loadErr, os.ErrNotExist) {
 					loadErr = nil
 				}
@@ -679,7 +732,7 @@ func sourceRefreshDue(source settings.Subscription, now, next time.Time, request
 
 func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, policy capture.Policy) error {
 	arguments := []string{action}
-	if action == "apply" || action == "emergency" || action == "guard" {
+	if action == "apply" || action == "emergency" || action == "guard" || action == "ready" || action == "restore" {
 		arguments = append(arguments, iface, strconv.Itoa(port), strconv.Itoa(dnsPort), policy.IPv6Mode)
 		if policy.BlockPing {
 			arguments = append(arguments, "--block-ping")
@@ -723,7 +776,7 @@ func refreshOnce(ctx context.Context, source settings.Subscription, config setti
 		return "", "", leaseErr
 	}
 	defer release()
-	_, existing, currentErr := service.Store.Current()
+	_, existing, currentErr := service.Store.CurrentMetadata()
 	proxyAvailable := currentErr == nil && len(existing) > 0
 	ports := fetchPorts(source.FetchVia, proxyAvailable, config.Base.HTTPPort)
 	if len(ports) == 0 {
@@ -842,29 +895,7 @@ func RestoreFirewall(ctx context.Context, config settings.Config, paths Paths) e
 	if !config.Enabled || !config.RouteEnabled {
 		return nil
 	}
-	if ProtectionActive(paths) {
-		return setFirewall(ctx, "guard", config.LANInterface, config.Base.TransparentPort, 0, config.Capture)
-	}
-	if CrashFallbackActive(paths) {
-		return setFirewall(ctx, "emergency", config.LANInterface, config.Base.TransparentPort, 0, config.Capture)
-	}
-	body, err := os.ReadFile(dnsInteropPath(paths))
-	if err != nil {
-		return err
-	}
-	var state DNSInterop
-	if err = json.Unmarshal(body, &state); err != nil {
-		return err
-	}
-	dnsPort := 0
-	switch state.EffectiveMode {
-	case "system":
-	case "proxy-only", "proxy-fallback-wan":
-		dnsPort = config.DNSPort
-	default:
-		return errors.New("invalid effective DNS mode")
-	}
-	return setFirewall(ctx, "apply", config.LANInterface, config.Base.TransparentPort, dnsPort, config.Capture)
+	return setFirewall(ctx, "restore", config.LANInterface, config.Base.TransparentPort, config.DNSPort, config.Capture)
 }
 
 func watchVPNRoutes(ctx context.Context, restore func(context.Context) error) {

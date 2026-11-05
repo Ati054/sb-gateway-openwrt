@@ -80,7 +80,7 @@ return baseclass.extend({
  snapshot:function() {
   return Promise.all([read('health-state/monitor.json',true),read('health-state/selector-runtime.json'),
    read('catalog-summary.json'),read('subscription-status.json'),read('resources.json'),
-   read('dns-status.json'),read('dns-interop.json'),services('resproxy'),uptime()]).then(function(data) {
+   read('dns-status.json'),read('dns-interop.json'),services('resproxy'),uptime(),read('rulesets-status.json')]).then(function(data) {
    return catalog(data[2]).then(function(summary) {data[2]=summary;return data;});
   }).then(function(data) {
    var view=data[0],runtime=data[1],running=serviceRunning(data[7]),now=Date.now();
@@ -105,7 +105,7 @@ return baseclass.extend({
     resources:data[4],resources_fresh:resourceFresh,now:clock,
     runtime_pending:!runtime || !Object.keys(runtime.policies || {}).length,
     runtime_stale:running && !!runtime && !valid,
-    dns:data[5],dns_interop:data[6]},health:deltas(health,Math.floor(clock/1000))};
+    dns:data[5],dns_interop:data[6],rulesets:data[9]},health:deltas(health,Math.floor(clock/1000))};
   });
  },
  sources:function() {return Promise.all([read('catalog-summary.json').then(catalog),read('subscription-status.json')]).then(function(data) {return sources(data[0],data[1]);});},

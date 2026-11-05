@@ -1,7 +1,7 @@
 # Embedded Xray source
 
-Pinned upstream: XTLS/Xray-core v26.10.29, commit
-0afec66085a85191e9dd2a4a6646c7c9a94688d1. Licensed under MPL-2.0;
+Pinned upstream: XTLS/Xray-core v26.10.31, commit
+a4a3dff5b20c2faae567b742c172c7b95e75c083. Licensed under MPL-2.0;
 see LICENSE. The complete source is retained here for reproducible builds.
 
 The source includes the existing gateway patches for passive failure signals,
@@ -22,6 +22,8 @@ symlink. Normal gateway operation runs this executable as a separate core proces
 and uses a persistent local API client.
 
 Go module dependencies are pinned by go.mod/go.sum and included in vendor.
+After changing this tree, run `python3 tools/check-xray-vendor.py --sync` from
+the repository root. CI and SDK builds check the vendored copy before compiling.
 The independent Xray binary in testlab is a test reference and is not installed.
 
 Route-only TCP sniffing allows five seconds for the initial HTTP/TLS data. This

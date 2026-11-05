@@ -10,6 +10,7 @@ import (
 // by their original policies. Rebuild on reload, including external assets.
 func compilePolicyMatchers(policies []Policy) (map[string]domainMatcher, error) {
 	matchers := make(map[string]domainMatcher, len(policies))
+	compiler := &matcherCompiler{}
 	type compiledPolicy struct {
 		shape   Policy
 		matcher domainMatcher
@@ -32,7 +33,7 @@ func compilePolicyMatchers(policies []Policy) (map[string]domainMatcher, error) 
 		}
 		if !exists {
 			var err error
-			matcher, err = compileMatcher(policy)
+			matcher, err = compiler.compile(policy, true)
 			if err != nil {
 				return nil, fmt.Errorf("policy %s DNS routing: %w", policy.ID, err)
 			}
@@ -41,4 +42,30 @@ func compilePolicyMatchers(policies []Policy) (map[string]domainMatcher, error) 
 		matchers[policy.ID] = matcher
 	}
 	return matchers, nil
+}
+
+// A rule's action belongs to its policy wrapper. Its immutable domain index can
+// be shared with another rule even when actions or outage behavior differ.
+// Keep this cache inside one compilation so external assets reload normally.
+type compiledDomainLeaf struct {
+	shape        Policy
+	allowCompact bool
+	matcher      domainMatcher
+}
+
+type matcherCompiler struct{ leaves []compiledDomainLeaf }
+
+func (compiler *matcherCompiler) cachedLeaf(policy Policy, compact bool) (domainMatcher, bool) {
+	policy.ID, policy.SourceCIDRs = "", nil
+	for _, leaf := range compiler.leaves {
+		if leaf.allowCompact == compact && reflect.DeepEqual(leaf.shape, policy) {
+			return leaf.matcher, true
+		}
+	}
+	return domainMatcher{}, false
+}
+
+func (compiler *matcherCompiler) rememberLeaf(policy Policy, compact bool, matcher domainMatcher) {
+	policy.ID, policy.SourceCIDRs = "", nil
+	compiler.leaves = append(compiler.leaves, compiledDomainLeaf{policy, compact, matcher})
 }

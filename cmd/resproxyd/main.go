@@ -241,6 +241,50 @@ func execute(arguments []string) error {
 			return err
 		}
 		return daemon.RestoreFirewall(ctx, config, paths)
+	case "capture-restore-rules":
+		// resproxy-firewall invokes this after taking its transaction lock.
+		protected := daemon.ProtectionActive(paths)
+		if !protected && !daemon.CrashFallbackActive(paths) && !running(paths) {
+			fmt.Println("# resproxy-restore skip")
+			return nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		readConfig := settings.ReadSystemUCI
+		if protected {
+			readConfig = settings.ReadProtectionSystemUCI
+		}
+		config, err := readConfig(ctx)
+		if err != nil {
+			return err
+		}
+		mode, dnsPort, err := daemon.RestoredCaptureMode(config, paths)
+		if err != nil {
+			return err
+		}
+		policy := config.Capture
+		policy.Automatic = capture.Discover(ctx)
+		if !policy.Automatic.Complete {
+			return errors.New("VPN interface discovery unavailable; previous capture rules retained")
+		}
+		var body string
+		if mode == "apply" {
+			body, err = capture.Render(config.LANInterface, config.Base.TransparentPort, dnsPort, policy)
+		} else {
+			if config.DNSMode != "system" {
+				policy.DNSListenerPort = config.DNSPort
+			}
+			scopes, scopeErr := daemon.EmergencyPolicies(config)
+			if scopeErr != nil {
+				return scopeErr
+			}
+			body, err = capture.RenderEmergency(config.LANInterface, config.Base.TransparentPort, policy, scopes)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Printf("# resproxy-restore %s %s %d %d\n%s", mode, config.LANInterface, config.Base.TransparentPort, dnsPort, body)
+		return err
 	case "locations":
 		return printLocations(paths)
 	case "run", "render-base":
@@ -270,7 +314,7 @@ func execute(arguments []string) error {
 }
 
 func printLocations(paths daemon.Paths) error {
-	_, nodes, err := (generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}).Current()
+	_, nodes, err := (generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}).CurrentMetadata()
 	if errors.Is(err, os.ErrNotExist) {
 		nodes = nil
 	} else if err != nil {
@@ -280,7 +324,7 @@ func printLocations(paths daemon.Paths) error {
 }
 
 func printStatus(paths daemon.Paths) error {
-	_, nodes, err := (generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}).Current()
+	_, nodes, err := (generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}).CurrentMetadata()
 	if errors.Is(err, os.ErrNotExist) {
 		nodes = nil
 	} else if err != nil {

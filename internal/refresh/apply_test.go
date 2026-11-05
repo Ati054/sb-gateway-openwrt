@@ -275,7 +275,7 @@ func TestInformationalLabelRefreshUpdatesRAMWithoutFlash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pointer := filepath.Join(store.Root, "CURRENT")
+	pointer := filepath.Join(store.Root, "CURRENT-INDEXED")
 	stamp := time.Unix(1234, 0)
 	if err := os.Chtimes(pointer, stamp, stamp); err != nil {
 		t.Fatal(err)

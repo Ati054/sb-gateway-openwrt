@@ -113,7 +113,19 @@ func TestURLTestPendingCandidateMustRemainQualified(t *testing.T) {
 			if err := controller.Tick(time.Unix(next, 0)); err != nil {
 				t.Fatal(err)
 			}
-			if item.Selected != "active" || item.OptimizationCandidate != "other" || item.OptimizationChecks != 1 {
+			wantCandidate := "other"
+			if scenario == "expired-confirmation" {
+				// Equal retained medians may nominate either qualified reserve.
+				// Expiry must discard the old win even if the same node wins again.
+				wantCandidate = item.OptimizationCandidate
+				if wantCandidate != "reserve" && wantCandidate != "other" {
+					t.Fatal("expired comparison nominated an unknown candidate")
+				}
+				if item.OptimizationLastResult == nil || item.OptimizationLastResult.At != time.Unix(next, 0).UTC().Format(time.RFC3339) {
+					t.Fatal("expired proof was retained instead of a new first win")
+				}
+			}
+			if item.Selected != "active" || item.OptimizationCandidate != wantCandidate || item.OptimizationChecks != 1 {
 				t.Fatalf("invalid pending candidate retained or transferred its win: selected=%s candidate=%s checks=%d", item.Selected, item.OptimizationCandidate, item.OptimizationChecks)
 			}
 			// The new candidate keeps its own win even if the old one recovers.
@@ -122,7 +134,7 @@ func TestURLTestPendingCandidateMustRemainQualified(t *testing.T) {
 			if err := controller.Tick(time.Unix(next+60, 0)); err != nil {
 				t.Fatal(err)
 			}
-			if item.Selected != "other" || item.LastSwitchReason != "meaningfully-faster" {
+			if item.Selected != wantCandidate || item.LastSwitchReason != "meaningfully-faster" {
 				t.Fatalf("new candidate did not complete its own confirmation: selected=%s reason=%s", item.Selected, item.LastSwitchReason)
 			}
 		})

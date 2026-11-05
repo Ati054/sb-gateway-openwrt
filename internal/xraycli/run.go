@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"runtime/debug"
 	"strings"
 	"syscall"
@@ -97,8 +96,7 @@ func executeRun(cmd *base.Command, args []string) {
 	}
 	defer server.Close()
 
-	// Explicitly triggering GC to remove garbage from config loading.
-	runtime.GC()
+	// FreeOSMemory also collects configuration garbage before releasing pages.
 	debug.FreeOSMemory()
 
 	{
