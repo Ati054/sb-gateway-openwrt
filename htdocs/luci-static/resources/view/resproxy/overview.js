@@ -117,8 +117,8 @@ return view.extend({
    dnsWarning.hidden=!(interop && interop.reason);
    dnsWarning.textContent=interop && interop.reason ? warning[interop.reason] || interop.reason : '';
    health.update(policies);
-   if (values.rules || status.rulesets) {
-    var catalog=values.rules, database=status.rulesets || catalog && catalog.status;
+   var catalog=values.rules, database=status && status.rulesets || catalog && catalog.status;
+   if (catalog || database) {
     dbBody.replaceChildren();
     var packs=database && database.packs || [], names={};
     if (catalog) catalog.choices.forEach(function(c) { names[c.id]=_(c.name); });
@@ -135,7 +135,7 @@ return view.extend({
      unused:_('No downloadable rule databases are used by route lists.'),
      error:_('Rule database update finished with errors.')
     }[phase];
-    var summary=phase==='unused' ? progress : !status.running ? _('Start SB Gateway to load rule databases.') : progress;
+    var summary=phase==='unused' ? progress : status && !status.running ? _('Start SB Gateway to load rule databases.') : progress;
     summary=summary || (!database ? _('Waiting for automatic rule database loading.') :
      _('%d downloaded · %d cached · %d unavailable').format(loaded,stale,unavailable) +
       (database.checked_at ? ' · '+new Date(database.checked_at).toLocaleString((document.documentElement.lang || 'en').replace(/_/g, '-'), {calendar:'gregory'}) : ''));
@@ -157,7 +157,7 @@ return view.extend({
    if (refreshing) return Promise.resolve();
    refreshing=true; refresh.disabled=true;
    var keys=['status','health'];
-   if (force || Date.now() >= nextRules) { keys.push('rules'); nextRules=Date.now()+60000; }
+   if (force || failed.rules || Date.now() >= nextRules) { keys.push('rules'); nextRules=Date.now()+60000; }
    return snapshot(keys).then(paint).finally(function() { refreshing=false; refresh.disabled=false; });
   }
   var dashboard=E('div', { 'class':'sbg-overview' },[

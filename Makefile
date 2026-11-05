@@ -122,6 +122,10 @@ register_language fa 'فارسی (Persian)'
 uci -q commit luci
 # Remove LuCI's hashed page-tree cache when package menu entries change.
 rm -f /tmp/luci-indexcache /tmp/luci-indexcache.*.json
+# Refresh existing LuCI sessions when the package adds status-file permissions.
+if [ -x /etc/init.d/rpcd ]; then
+	/etc/init.d/rpcd reload >/dev/null 2>&1 || logger -t resproxy 'LuCI access rules reload failed'
+fi
 # An r11 guarded update leaves its supervisor running. Wait for that one
 # transition to activate before releasing the old on-flash recovery cache.
 if [ -d /etc/sb-gateway-upgrade ]; then

@@ -199,6 +199,25 @@ try {
   const refresh=dashboard.querySelector('.sbg-overview-toolbar button');refresh.click();
   await new Promise(resolve=>setTimeout(resolve,20));
   if(!monitorReads)throw Error('Prepared reader was not exercised');
+  // A transient initial RPC failure must leave a usable page that recovers on
+  // the next poll, with or without an available rule-database response.
+  for (const rulesUnavailable of [false,true]) {
+   let unavailable=true,recoveryPoll;
+   const transientMonitor={snapshot:()=>unavailable ? Promise.reject(Error('temporary monitoring RPC failure')) : monitor.snapshot()};
+   const transientFS={exec:async command=>{
+    if(unavailable && rulesUnavailable)throw Error('temporary rules RPC failure');
+    return fs.exec(command);
+   }};
+   const recoveringOverview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_',sources.overview)(
+    {decorate:node=>node},health,{extend:value=>value},{Map,NamedSection:{},Flag:{extend:value=>value}},transientFS,uci,
+    {add:fn=>{recoveryPoll=fn;},remove:()=>{}},safeDOM,transientMonitor,_);
+   const recoveringDashboard=await recoveringOverview.render(await recoveringOverview.load());
+   document.body.append(recoveringDashboard);
+   const warning=Array.from(recoveringDashboard.querySelectorAll('.alert-message')).find(node=>node.textContent.startsWith('No fresh data:'));
+   if(!warning || warning.hidden || !recoveringDashboard.querySelector('.sbg-overview-toolbar button'))throw Error('Initial monitoring failure hid the usable overview or its warning');
+   unavailable=false;alive=true;await recoveryPoll();
+   if(!warning.hidden || !recoveringDashboard.textContent.includes('842 nodes'))throw Error('Overview did not recover after a transient monitoring failure: rules='+rulesUnavailable+', warning='+warning.textContent);
+  }
 	// Category changes must issue distinct requests and ignore older replies.
 	const journalRequests=[];
 	const journalFS={exec:(command,args)=>{
@@ -237,7 +256,7 @@ try {
 	if(journalOutput.textContent.includes('system-only entry'))throw Error('Search restored lines from a failed old category');
   await new Promise(resolve => setTimeout(resolve, 50));
   if (document.querySelector('img,svg,script') || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
-  return {negativeControl:true, health:true, picker:true, commaAlternatives:true, quotedNames:true, sharedNameCases:nameCases.length, exclusionPrecedence:true, deltaSigns:true, scalarAndCallback:true, overviewMonitoring:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
+  return {negativeControl:true, health:true, picker:true, commaAlternatives:true, quotedNames:true, sharedNameCases:nameCases.length, exclusionPrecedence:true, deltaSigns:true, scalarAndCallback:true, overviewMonitoring:true, overviewTransientErrors:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
  }, { sources, stockDOM, nameCases });
  assert.deepEqual(errors, []);
  console.log(JSON.stringify(result));
