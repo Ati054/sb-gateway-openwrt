@@ -47,7 +47,7 @@ func TestChangedDailyUpdateTimeDoesNotWaitForPreviousInterval(t *testing.T) {
 	state.daily[source.ID] = "2026-01-02"
 	source.UpdateTime = "03:00"
 	state.sync([]settings.Subscription{source}, now)
-	if now.Add(time.Minute).Before(state.nextRefresh[source.ID]) || !state.daily.due(source, now.Add(time.Minute)) {
+	if now.Add(time.Minute).Before(state.nextRefresh[source.ID]) || state.daily.due(source, now) || !state.daily.due(source, now.Add(time.Minute)) {
 		t.Fatal("edited daily schedule is still blocked by previous scheduling state")
 	}
 }
