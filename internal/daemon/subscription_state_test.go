@@ -34,6 +34,22 @@ func TestSubscriptionScheduleCanSwitchToDailyWithoutRestart(t *testing.T) {
 	if !state.sync([]settings.Subscription{source}, now) || state.daily.due(source, now) || !state.daily.due(source, now.Add(time.Minute)) {
 		t.Fatal("new daily schedule did not activate in the running worker")
 	}
+	if now.Add(time.Minute).Before(state.nextRefresh[source.ID]) {
+		t.Fatal("the previous interval still postpones the new daily update time")
+	}
+}
+
+func TestChangedDailyUpdateTimeDoesNotWaitForPreviousInterval(t *testing.T) {
+	source := settings.Subscription{ID: "first", URL: "https://example.test/feed", UpdateMode: "daily", UpdateTime: "02:00", UpdateSeconds: 21600}
+	state := newSubscriptionRefreshState([]settings.Subscription{source})
+	now := time.Date(2026, 1, 2, 2, 59, 0, 0, time.UTC)
+	state.nextRefresh[source.ID] = now.Add(6 * time.Hour)
+	state.daily[source.ID] = "2026-01-02"
+	source.UpdateTime = "03:00"
+	state.sync([]settings.Subscription{source}, now)
+	if now.Add(time.Minute).Before(state.nextRefresh[source.ID]) || !state.daily.due(source, now.Add(time.Minute)) {
+		t.Fatal("edited daily schedule is still blocked by previous scheduling state")
+	}
 }
 
 func TestChangedSubscriptionLimitRequiresCompleteBody(t *testing.T) {

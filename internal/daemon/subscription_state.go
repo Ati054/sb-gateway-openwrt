@@ -41,6 +41,9 @@ func (s *subscriptionRefreshState) sync(sources []settings.Subscription, now tim
 		}
 		if !seen || previous.UpdateMode != source.UpdateMode || previous.UpdateTime != source.UpdateTime {
 			delete(s.daily, source.ID)
+			if source.UpdateMode == "daily" {
+				s.nextRefresh[source.ID] = now
+			}
 		}
 		s.settings[source.ID] = source
 	}
