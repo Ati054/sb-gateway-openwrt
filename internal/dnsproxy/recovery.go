@@ -190,9 +190,13 @@ func exchangeDoH(ctx context.Context, client *http.Client, endpoint string, quer
 
 func matchingQuestion(query, response []byte) bool {
 	if len(response) < 12 || len(response) > maxDNSMessage || len(query) < 12 ||
-		!bytes.Equal(query[:2], response[:2]) || response[2]&0x80 == 0 ||
-		response[2]&0x78 != query[2]&0x78 || response[4] != 0 || response[5] != 1 {
+		!bytes.Equal(query[:2], response[:2]) || query[2]&0x80 != 0 || response[2]&0x80 == 0 ||
+		response[2]&0x78 != query[2]&0x78 || query[4] != 0 || query[5] > 1 ||
+		response[4] != query[4] || response[5] != query[5] {
 		return false
+	}
+	if query[5] == 0 {
+		return validQuestionlessMessage(query) && validQuestionlessMessage(response)
 	}
 	var q, a dnsmessage.Parser
 	if _, err := q.Start(query); err != nil {

@@ -855,7 +855,9 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	if !valid {
 		s.failures.Add(1)
 		s.failureInvalidQuery.Add(1)
-		finish(servfail(query))
+		response := servfail(query)
+		response[3] = 1 // FORMERR: a malformed request is not an upstream outage.
+		finish(response)
 		return
 	}
 	if isLocalName(name) {
@@ -1224,7 +1226,13 @@ func addrIP(address net.Addr) netip.Addr {
 }
 
 func questionName(query []byte) (string, bool) {
-	if len(query) < 17 || query[2]&0x80 != 0 || binary.BigEndian.Uint16(query[4:6]) != 1 {
+	if len(query) < 12 || query[2]&0x80 != 0 {
+		return "", false
+	}
+	if binary.BigEndian.Uint16(query[4:6]) == 0 {
+		return "", validQuestionlessMessage(query)
+	}
+	if len(query) < 17 || binary.BigEndian.Uint16(query[4:6]) != 1 {
 		return "", false
 	}
 	labels := []string{}
@@ -1261,7 +1269,7 @@ func servfail(query []byte) []byte {
 	response[3] = 2
 	// Resolvers match errors to their original question too. A header-only
 	// reply to a valid query is rejected as malformed by clients such as c-ares.
-	if _, valid := questionName(query); valid {
+	if _, valid := questionName(query); valid && binary.BigEndian.Uint16(query[4:6]) == 1 {
 		if end, ok := skipName(query, 12); ok && end+4 <= len(query) {
 			response[5] = 1
 			response = append(response, query[12:end+4]...)
