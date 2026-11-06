@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
@@ -80,6 +81,21 @@ func (s *Service) apply(ctx context.Context, providerID string, feed []byte, max
 	}
 	if err := os.MkdirAll(importRoot, 0700); err != nil {
 		return Result{}, err
+	}
+	// Runtime paths may use platform aliases such as OpenWrt's /var -> /tmp.
+	// Resolve only our trusted staging parent; published catalog roots and
+	// records retain the strict no-symlink validation in subscriptioncatalog.
+	parentInfo, err := os.Stat(importRoot)
+	if err != nil {
+		return Result{}, err
+	}
+	importRoot, err = filepath.EvalSymlinks(importRoot)
+	if err != nil {
+		return Result{}, err
+	}
+	resolvedInfo, err := os.Lstat(importRoot)
+	if err != nil || !resolvedInfo.IsDir() || !os.SameFile(parentInfo, resolvedInfo) {
+		return Result{}, errors.New("subscription staging directory changed")
 	}
 	scratch, err := os.MkdirTemp(importRoot, ".subscription-import-")
 	if err != nil {

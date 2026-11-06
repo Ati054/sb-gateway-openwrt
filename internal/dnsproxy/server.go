@@ -108,6 +108,14 @@ type server struct {
 	cacheHits             atomic.Uint64
 	localUse              atomic.Uint64
 	failures              atomic.Uint64
+	failureInvalidQuery   atomic.Uint64
+	failureLocal          atomic.Uint64
+	failureRouteNotReady  atomic.Uint64
+	failureRouteBlocked   atomic.Uint64
+	failureRouteChanged   atomic.Uint64
+	failureEndpoint       atomic.Uint64
+	failureQueue          atomic.Uint64
+	failureSubmission     atomic.Uint64
 	upstreamTimeouts      atomic.Uint64
 	upstreamTransport     atomic.Uint64
 	upstreamInvalid       atomic.Uint64
@@ -321,8 +329,16 @@ func (s *server) writeStatus(ctx context.Context) {
 			"queries": s.queries.Load(), "proxy": s.proxyUse.Load(),
 			"direct": s.directUse.Load(), "fallback": s.fallbackUse.Load(),
 			"cache_hits": s.cacheHits.Load(), "local": s.localUse.Load(),
-			"failures":       s.failures.Load(),
-			"active_queries": uint64(s.activeQueries.Load()), "tcp_clients": uint64(s.tcpClients.Load()),
+			"failures":                s.failures.Load(),
+			"failure_invalid_query":   s.failureInvalidQuery.Load(),
+			"failure_local":           s.failureLocal.Load(),
+			"failure_route_not_ready": s.failureRouteNotReady.Load(),
+			"failure_route_blocked":   s.failureRouteBlocked.Load(),
+			"failure_route_changed":   s.failureRouteChanged.Load(),
+			"failure_endpoint":        s.failureEndpoint.Load(),
+			"failure_queue":           s.failureQueue.Load(),
+			"failure_submission":      s.failureSubmission.Load(),
+			"active_queries":          uint64(s.activeQueries.Load()), "tcp_clients": uint64(s.tcpClients.Load()),
 			"request_budget_bytes": uint64(s.requestBudget), "tcp_budget_bytes": uint64(s.clientBudget),
 			"upstream_timeouts": s.upstreamTimeouts.Load(), "upstream_transport_errors": s.upstreamTransport.Load(),
 			"upstream_invalid_responses": s.upstreamInvalid.Load(), "upstream_last_http_status": uint64(s.upstreamHTTPStatus.Load()),
@@ -838,6 +854,7 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	name, valid := questionName(query)
 	if !valid {
 		s.failures.Add(1)
+		s.failureInvalidQuery.Add(1)
 		finish(servfail(query))
 		return
 	}
@@ -846,11 +863,13 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 		err := s.requests().submit(ctx, "local", "local:"+string(query[2:]), query, func(lookupCtx context.Context) ([]byte, error) { return s.askLocal(lookupCtx, query) }, func(body []byte, err error) {
 			if err != nil {
 				s.failures.Add(1)
+				s.failureLocal.Add(1)
 			}
 			finish(body)
 		})
 		if err != nil {
 			s.failures.Add(1)
+			s.failureLocal.Add(1)
 			finish(servfail(query))
 		}
 		return
@@ -875,6 +894,11 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 		key, routeClient, routeStamp, routeCached = s.routeLookup(policy, query)
 		if routeClient == nil {
 			s.failures.Add(1)
+			if routeStamp.Tag == "block" || routeStamp.Tag == "direct-wan" {
+				s.failureRouteBlocked.Add(1)
+			} else {
+				s.failureRouteNotReady.Add(1)
+			}
 			finish(servfail(query))
 			return
 		}
@@ -919,6 +943,7 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	parsed, err := ParseEndpoint(endpoint, viaWAN)
 	if err != nil {
 		s.failures.Add(1)
+		s.failureEndpoint.Add(1)
 		finish(servfail(query))
 		return
 	}
@@ -984,7 +1009,13 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	}, func(body []byte, err error) {
 		if err != nil {
 			s.failures.Add(1)
-			if errors.Is(err, errDNSQueued) || errors.Is(err, errDNSRouteChanged) {
+			if errors.Is(err, errDNSQueued) {
+				s.failureQueue.Add(1)
+				finish(body)
+				return
+			}
+			if errors.Is(err, errDNSRouteChanged) {
+				s.failureRouteChanged.Add(1)
 				finish(body)
 				return
 			}
@@ -1004,6 +1035,7 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	})
 	if err != nil {
 		s.failures.Add(1)
+		s.failureSubmission.Add(1)
 		finish(servfail(query))
 	}
 }

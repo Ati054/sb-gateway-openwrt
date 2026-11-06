@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -99,6 +100,8 @@ func (u *subscriptionUpdates) finish(id, attempt string, before, after []catalog
 	if err != nil {
 		value.State, value.Error = "error", "failed"
 		switch {
+		case errors.Is(err, errSubscriptionSettingsChanged):
+			value.Error = "interrupted"
 		case strings.Contains(err.Error(), "reachable node"):
 			value.Error = "unreachable"
 		case strings.Contains(err.Error(), "HTTPS request"):

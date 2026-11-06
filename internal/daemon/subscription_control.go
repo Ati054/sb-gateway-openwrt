@@ -57,6 +57,14 @@ func (c *subscriptionControl) handle(request reloadRequest) (reloadResult, bool)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if subscriptionSettingsOnly(c.config, candidate) {
+		if request.ctx.Err() != nil {
+			return reloadResult{Status: "error", Error: "request expired"}, true
+		}
+		c.config = candidate
+		log.Printf("resproxy: subscription settings applied without restarting Xray")
+		return reloadResult{Status: "applied"}, true
+	}
 	result, handled := classifyControlReload(c.config, candidate)
 	if handled || c.applyReload == nil {
 		return result, handled
@@ -70,6 +78,34 @@ func (c *subscriptionControl) handle(request reloadRequest) (reloadResult, bool)
 	c.config = candidate
 	log.Printf("resproxy: configuration applied without restarting Xray")
 	return reloadResult{Status: "applied"}, true
+}
+
+// Endpoint and scheduling edits do not change the active routing contract.
+// Source additions/removals/renames still require the normal catalog lifecycle.
+func subscriptionSettingsOnly(previous, next settings.Config) bool {
+	if len(previous.Subscriptions) == 0 || reflect.DeepEqual(previous, next) || len(previous.Subscriptions) != len(next.Subscriptions) || previous.ProviderID != next.ProviderID {
+		return false
+	}
+	for i := range previous.Subscriptions {
+		if previous.Subscriptions[i].ID != next.Subscriptions[i].ID {
+			return false
+		}
+	}
+	previous.Subscriptions = next.Subscriptions
+	previous.SubscriptionURL = next.SubscriptionURL
+	previous.UpdateMode, previous.UpdateSeconds, previous.MaxNodes = next.UpdateMode, next.UpdateSeconds, next.MaxNodes
+	return reflect.DeepEqual(previous, next)
+}
+
+func (c *subscriptionControl) sourceCurrent(source settings.Subscription) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, current := range c.config.Subscriptions {
+		if current.ID == source.ID {
+			return current == source
+		}
+	}
+	return false
 }
 
 func classifyControlReload(current, candidate settings.Config) (reloadResult, bool) {

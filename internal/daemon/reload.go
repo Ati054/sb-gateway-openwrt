@@ -32,8 +32,8 @@ type reloadResult struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// Only health policy fields may change in place. Base routing, subscription,
-// DNS and firewall changes retain the normal restart path.
+// Source URL/schedule edits are handled directly by subscriptionControl.
+// Base routing, DNS and source identity changes retain the normal restart path.
 // Capture-only edits replace the private nft tables atomically while Xray
 // stays running; a service restart would temporarily remove interception.
 func captureOnly(previous, next settings.Config) bool {

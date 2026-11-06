@@ -509,9 +509,8 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	}
 	sourceUpdates := newSubscriptionUpdates(paths, config.Subscriptions)
 	retirement := &retirementQueue{}
-	nextRefresh := make(map[string]time.Time, len(config.Subscriptions))
-	etags := make(map[string]string, len(config.Subscriptions))
-	probeCursors := make(map[string]int, len(config.Subscriptions))
+	sourceState := newSubscriptionRefreshState(config.Subscriptions)
+	nextRefresh, etags, probeCursors := sourceState.nextRefresh, sourceState.etags, sourceState.probeCursors
 	requestedID := ""
 	for _, source := range config.Subscriptions {
 		nextRefresh[source.ID] = time.Now()
@@ -523,7 +522,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		}
 	}
 	var clock routerClock
-	daily := dailyRefreshSchedule{}
+	daily := sourceState.daily
 	hasDaily := false
 	for _, source := range config.Subscriptions {
 		hasDaily = hasDaily || source.UpdateMode == "daily"
@@ -545,6 +544,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	defer ticker.Stop()
 	for {
 		config = control.snapshot()
+		hasDaily = sourceState.sync(config.Subscriptions, time.Now())
 		var wallNow time.Time
 		if hasDaily {
 			var clockErr error
@@ -577,7 +577,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			_, before, _ := store.CurrentMetadata()
 			attempt := sourceUpdates.begin(source.ID, before)
 			cursor := probeCursors[source.ID]
-			newETag, oldTag, err := refreshOnce(ctx, source, config, paths, service, manager, etags[source.ID], &cursor)
+			newETag, oldTag, err := refreshOnce(ctx, source, config, paths, service, manager, etags[source.ID], &cursor, func() bool { return control.sourceCurrent(source) })
 			_, after, _ := store.CurrentMetadata()
 			sourceUpdates.finish(source.ID, attempt, before, after, err)
 			probeCursors[source.ID] = cursor
@@ -770,7 +770,7 @@ func dnsPoliciesFromBase(base xray.BaseConfig) []dnsproxy.Policy {
 	return policies
 }
 
-func refreshOnce(ctx context.Context, source settings.Subscription, config settings.Config, paths Paths, service *refresh.Service, manager *xray.Manager, previousETag string, probeCursor *int) (string, string, error) {
+func refreshOnce(ctx context.Context, source settings.Subscription, config settings.Config, paths Paths, service *refresh.Service, manager *xray.Manager, previousETag string, probeCursor *int, sourceCurrent func() bool) (string, string, error) {
 	release, leaseErr := resources.BeginUpdate(ctx)
 	if leaseErr != nil {
 		return "", "", leaseErr
@@ -794,11 +794,21 @@ func refreshOnce(ctx context.Context, source settings.Subscription, config setti
 			break
 		}
 	}
+	if sourceCurrent != nil && !sourceCurrent() {
+		return "", "", errSubscriptionSettingsChanged
+	}
 	if err != nil || unchanged {
 		return etag, "", err
 	}
 	chosen := func(nodes []catalog.Node) (string, error) {
-		return chooseAfterProbe(ctx, nodes, existing, config, paths, manager, probeCursor)
+		if sourceCurrent != nil && !sourceCurrent() {
+			return "", errSubscriptionSettingsChanged
+		}
+		id, err := chooseAfterProbe(ctx, nodes, existing, config, paths, manager, probeCursor)
+		if sourceCurrent != nil && !sourceCurrent() {
+			return "", errSubscriptionSettingsChanged
+		}
+		return id, err
 	}
 	result, err := service.Apply(ctx, source.ID, body, source.MaxNodes, "resproxy-"+config.Base.DefaultPolicy, chosen)
 	if err != nil {
