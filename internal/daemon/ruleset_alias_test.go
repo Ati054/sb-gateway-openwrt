@@ -56,7 +56,9 @@ func TestRulesetReplacementThroughOpenWrtRuntimeAlias(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(paths.RunRoot, "rulesets-refresh.request"), []byte("refresh"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(6 * time.Second)
+	// This asserts eventual publication, not disk latency. Allow slow fsync on
+	// virtualized storage while retaining a bounded failure for a stuck worker.
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		status := readProgress(t, paths)
 		if status.Phase == "ready" && status.CheckedAt.After(first.CheckedAt) {
