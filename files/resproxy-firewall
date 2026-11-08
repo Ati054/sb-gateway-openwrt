@@ -9,6 +9,10 @@ interface="${2:-}"
 port="${3:-}"
 dns_port="${4:-0}"
 ready=0
+client_scope=
+for option in "$@"; do
+	case "$option" in --clients=*) client_scope="$option";; esac
+done
 [ "$action" != ready ] || { ready=1; action=apply; }
 mkdir -p /var/run/resproxy
 rules=/var/run/resproxy/firewall.nft
@@ -158,6 +162,16 @@ fi
 
 # Phase markers and their kernel rules commit under the same lock. A queued
 # restore therefore cannot reinstall a guard after startup has completed.
+if [ "$action" = apply ] && [ "$dns_port" -ne 0 ] && grep -Fq 'th dport 53 tproxy to 127.0.0.2:' "$rules"; then
+	# Old REDIRECT conntrack bindings outlive nft rules. Retire only mappings
+	# into our DNS port from this LAN, retaining local DNS and unrelated flows.
+	if retired="$(/usr/bin/resproxyd capture-prune-dns "$interface" "$dns_port" "$client_scope")"; then
+		[ -z "$retired" ] || logger -t resproxy "retired $retired legacy DNS mappings"
+	else
+		logger -t resproxy 'legacy DNS mapping cleanup failed; existing sessions may need reconnecting'
+	fi
+fi
+
 if [ "$action" = guard ]; then
 	printf 'startup or transition protection\n' > /var/run/resproxy/capture-protected.active
 elif [ "$action" = emergency ]; then

@@ -56,6 +56,9 @@ type Inbound struct {
 	// CanSpliceCopy is a property for this connection
 	// 1 = can, 2 = after processing protocol info should be able to, 3 = cannot
 	CanSpliceCopy int
+	// DNSDatagram is one independently dispatched managed DNS query.
+	DNSDatagram bool
+	DNSOrigin   *DNSOrigin
 }
 
 // Outbound is the metadata of an outbound connection.

@@ -176,6 +176,21 @@ try {
   if(!databaseWarning || databaseWarning.hidden || databaseWarning.closest('details') || !databaseWarning.getBoundingClientRect().height)throw Error('Database failure hidden in collapsed details');
   if(dashboard.querySelector('details[open]'))throw Error('Regression fixture must keep database details collapsed');
   const previousCommands=ruleCommands;
+  const dnsValue=label=>Array.from(dashboard.querySelectorAll('.sbg-overview-counters > div')).find(node=>node.querySelector('dt').textContent===label)?.querySelector('dd').textContent;
+  const dnsHelp=()=>Array.from(dashboard.querySelectorAll('.sbg-overview-counters dt')).find(node=>node.textContent==='Errors')?.querySelector('[title]');
+  files['dns-status.json']={queries:100,failures:14,failure_invalid_query:13,dns_failures:1};
+  await poller();
+  if(dnsValue('Rejected input')!==undefined || dnsValue('Errors')!=='1' || dashboard.querySelectorAll('.sbg-overview-counters > div').length!==7)throw Error('DNS errors gained a separate rejected-input counter');
+  if(dnsHelp()?.title!=='DNS errors: 1. Failed DNS resolution or routing.\nRejected input: 13.' || dnsHelp().tabIndex!==0 || dnsHelp().getAttribute('aria-label')!=='Errors. '+dnsHelp().title)throw Error('DNS Errors help lost the rejected-input count or accessibility');
+  files['dns-status.json']={queries:100,failures:14,failure_invalid_query:13};
+  await poller();
+  if(dnsValue('Errors')!=='1' || dnsHelp().title!=='DNS errors: 1. Failed DNS resolution or routing.\nRejected input: 13.')throw Error('Legacy detailed DNS counters lost their meaning');
+  files['dns-status.json']={queries:100,failures:0,failure_invalid_query:0,dns_failures:0};
+  await poller();
+  if(dnsValue('Errors')!=='0' || dnsHelp().title!=='DNS errors: 0. Failed DNS resolution or routing.\nRejected input: 0.')throw Error('Zero rejected-input count disappeared from the tooltip');
+  files['dns-status.json']={queries:100,failures:14};
+  await poller();
+  if(dnsValue('Errors')!=='14' || dnsHelp().title!=='DNS errors: 14. Failed DNS resolution or routing.')throw Error('Legacy DNS totals lost their meaning');
   for(const [phase,label] of [['starting','Waiting for service startup'],['queued','waiting for its turn'],['downloading','Downloading rule databases'],['applying','Applying rule databases'],['unused','No downloadable rule databases']]) {
    files['rulesets-status.json']={phase,packs:[{id:'youtube',state:'pending',entries:0}]};
    await poller();

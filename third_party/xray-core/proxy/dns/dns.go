@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pires/go-proxyproto"
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/errors"
@@ -163,6 +164,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, d internet.
 	srcNetwork := ob.Target.Network
 
 	dest := ob.Target
+	managedRelay := ob.Tag == "resproxy-local-dns"
 	if h.rewriteServer.Network != net.Network_Unknown {
 		dest.Network = h.rewriteServer.Network
 	}
@@ -213,6 +215,24 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, d internet.
 			Writer: buf.NewWriter(conn),
 		}
 	}
+	singleDatagram := false
+	if managedRelay {
+		inbound := session.InboundFromContext(ctx)
+		if inbound == nil || !inbound.Source.IsValid() || dest.Network != net.Network_UDP || !dest.Address.Family().IsIP() || !dest.Address.IP().IsLoopback() {
+			return errors.New("invalid local DNS relay")
+		}
+		header := proxyproto.HeaderProxyFromAddrs(2, inbound.Source.RawNetAddr(), ob.Target.RawNetAddr())
+		prefix, err := header.Format()
+		if err != nil {
+			return err
+		}
+		var origin *session.DNSOrigin
+		if srcNetwork == net.Network_UDP && inbound.DNSDatagram {
+			origin = inbound.DNSOrigin
+		}
+		connWriter = &managedDNSWriter{writer: connWriter, prefix: prefix, origin: origin}
+		singleDatagram = srcNetwork == net.Network_UDP && inbound.DNSDatagram
+	}
 
 	if session.TimeoutOnlyFromContext(ctx) {
 		ctx = context.Background()
@@ -225,6 +245,24 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, d internet.
 	}
 	timer := signal.CancelAfterInactivity(ctx, terminate, h.timeout)
 	defer timer.SetTimeout(0)
+	if managedRelay {
+		defer common.Close(reader)
+	}
+	if singleDatagram {
+		defer common.Close(connReader)
+		b, err := reader.ReadMessage()
+		if err != nil {
+			return err
+		}
+		if err = connWriter.WriteMessage(b); err != nil {
+			return err
+		}
+		reply, err := connReader.ReadMessage()
+		if err != nil {
+			return err
+		}
+		return writer.WriteMessage(reply)
+	}
 
 	request := func() error {
 		defer timer.SetTimeout(0)
@@ -238,6 +276,12 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, d internet.
 			}
 
 			timer.Update()
+			if managedRelay {
+				if err := connWriter.WriteMessage(b); err != nil {
+					return err
+				}
+				continue
+			}
 
 			if h.isOwnLink(ctx) {
 				if err := connWriter.WriteMessage(b); err != nil {

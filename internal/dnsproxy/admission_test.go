@@ -15,7 +15,7 @@ import (
 	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
 )
 
-func listenerFixture(t *testing.T, delay time.Duration, workBytes int64) (*server, string, func()) {
+func listenerFixture(t *testing.T, delay time.Duration, workBytes int64, options ...func(*server)) (*server, string, func()) {
 	t.Helper()
 	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query, _ := io.ReadAll(r.Body)
@@ -56,6 +56,9 @@ func listenerFixture(t *testing.T, delay time.Duration, workBytes int64) (*serve
 	s := &server{config: Config{DefaultPolicy: "main", DirectURL: upstream.URL + "/dns-query", ProxyURL: upstream.URL + "/dns-query"},
 		direct: client, proxy: client, cacheBudget: dnsCacheBudget(256 * resources.MiB),
 		requestBudget: workBytes, clientMemory: newMemoryGate(dnsWorkBudget(256*resources.MiB), dnsClientMemory)}
+	for _, option := range options {
+		option(s)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.workers.Add(2)
 	go func() { defer s.workers.Done(); s.serveUDP(ctx, udp) }()

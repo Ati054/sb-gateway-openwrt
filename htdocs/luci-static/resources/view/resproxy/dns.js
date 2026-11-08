@@ -27,7 +27,7 @@ return view.extend({
 		var proxyProtocol = section.option(form.ListValue, 'dns_proxy_protocol', _('Protocol through proxy'));
 		proxyProtocol.value('doh', 'DNS-over-HTTPS (DoH)');
 		proxyProtocol.value('dot', 'DNS-over-TLS (DoT)');
-		proxyProtocol.value('tcp', _('Plain DNS/TCP'));
+		proxyProtocol.value('tcp', 'DNS/TCP');
 		proxyProtocol.default = 'doh';
 		proxyProtocol.rmempty = false;
 
@@ -49,12 +49,15 @@ return view.extend({
 		var directProtocol = section.option(form.ListValue, 'dns_direct_protocol', _('Protocol through WAN'));
 		directProtocol.value('doh', 'DNS-over-HTTPS (DoH)');
 		directProtocol.value('dot', 'DNS-over-TLS (DoT)');
-		directProtocol.value('tcp', _('Plain DNS/TCP'));
-		directProtocol.value('udp', _('Plain DNS/UDP'));
+		directProtocol.value('tcp', 'DNS/TCP');
+		directProtocol.value('udp', 'DNS/UDP');
+		directProtocol.depends({'dns_direct_provider':'isp','!reverse':true});
 		directProtocol.default = 'doh';
 		directProtocol.rmempty = false;
+		directProtocol.retain = true;
 
 		var directProvider = section.option(form.ListValue, 'dns_direct_provider', _('DNS provider through WAN'));
+		directProvider.value('isp', _('ISP DNS through WAN'));
 		directProvider.value('cloudflare', 'Cloudflare');
 		directProvider.value('google', 'Google');
 		directProvider.value('yandex', _('Yandex'));
@@ -67,6 +70,7 @@ return view.extend({
 		direct.default = 'https://1.1.1.1/dns-query';
 		direct.placeholder = 'https://… · tls://… · tcp://IP:53 · udp://IP:53';
 		direct.rmempty = false;
+		direct.retain = true;
 		direct.depends('dns_direct_provider', 'custom');
 
 		var port = section.option(form.Value, 'dns_port', _('Local DNS port'));

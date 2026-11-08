@@ -53,13 +53,16 @@ type Rule struct {
 
 type Config struct {
 	Routes            *dnsroute.Registry // confirmed in-process production routes
+	TrustLocalRelay   bool               // Accept bounded PROXY-v2 datagrams only from loopback.
 	Port              int
 	ProxyPort         int
 	PolicyProxyPorts  map[string]int // one local Xray HTTP inbound per route list
 	ProxyURL          string
 	DirectURL         string
-	DirectBootstrapIP string // resolved before taking over router DNS
-	Mode              string // proxy-only or proxy-fallback-wan
+	DirectBootstrapIP string                                    // resolved before taking over router DNS
+	WANNameservers    func(context.Context) ([]Endpoint, error) `json:"-"` // nil uses active netifd WAN connections
+	WANChanges        <-chan struct{}                           `json:"-"` // netifd interface notifications, coalesced by the controller
+	Mode              string                                    // proxy-only or proxy-fallback-wan
 	DefaultPolicy     string
 	Policies          []Policy
 	HealthStatePath   string
@@ -108,7 +111,10 @@ type server struct {
 	cacheHits             atomic.Uint64
 	localUse              atomic.Uint64
 	failures              atomic.Uint64
+	dnsFailures           atomic.Uint64
 	failureInvalidQuery   atomic.Uint64
+	invalidQueryReasons   [queryFailureCount]atomic.Uint64
+	rejectedHeaders       rejectedHeaders
 	failureLocal          atomic.Uint64
 	failureRouteNotReady  atomic.Uint64
 	failureRouteBlocked   atomic.Uint64
@@ -116,12 +122,15 @@ type server struct {
 	failureEndpoint       atomic.Uint64
 	failureQueue          atomic.Uint64
 	failureSubmission     atomic.Uint64
+	failureRelay          atomic.Uint64
 	upstreamTimeouts      atomic.Uint64
 	upstreamTransport     atomic.Uint64
 	upstreamInvalid       atomic.Uint64
 	upstreamHTTPStatus    atomic.Int64
 	upstreamExchanges     atomic.Uint64
 	upstreamTimeoutPhases [5]atomic.Uint64
+	upstreamErrors        upstreamFailureDiagnostics
+	wanDNS                *wanDNSState
 }
 
 type cacheEntry struct {
@@ -224,6 +233,13 @@ func Prepare(config Config) (*Prepared, error) {
 		matchers:      matchers,
 	}
 	s.clientMemory = newMemoryGate(s.clientBudget, dnsClientMemory)
+	if directEndpoint.Protocol == "wan" {
+		lookup := config.WANNameservers
+		if lookup == nil {
+			lookup = discoverWANDNS
+		}
+		s.wanDNS = &wanDNSState{lookup: lookup}
+	}
 	if config.DirectBootstrapIP != "" {
 		_, port, _ := net.SplitHostPort(directEndpoint.Address)
 		s.directAddress = net.JoinHostPort(config.DirectBootstrapIP, port)
@@ -257,6 +273,9 @@ func (prepared *Prepared) Start(ctx context.Context) (func(), func([]Policy) err
 	}
 	s := prepared.server
 	config := s.config
+	if s.wanDNS != nil {
+		s.wanDNS.refresh(ctx)
+	}
 	address := net.JoinHostPort("", fmt.Sprint(config.Port))
 	udp, err := net.ListenPacket("udp", address)
 	if err != nil {
@@ -282,6 +301,10 @@ func (prepared *Prepared) Start(ctx context.Context) (func(), func([]Policy) err
 	go func() { defer s.workers.Done(); s.serveTCP(ctx, tcp) }()
 	s.workers.Add(1)
 	go func() { defer s.workers.Done(); s.watchState(ctx) }()
+	if s.wanDNS != nil {
+		s.workers.Add(1)
+		go func() { defer s.workers.Done(); s.wanDNS.watch(ctx, config.WANChanges) }()
+	}
 	if config.StatusPath != "" {
 		s.workers.Add(1)
 		go func() { defer s.workers.Done(); s.writeStatus(ctx) }()
@@ -324,12 +347,15 @@ func (s *server) writeStatus(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	defer os.Remove(s.config.StatusPath)
+	defer os.Remove(s.rejectedHeadersPath())
+	defer os.Remove(s.upstreamErrorsPath())
 	for {
 		status := map[string]uint64{
 			"queries": s.queries.Load(), "proxy": s.proxyUse.Load(),
 			"direct": s.directUse.Load(), "fallback": s.fallbackUse.Load(),
 			"cache_hits": s.cacheHits.Load(), "local": s.localUse.Load(),
 			"failures":                s.failures.Load(),
+			"dns_failures":            s.dnsFailures.Load(),
 			"failure_invalid_query":   s.failureInvalidQuery.Load(),
 			"failure_local":           s.failureLocal.Load(),
 			"failure_route_not_ready": s.failureRouteNotReady.Load(),
@@ -338,6 +364,7 @@ func (s *server) writeStatus(ctx context.Context) {
 			"failure_endpoint":        s.failureEndpoint.Load(),
 			"failure_queue":           s.failureQueue.Load(),
 			"failure_submission":      s.failureSubmission.Load(),
+			"failure_relay":           s.failureRelay.Load(),
 			"active_queries":          uint64(s.activeQueries.Load()), "tcp_clients": uint64(s.tcpClients.Load()),
 			"request_budget_bytes": uint64(s.requestBudget), "tcp_budget_bytes": uint64(s.clientBudget),
 			"upstream_timeouts": s.upstreamTimeouts.Load(), "upstream_transport_errors": s.upstreamTransport.Load(),
@@ -353,6 +380,9 @@ func (s *server) writeStatus(ctx context.Context) {
 		for key, value := range s.requests().stats() {
 			status[key] = value
 		}
+		for reason := queryFailure(1); reason < queryFailureCount; reason++ {
+			status["invalid_query_"+reason.String()] = s.invalidQueryReasons[reason].Load()
+		}
 		s.cacheMu.Lock()
 		status["cache_entries"], status["cache_bytes"] = uint64(len(s.cache)), uint64(s.cacheBytes)
 		status["cache_budget_bytes"], status["cache_evictions"] = uint64(s.cacheBudget), s.cacheEvictions
@@ -360,6 +390,8 @@ func (s *server) writeStatus(ctx context.Context) {
 		if body, err := json.Marshal(status); err == nil {
 			_ = os.WriteFile(s.config.StatusPath, body, 0o600)
 		}
+		_ = s.writeRejectedHeaders()
+		_ = s.writeUpstreamErrors()
 		select {
 		case <-ctx.Done():
 			return
@@ -751,11 +783,11 @@ func (s *server) useRuleWAN(policy, name string) bool {
 }
 
 func (s *server) serveUDP(ctx context.Context, conn net.PacketConn) {
-	var packet [maxDNSMessage]byte
+	var packet [maxDNSRelayPayload + maxDNSRelayHeader + 1]byte
 	for {
 		// Backpressure is based on a RAM budget, not a fixed client count.
 		// Only this listener waits: no unbounded queue of waiting goroutines.
-		n, address, err := conn.ReadFrom(packet[:])
+		n, address, truncated, err := readDNSDatagram(conn, packet[:])
 		if err != nil {
 			if ctx.Err() == nil {
 				log.Printf("resproxy: LAN DNS UDP listener: %v", err)
@@ -765,9 +797,39 @@ func (s *server) serveUDP(ctx context.Context, conn net.PacketConn) {
 		// A DoH request body can outlive an early transport error. Give every
 		// query independent backing storage instead of recycling its bytes.
 		query := append([]byte(nil), packet[:n]...)
-		s.resolveAsync(ctx, query, addrIP(address), func(response []byte) {
-			_, _ = conn.WriteTo(response, address)
-		})
+		peer, ingress := addrPort(address), ingressUDP
+		var origin relayOrigin
+		if s.config.TrustLocalRelay && peer.Addr().IsLoopback() && hasRelaySignature(query) {
+			var valid bool
+			query, peer, ingress, origin, valid = unwrapDNSRelayOrigin(query)
+			if !valid {
+				s.queries.Add(1)
+				s.rejectInput(packet[:n], addrPort(address), ingressUDP, queryRelayHeader)
+				continue
+			}
+			if ingress == ingressTCP {
+				ingress = ingressRelayTCP
+			} else {
+				ingress = ingressRelayUDP
+			}
+		}
+		if truncated {
+			origin.checked = false
+			origin.skip = 2
+			s.queries.Add(1)
+			s.rejectInput(query, peer, ingress, queryTooLarge, origin)
+			if !relayResponse(query, origin) {
+				response := servfail(query)
+				response[3] = 5
+				_, _ = conn.WriteTo(response, address)
+			}
+			continue
+		}
+		s.resolveAsyncPeer(ctx, query, peer, ingress, func(response []byte) {
+			if len(response) != 0 {
+				_, _ = conn.WriteTo(response, address)
+			}
+		}, origin)
 	}
 }
 
@@ -832,7 +894,10 @@ func (s *server) handleTCP(ctx context.Context, conn net.Conn) {
 		if _, err := io.ReadFull(conn, query); err != nil {
 			return
 		}
-		response := s.resolve(ctx, query, addrIP(conn.RemoteAddr()))
+		response := s.resolvePeer(ctx, query, addrPort(conn.RemoteAddr()), ingressTCP)
+		if len(response) == 0 {
+			continue // An ignored message produces no TCP frame, even an empty one.
+		}
 		binary.BigEndian.PutUint16(length[:], uint16(len(response)))
 		packet := append(length[:], response...)
 		if _, err := io.Copy(conn, bytes.NewReader(packet)); err != nil {
@@ -842,21 +907,61 @@ func (s *server) handleTCP(ctx context.Context, conn net.Conn) {
 }
 
 func (s *server) resolve(ctx context.Context, query []byte, source netip.Addr) []byte {
+	return s.resolveIngress(ctx, query, source, ingressInternal)
+}
+
+func (s *server) resolveIngress(ctx context.Context, query []byte, source netip.Addr, ingress dnsIngress) []byte {
+	return s.resolvePeer(ctx, query, netip.AddrPortFrom(source, 0), ingress)
+}
+
+func (s *server) resolvePeer(ctx context.Context, query []byte, peer netip.AddrPort, ingress dnsIngress) []byte {
 	response := make(chan []byte, 1)
-	s.resolveAsync(ctx, query, source, func(body []byte) { response <- body })
+	s.resolveAsyncPeer(ctx, query, peer, ingress, func(body []byte) { response <- body })
 	return <-response
 }
 
 func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Addr, done func([]byte)) {
+	s.resolveAsyncIngress(ctx, query, source, ingressInternal, done)
+}
+
+func (s *server) resolveAsyncIngress(ctx context.Context, query []byte, source netip.Addr, ingress dnsIngress, done func([]byte)) {
+	s.resolveAsyncPeer(ctx, query, netip.AddrPortFrom(source, 0), ingress, done)
+}
+
+func (s *server) resolveAsyncPeer(ctx context.Context, query []byte, peer netip.AddrPort, ingress dnsIngress, done func([]byte), origins ...relayOrigin) {
+	source := peer.Addr()
 	s.activeQueries.Add(1)
 	finish := func(body []byte) { s.activeQueries.Add(-1); done(body) }
 	s.queries.Add(1)
-	name, valid := questionName(query)
-	if !valid {
-		s.failures.Add(1)
-		s.failureInvalidQuery.Add(1)
+	var origin relayOrigin
+	if len(origins) > 0 {
+		origin = origins[0]
+	}
+	if origin.stage != 0 && origin.checked && !origin.match {
+		s.queryFailed()
+		s.failureRelay.Add(1)
+		s.rejectedHeaders.recordPeer(query, peer, ingress, queryRelayPayloadChanged, origin)
+		if relayResponse(query, origin) {
+			finish(nil)
+		} else {
+			finish(servfail(query))
+		}
+		return
+	}
+	name, invalidReason := parseQuestionName(query)
+	if invalidReason != queryValid {
+		s.rejectInput(query, peer, ingress, invalidReason, origin)
+		if invalidReason == queryResponsePacket || relayResponse(query, origin) {
+			// Answering a response can create a reply loop with another DNS
+			// endpoint. Preserve diagnostics, but send nothing back.
+			finish(nil)
+			return
+		}
 		response := servfail(query)
 		response[3] = 1 // FORMERR: a malformed request is not an upstream outage.
+		if invalidReason == queryTooLarge {
+			response[3] = 5
+		} // A configured size limit is REFUSED, not malformed DNS.
 		finish(response)
 		return
 	}
@@ -864,13 +969,13 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 		s.localUse.Add(1)
 		err := s.requests().submit(ctx, "local", "local:"+string(query[2:]), query, func(lookupCtx context.Context) ([]byte, error) { return s.askLocal(lookupCtx, query) }, func(body []byte, err error) {
 			if err != nil {
-				s.failures.Add(1)
+				s.queryFailed()
 				s.failureLocal.Add(1)
 			}
 			finish(body)
 		})
 		if err != nil {
-			s.failures.Add(1)
+			s.queryFailed()
 			s.failureLocal.Add(1)
 			finish(servfail(query))
 		}
@@ -889,13 +994,24 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	var routeStamp dnsroute.Stamp
 	var routeClient *http.Client
 	var routeCached []byte
+	var wanSnapshot *wanDNSSnapshot
 	managedRoute := !viaWAN && s.config.Routes != nil
 	if viaWAN {
 		key = "wan:" + string(query[2:])
+		if s.wanDNS != nil {
+			wanSnapshot = s.wanDNS.current.Load()
+			if wanSnapshot == nil || len(wanSnapshot.servers) == 0 {
+				s.queryFailed()
+				s.failureEndpoint.Add(1)
+				finish(servfail(query))
+				return
+			}
+			key = "wan:" + wanSnapshot.key + ":" + string(query[2:])
+		}
 	} else if managedRoute {
 		key, routeClient, routeStamp, routeCached = s.routeLookup(policy, query)
 		if routeClient == nil {
-			s.failures.Add(1)
+			s.queryFailed()
 			if routeStamp.Tag == "block" || routeStamp.Tag == "direct-wan" {
 				s.failureRouteBlocked.Add(1)
 			} else {
@@ -944,10 +1060,14 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 	}
 	parsed, err := ParseEndpoint(endpoint, viaWAN)
 	if err != nil {
-		s.failures.Add(1)
+		s.queryFailed()
 		s.failureEndpoint.Add(1)
 		finish(servfail(query))
 		return
+	}
+	diagnosticProtocol := parsed.Protocol
+	if diagnosticProtocol == "wan" {
+		diagnosticProtocol = "udp"
 	}
 	// Listener jobs share the service context and upstream's five-second
 	// deadline. Collapse a cold burst before opening duplicate TLS connections.
@@ -974,6 +1094,8 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 		s.upstreamExchanges.Add(1)
 		if parsed.Protocol == "doh" {
 			body, err = exchangeDoH(lookupCtx, client, endpoint, query)
+		} else if parsed.Protocol == "wan" {
+			body, err = exchangeWANDNS(lookupCtx, wanSnapshot, query)
 		} else {
 			if viaWAN && s.directAddress != "" {
 				parsed.Address = s.directAddress
@@ -981,6 +1103,7 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 			body, err = exchangeWire(lookupCtx, parsed, query, viaWAN, proxyPort)
 		}
 		if err != nil {
+			s.upstreamErrors.record(viaWAN, diagnosticProtocol, err)
 			var timeout *upstreamTimeoutPhase
 			if errors.As(err, &timeout) && timeout.phase >= 0 && timeout.phase < len(s.upstreamTimeoutPhases) {
 				s.upstreamTimeoutPhases[timeout.phase].Add(1)
@@ -988,7 +1111,8 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 			return nil, err
 		}
 		if !matchingQuestion(query, body) {
-			return nil, errors.New("DNS response does not match question")
+			s.upstreamErrors.record(viaWAN, diagnosticProtocol, errDNSResponseMismatch)
+			return nil, errDNSResponseMismatch
 		}
 		if managedRoute {
 			s.routeCurrent(policy, routeStamp, func() {
@@ -1010,7 +1134,7 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 		return body, nil
 	}, func(body []byte, err error) {
 		if err != nil {
-			s.failures.Add(1)
+			s.queryFailed()
 			if errors.Is(err, errDNSQueued) {
 				s.failureQueue.Add(1)
 				finish(body)
@@ -1036,15 +1160,42 @@ func (s *server) resolveAsync(ctx context.Context, query []byte, source netip.Ad
 		finish(body)
 	})
 	if err != nil {
-		s.failures.Add(1)
+		s.queryFailed()
 		s.failureSubmission.Add(1)
 		finish(servfail(query))
 	}
 }
 
-func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct bool, proxyPort int) ([]byte, error) {
+func (s *server) queryFailed() {
+	s.dnsFailures.Add(1)
+	s.failures.Add(1) // Preserve the legacy aggregate for existing consumers.
+}
+
+func (s *server) rejectInput(query []byte, peer netip.AddrPort, ingress dnsIngress, reason queryFailure, origins ...relayOrigin) {
+	s.failures.Add(1)
+	s.failureInvalidQuery.Add(1)
+	s.invalidQueryReasons[reason].Add(1)
+	s.rejectedHeaders.recordPeer(query, peer, ingress, reason, origins...)
+}
+
+func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct bool, proxyPort int) (result []byte, resultErr error) {
 	requestCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	defer func() {
+		protocol := endpoint.Protocol
+		var prior *upstreamExchangeError
+		if errors.As(resultErr, &prior) && prior.protocol != "" {
+			protocol = prior.protocol
+		}
+		// Deadline cancellation closes the socket to unblock reads. Preserve
+		// the timeout cause instead of reporting that close as a transport fault.
+		if resultErr != nil && errors.Is(requestCtx.Err(), context.DeadlineExceeded) {
+			resultErr = context.DeadlineExceeded
+		}
+		if resultErr != nil {
+			resultErr = &upstreamExchangeError{cause: resultErr, protocol: protocol, phase: -1, attempts: 1}
+		}
+	}()
 	var conn net.Conn
 	var err error
 	if direct {
@@ -1052,7 +1203,11 @@ func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct b
 		if endpoint.Protocol == "udp" {
 			network = "udp"
 		}
-		conn, err = (&net.Dialer{}).DialContext(requestCtx, network, endpoint.Address)
+		dialer := &net.Dialer{}
+		if endpoint.Interface != "" {
+			dialer.Control = bindWANInterface(endpoint.Interface)
+		}
+		conn, err = dialer.DialContext(requestCtx, network, endpoint.Address)
 	} else {
 		conn, err = dialProxyConnect(requestCtx, proxyPort, endpoint.Address)
 	}
@@ -1215,40 +1370,23 @@ func (s *server) askLocal(ctx context.Context, query []byte) ([]byte, error) {
 }
 
 func addrIP(address net.Addr) netip.Addr {
+	return addrPort(address).Addr()
+}
+
+func addrPort(address net.Addr) netip.AddrPort {
 	switch value := address.(type) {
 	case *net.UDPAddr:
-		return value.AddrPort().Addr()
+		return value.AddrPort()
 	case *net.TCPAddr:
-		return value.AddrPort().Addr()
+		return value.AddrPort()
 	default:
-		return netip.Addr{}
+		return netip.AddrPort{}
 	}
 }
 
 func questionName(query []byte) (string, bool) {
-	if len(query) < 12 || query[2]&0x80 != 0 {
-		return "", false
-	}
-	if binary.BigEndian.Uint16(query[4:6]) == 0 {
-		return "", validQuestionlessMessage(query)
-	}
-	if len(query) < 17 || binary.BigEndian.Uint16(query[4:6]) != 1 {
-		return "", false
-	}
-	labels := []string{}
-	for offset := 12; offset < len(query); {
-		length := int(query[offset])
-		offset++
-		if length == 0 {
-			return strings.ToLower(strings.Join(labels, ".")), offset+4 <= len(query)
-		}
-		if length > 63 || offset+length > len(query) || len(labels) >= 127 {
-			return "", false
-		}
-		labels = append(labels, string(query[offset:offset+length]))
-		offset += length
-	}
-	return "", false
+	name, reason := parseQuestionName(query)
+	return name, reason == queryValid
 }
 
 func isLocalName(name string) bool {

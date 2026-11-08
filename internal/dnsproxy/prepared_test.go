@@ -40,7 +40,7 @@ func TestPreparedDNSDefersSocketsAndPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{config.StatusPath, config.GenerationPath} {
+	for _, path := range []string{config.StatusPath, config.GenerationPath, filepath.Join(filepath.Dir(config.StatusPath), "dns-rejected.json")} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("preparation published runtime state: %s: %v", path, err)
 		}
@@ -67,6 +67,9 @@ func TestPreparedDNSDefersSocketsAndPublication(t *testing.T) {
 		t.Fatal("prepared listener lost hot policy replacement")
 	}
 	stop()
+	if _, err := os.Stat(filepath.Join(filepath.Dir(config.StatusPath), "dns-rejected.json")); !os.IsNotExist(err) {
+		t.Fatal("stop retained rejected-packet diagnostics")
+	}
 	udp, err := net.ListenPacket("udp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(config.Port)))
 	if err != nil {
 		t.Fatal("stop retained UDP socket", err)

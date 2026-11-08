@@ -66,6 +66,14 @@ func applyMonitoringReload(ctx context.Context, previous, next settings.Config, 
 }
 
 func RequestReload(ctx context.Context, paths Paths) error {
+	return requestControlOperation(ctx, paths, "reload")
+}
+
+func RequestWANDNSRefresh(ctx context.Context, paths Paths) error {
+	return requestControlOperation(ctx, paths, "wan-dns-refresh")
+}
+
+func requestControlOperation(ctx context.Context, paths Paths, operation string) error {
 	conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(ctx, "unix", filepath.Join(paths.RunRoot, "reload.sock"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) {
@@ -84,7 +92,7 @@ func RequestReload(ctx context.Context, paths Paths) error {
 	if err = json.NewEncoder(conn).Encode(struct {
 		Operation string    `json:"operation"`
 		Deadline  time.Time `json:"deadline"`
-	}{"reload", deadline}); err != nil {
+	}{operation, deadline}); err != nil {
 		return err
 	}
 	var result reloadResult
@@ -134,7 +142,7 @@ func startReloadServer(ctx context.Context, paths Paths, immediate ...func(reloa
 					Signature string    `json:"signature"`
 					Deadline  time.Time `json:"deadline"`
 				}
-				if err := json.NewDecoder(io.LimitReader(conn, 1024)).Decode(&message); err != nil || (message.Operation != "reload" && message.Operation != "refresh") {
+				if err := json.NewDecoder(io.LimitReader(conn, 1024)).Decode(&message); err != nil || (message.Operation != "reload" && message.Operation != "refresh" && message.Operation != "wan-dns-refresh") {
 					return
 				}
 				if !message.Deadline.IsZero() && message.Deadline.Before(deadline) {

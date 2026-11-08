@@ -49,8 +49,31 @@ func main() {
 }
 
 func execute(arguments []string) error {
+	if len(arguments) > 0 && arguments[0] == "capture-prune-dns" {
+		if len(arguments) < 3 || len(arguments) > 4 {
+			return errors.New("usage: capture-prune-dns IFNAME DNSPORT [--clients=CIDR,...]")
+		}
+		port, err := strconv.Atoi(arguments[2])
+		if err != nil {
+			return err
+		}
+		var clients []string
+		if len(arguments) == 4 && arguments[3] != "" {
+			if !strings.HasPrefix(arguments[3], "--clients=") || len(arguments[3]) > 65536 {
+				return errors.New("invalid legacy DNS client scope")
+			}
+			clients = strings.Split(strings.TrimPrefix(arguments[3], "--clients="), ",")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), capture.LegacyDNSCleanupTimeout)
+		defer cancel()
+		removed, err := capture.PruneLegacyDNS(ctx, arguments[1], port, clients)
+		if removed > 0 {
+			fmt.Println(removed)
+		}
+		return err
+	}
 	if len(arguments) > 0 && (arguments[0] == "capture-rules" || arguments[0] == "capture-emergency-rules" || arguments[0] == "capture-guard-rules") {
-		if len(arguments) < 5 || len(arguments) > 263 {
+		if len(arguments) < 5 || len(arguments) > 264 {
 			return errors.New("usage: capture-rules IFNAME PORT DNSPORT IPV6MODE [--block-ping] [IP...]")
 		}
 		port, err := strconv.Atoi(arguments[2])
@@ -69,6 +92,8 @@ func execute(arguments []string) error {
 		for _, option := range arguments[5:] {
 			if option == "--block-ping" {
 				policy.BlockPing = true
+			} else if option == "--protocol-dns" {
+				policy.ProtocolDNS = true
 			} else if strings.HasPrefix(option, "--clients=") {
 				value := strings.TrimPrefix(option, "--clients=")
 				if policy.ClientCIDRs != nil || value == "" || len(value) > 65536 {
@@ -158,6 +183,10 @@ func execute(arguments []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		return daemon.RequestReload(ctx, paths)
+	case "dns-wan-refresh":
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return daemon.RequestWANDNSRefresh(ctx, paths)
 	case "update-key":
 		fmt.Println(releaseupdate.SigningPublicKeyHex())
 		return nil
@@ -624,7 +653,7 @@ func running(paths daemon.Paths) bool {
 func captureAddresses(values []string) []string {
 	var addresses []string
 	for _, value := range values {
-		if value != "--block-ping" && !strings.HasPrefix(value, "--clients=") {
+		if value != "--block-ping" && value != "--protocol-dns" && !strings.HasPrefix(value, "--clients=") {
 			addresses = append(addresses, value)
 		}
 	}

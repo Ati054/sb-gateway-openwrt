@@ -127,6 +127,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	supervisor.routes, supervisor.routeCore = routes, identity
 	routes.SetCore(identity)
 	restoreDNSOnExit := false
+	wanDNSChanges := make(chan struct{}, 1)
 	defer func() {
 		var restore func() error
 		if restoreDNSOnExit {
@@ -198,9 +199,10 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				policyProxyPorts[policy.ID] = routingBase.DNSPolicyBasePort + index
 			}
 			return dnsproxy.Config{
-				Routes: routes,
-				Port:   config.DNSPort, ProxyPort: config.Base.HTTPPort, PolicyProxyPorts: policyProxyPorts,
-				ProxyURL: config.DNSProxyURL, DirectURL: config.DNSDirectURL, DirectBootstrapIP: bootstrap,
+				Routes:          routes,
+				TrustLocalRelay: config.Base.ManagedDNSPort != 0,
+				Port:            config.DNSPort, ProxyPort: config.Base.HTTPPort, PolicyProxyPorts: policyProxyPorts,
+				ProxyURL: config.DNSProxyURL, DirectURL: config.DNSDirectURL, DirectBootstrapIP: bootstrap, WANChanges: wanDNSChanges,
 				Mode: mode, DefaultPolicy: config.Base.DefaultPolicy, Policies: dnsPoliciesFromBase(routingBase),
 				HealthStatePath: filepath.Join(paths.RunRoot, "health-state", "selector-runtime.json"),
 				StatusPath:      filepath.Join(paths.RunRoot, "dns-status.json"),
@@ -338,6 +340,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	}
 	defer os.Remove(dnsInteropPath(paths))
 	control := newSubscriptionControl(config)
+	if config.DNSDirectURL == dnsproxy.WANResolverURL && config.DNSMode != "system" {
+		control.wanChanges = wanDNSChanges
+	}
 	control.applyReload = func(requestCtx context.Context, previous, next settings.Config) error {
 		if captureOnly(previous, next) && !reflect.DeepEqual(previous.Capture, next.Capture) {
 			return RestoreFirewall(requestCtx, next, paths)
@@ -349,6 +354,14 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		return fmt.Errorf("start configuration reload: %w", err)
 	}
 	defer stopReload()
+	// Recheck once after the control socket is ready: an interface event during
+	// DNS startup may have preceded the hotplug command's ability to connect.
+	if config.DNSDirectURL == dnsproxy.WANResolverURL {
+		select {
+		case wanDNSChanges <- struct{}{}:
+		default:
+		}
+	}
 	progress := newHealthProgress()
 	supervisor.mu.Lock()
 	supervisor.onOOM = func() {
@@ -736,6 +749,9 @@ func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, p
 		arguments = append(arguments, iface, strconv.Itoa(port), strconv.Itoa(dnsPort), policy.IPv6Mode)
 		if policy.BlockPing {
 			arguments = append(arguments, "--block-ping")
+		}
+		if policy.ProtocolDNS {
+			arguments = append(arguments, "--protocol-dns")
 		}
 		if len(policy.ClientCIDRs) > 0 {
 			arguments = append(arguments, "--clients="+strings.Join(policy.ClientCIDRs, ","))

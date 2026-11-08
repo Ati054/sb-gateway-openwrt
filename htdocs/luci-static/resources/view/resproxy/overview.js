@@ -102,9 +102,16 @@ return view.extend({
    routes.replaceChildren(routeRows);
    var counters=status && status.dns;
    [[_('Queries'),'queries'],[_('Through proxy'),'proxy'],[_('Direct WAN'),'direct'],[_('Fallback WAN'),'fallback'],
-    [_('Cache'),'cache_hits'],[_('Local'),'local'],[_('Errors'),'failures']].forEach(function(pair) {
+    [_('Cache'),'cache_hits'],[_('Local'),'local']].forEach(function(pair) {
      addPair(dns,pair[0],counters ? String(counters[pair[1]] || 0) : '—');
     });
+   var rejected=counters && counters.failure_invalid_query;
+   var dnsFailed=counters && counters.dns_failures;
+   if (counters && dnsFailed == null) dnsFailed=Math.max(0,(counters.failures || 0)-(rejected || 0));
+   var dnsErrors=dnsFailed != null ? String(dnsFailed) : '—';
+   var dnsHelp=_('DNS errors: %s. Failed DNS resolution or routing.').format(dnsErrors);
+   if (rejected != null) dnsHelp+='\n'+_('Rejected input: %s.').format(String(rejected));
+   addPair(dns,E('span',{title:dnsHelp,tabindex:'0','aria-label':_('Errors')+'. '+dnsHelp},_('Errors')),dnsErrors);
    var interop=status && status.dns_interop;
    var warning={
     'https-dns-proxy-running':_('https-dns-proxy is running. Configure DNS takeover on the DNS page.'),

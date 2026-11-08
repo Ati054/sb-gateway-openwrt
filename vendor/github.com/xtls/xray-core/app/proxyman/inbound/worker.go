@@ -11,6 +11,7 @@ import (
 	c "github.com/xtls/xray-core/common/ctx"
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/common/net"
+	dnsproto "github.com/xtls/xray-core/common/protocol/dns"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/common/signal/done"
@@ -292,6 +293,12 @@ func (w *udpWorker) getConnection(id connID) (*udpConn, bool) {
 		return conn, true
 	}
 
+	conn := w.newConnection(id)
+	w.activeConn[id] = conn
+	return conn, false
+}
+
+func (w *udpWorker) newConnection(id connID) *udpConn {
 	pReader, pWriter := pipe.New(pipe.DiscardOverflow(), pipe.WithSizeLimit(16*1024))
 	conn := &udpConn{
 		reader: pReader,
@@ -311,10 +318,8 @@ func (w *udpWorker) getConnection(id connID) (*udpConn, bool) {
 		uplink:   w.uplinkCounter,
 		downlink: w.downlinkCounter,
 	}
-	w.activeConn[id] = conn
-
 	conn.updateActivity()
-	return conn, false
+	return conn
 }
 
 func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest net.Destination) {
@@ -327,13 +332,33 @@ func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest
 		}
 		b.UDP = &originalDest
 	}
-	conn, existing := w.getConnection(id)
+	// DNS requests are datagrams, not idle UDP sessions. Dispatch each one
+	// independently so replies can release sockets immediately without losing
+	// other requests pipelined through the client's same source port.
+	singleDNS := (w.tag == "resproxy-dns-transparent" || w.tag == "resproxy-dns-transparent6") && dnsproto.IsRequestPacket(b.Bytes())
+	var dnsOrigin *session.DNSOrigin
+	if singleDNS && session.DNSOriginEnabled() {
+		origin := session.NewDNSOrigin(b.Bytes(), 1)
+		dnsOrigin = &origin
+	}
+	var conn *udpConn
+	var existing bool
+	if singleDNS {
+		conn = w.newConnection(id)
+	} else {
+		conn, existing = w.getConnection(id)
+	}
 
 	// payload will be discarded in pipe is full.
 	conn.writer.WriteMultiBuffer(buf.MultiBuffer{b})
+	if singleDNS {
+		common.Must(common.Close(conn.writer))
+	}
 
 	if !existing {
-		common.Must(w.checker.Start())
+		if !singleDNS {
+			common.Must(w.checker.Start())
+		}
 
 		go func() {
 			if w.activeCounter != nil {
@@ -360,10 +385,12 @@ func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest
 			}
 
 			ctx = session.ContextWithInbound(ctx, &session.Inbound{
-				Source:  source,
-				Local:   local, // Due to some limitations, in UDP connections, localIP is always equal to listen interface IP
-				Gateway: net.UDPDestination(w.address, w.port),
-				Tag:     w.tag,
+				Source:      source,
+				Local:       local, // Due to some limitations, in UDP connections, localIP is always equal to listen interface IP
+				Gateway:     net.UDPDestination(w.address, w.port),
+				Tag:         w.tag,
+				DNSDatagram: singleDNS,
+				DNSOrigin:   dnsOrigin,
 			})
 			content := new(session.Content)
 			content.SniffingRequest = w.sniffingRequest
@@ -373,7 +400,7 @@ func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest
 			}
 			conn.Close()
 			// conn not removed by checker TODO may be lock worker here is better
-			if !conn.inactive {
+			if !singleDNS && !conn.inactive {
 				conn.setInactive()
 				w.removeConn(id)
 			}

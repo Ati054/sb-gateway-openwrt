@@ -1766,9 +1766,6 @@ msgstr "تغییر را تأیید می‌کنم. تنظیمات سرویس حف
 msgid "Protocol through proxy"
 msgstr "پروتکل از طریق پراکسی"
 
-msgid "Plain DNS/TCP"
-msgstr "DNS/TCP معمولی"
-
 msgid "DNS provider through proxy"
 msgstr "ارائه‌دهندهٔ DNS از طریق پراکسی"
 
@@ -1780,9 +1777,6 @@ msgstr "نشانی DNS از طریق پراکسی"
 
 msgid "Protocol through WAN"
 msgstr "پروتکل از طریق WAN"
-
-msgid "Plain DNS/UDP"
-msgstr "DNS/UDP معمولی"
 
 msgid "DNS provider through WAN"
 msgstr "ارائه‌دهندهٔ DNS از طریق WAN"
@@ -2365,3 +2359,12 @@ msgstr "قواعد را به یک فهرست مسیریابی پیوند دهی�
 
 msgid "All supported nodes are imported; data-size and storage limits still apply."
 msgstr "همهٔ گره‌های پشتیبانی‌شده وارد می‌شوند؛ محدودیت حجم داده و فضای ذخیره‌سازی همچنان برقرار است."
+
+msgid "DNS errors: %s. Failed DNS resolution or routing."
+msgstr "خطاهای DNS: %s. خطا در تبدیل نام به نشانی یا مسیریابی درخواست‌های DNS."
+
+msgid "ISP DNS through WAN"
+msgstr "DNS ارائه‌دهندهٔ اینترنت"
+
+msgid "Rejected input: %s."
+msgstr "ردشده در ورودی: %s."

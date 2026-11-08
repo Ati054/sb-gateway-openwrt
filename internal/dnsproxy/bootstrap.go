@@ -20,6 +20,22 @@ func BootstrapDirect(ctx context.Context, raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	query := []byte{0x72, 0x34, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+		7, 'e', 'x', 'a', 'm', 'p', 'l', 'e', 3, 'c', 'o', 'm', 0, 0, 1, 0, 1}
+	if endpoint.Protocol == "wan" {
+		state := &wanDNSState{lookup: discoverWANDNS}
+		if err := state.refresh(ctx); err != nil {
+			return "", err
+		}
+		response, err := exchangeWANDNS(ctx, state.current.Load(), query)
+		if err != nil {
+			return "", err
+		}
+		if len(response) < 12 || response[3]&15 != 0 {
+			return "", errors.New("WAN DNS preflight returned no valid answer")
+		}
+		return "", nil
+	}
 	address, port, err := net.SplitHostPort(endpoint.Address)
 	if err != nil {
 		return "", err
@@ -42,8 +58,6 @@ func BootstrapDirect(ctx context.Context, raw string) (string, error) {
 		}
 		address = ips[0].String()
 	}
-	query := []byte{0x72, 0x34, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0,
-		7, 'e', 'x', 'a', 'm', 'p', 'l', 'e', 3, 'c', 'o', 'm', 0, 0, 1, 0, 1}
 	probeCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
 	var response []byte

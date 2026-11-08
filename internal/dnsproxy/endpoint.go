@@ -13,13 +13,21 @@ import (
 // Endpoint describes one DNS upstream. Plain UDP is intentionally allowed
 // only on the direct-WAN path; the local Xray HTTP inbounds carry TCP streams.
 type Endpoint struct {
-	Protocol   string
-	URL        string
-	Address    string
-	ServerName string
+	Protocol    string
+	URL         string
+	Address     string
+	ServerName  string
+	Interface   string // Selected netifd uplink, only for ISP DNS.
+	WANIdentity string // Addresses and default routes that identify this uplink generation.
 }
 
 func ParseEndpoint(raw string, direct bool) (Endpoint, error) {
+	if raw == WANResolverURL {
+		if !direct {
+			return Endpoint{}, errors.New("WAN DNS is available only on the WAN path")
+		}
+		return Endpoint{Protocol: "wan", URL: raw}, nil
+	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" ||
 		u.Fragment != "" || u.Opaque != "" {

@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sb-gateway-openwrt
-PKG_VERSION:=0.1.19
+PKG_VERSION:=0.1.20
 PKG_RELEASE:=
 PKG_LICENSE:=AGPL-3.0-only AND MPL-2.0 AND MIT AND Apache-2.0 AND BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE XRAY-LICENSE DOMAIN-LIST-LICENSE
@@ -11,13 +11,17 @@ PKG_BUILD_PARALLEL:=1
 PKG_BUILD_FLAGS:=no-mips16
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 
+# Bounded local DNS diagnostics are included in release packages.
+# A build-time override of 0 remains available for controlled comparisons.
+SB_GATEWAY_DNS_ORIGIN?=1
+
 include $(INCLUDE_DIR)/package.mk
 
 define Package/sb-gateway-openwrt
   SECTION:=net
   CATEGORY:=Network
   TITLE:=SB Gateway for OpenWrt
-  DEPENDS:=+ca-bundle +firewall4 +nftables +ip-full +kmod-nft-tproxy +kmod-nft-socket +luci-base
+  DEPENDS:=+ca-bundle +firewall4 +nftables +ip-full +ubus +kmod-nft-tproxy +kmod-nft-socket +kmod-nf-conntrack-netlink +luci-base
 endef
 
 define Package/sb-gateway-openwrt/description
@@ -53,7 +57,7 @@ endif
 define Build/Compile
 	python3 $(PKG_BUILD_DIR)/check-xray-vendor.py --root $(PKG_BUILD_DIR)
 	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.3 GOMAXPROCS=2 \
-		GOOS=linux GOARCH=$(RESPROXY_GOARCH) CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=a4a3dff5b20c2faae567b742c172c7b95e75c083' \
+		GOOS=linux GOARCH=$(RESPROXY_GOARCH) CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=a4a3dff5b20c2faae567b742c172c7b95e75c083$(if $(filter 1,$(SB_GATEWAY_DNS_ORIGIN)), -X github.com/xtls/xray-core/common/session.dnsOriginDefault=1)' \
 		-o $(PKG_BUILD_DIR)/resproxyd ./cmd/resproxyd
 endef
 

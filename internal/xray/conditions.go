@@ -74,7 +74,7 @@ func applyRuleConditions(target map[string]any, r RouteRule, inbounds []string) 
 		selected = nil
 		for _, tag := range inbounds {
 			for _, kind := range r.Inbounds {
-				if kind == "transparent" && (tag == "resproxy-transparent" || tag == "resproxy-transparent6") || kind == "socks" && tag == "resproxy-socks" {
+				if kind == "transparent" && (tag == "resproxy-transparent" || tag == "resproxy-transparent6" || tag == "resproxy-dns-transparent" || tag == "resproxy-dns-transparent6") || kind == "socks" && tag == "resproxy-socks" {
 					selected = append(selected, tag)
 					break
 				}

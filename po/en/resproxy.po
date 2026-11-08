@@ -1766,9 +1766,6 @@ msgstr "I confirm the switch. Service settings are kept; its previous state is r
 msgid "Protocol through proxy"
 msgstr "Protocol through proxy"
 
-msgid "Plain DNS/TCP"
-msgstr "Plain DNS/TCP"
-
 msgid "DNS provider through proxy"
 msgstr "DNS provider through proxy"
 
@@ -1780,9 +1777,6 @@ msgstr "DNS address through proxy"
 
 msgid "Protocol through WAN"
 msgstr "Protocol through WAN"
-
-msgid "Plain DNS/UDP"
-msgstr "Plain DNS/UDP"
 
 msgid "DNS provider through WAN"
 msgstr "DNS provider through WAN"
@@ -2365,3 +2359,12 @@ msgstr "Attach rules to a route list and apply the settings. Missing databases l
 
 msgid "All supported nodes are imported; data-size and storage limits still apply."
 msgstr "All supported nodes are imported; data-size and storage limits still apply."
+
+msgid "DNS errors: %s. Failed DNS resolution or routing."
+msgstr "DNS errors: %s. Failed DNS resolution or routing."
+
+msgid "ISP DNS through WAN"
+msgstr "ISP DNS through WAN"
+
+msgid "Rejected input: %s."
+msgstr "Rejected input: %s."

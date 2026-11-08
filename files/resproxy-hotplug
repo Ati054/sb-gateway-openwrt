@@ -15,6 +15,13 @@ if ! pgrep -f '^/usr/bin/resproxyd run$' >/dev/null 2>&1; then
 		[ -e /var/run/resproxy/crash-fallback.active ] || exit 0
 fi
 
+config_get dns_direct_provider main dns_direct_provider
+if [ "$dns_direct_provider" = isp ]; then
+	# Queue a coalesced DNS-address refresh; keep the core and listeners running.
+	# During early startup the daemon rechecks once its control socket is ready.
+	/usr/bin/resproxyd dns-wan-refresh >/dev/null 2>&1 || :
+fi
+
 if ! /usr/bin/resproxyd capture-restore; then
 	logger -t resproxy-hotplug 'failed to restore capture protection or policy routing after interface change'
 	exit 1

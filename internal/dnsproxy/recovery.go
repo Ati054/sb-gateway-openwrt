@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
+	"golang.org/x/net/http2"
 )
 
 // Each policy owns one current transport. Retired transports drain existing
@@ -53,11 +54,11 @@ func (r *recoveringTransport) RoundTrip(request *http.Request) (*http.Response, 
 	transport, closed := r.current, r.closed
 	r.mu.Unlock()
 	if closed {
-		return nil, errors.New("DNS upstream is closed")
+		return nil, errDNSUpstreamClosed
 	}
 	response, err := transport.RoundTrip(request)
 	if err != nil {
-		if timeoutError(err) && !errors.Is(request.Context().Err(), context.Canceled) {
+		if (timeoutError(err) || retryDoH(err)) && !errors.Is(request.Context().Err(), context.Canceled) {
 			r.retire(transport)
 		}
 		r.closeRetired(transport)
@@ -99,7 +100,7 @@ type drainingBody struct {
 
 func (body *drainingBody) Read(p []byte) (int, error) {
 	n, err := body.ReadCloser.Read(p)
-	if err != nil && timeoutError(err) && !errors.Is(body.ctx.Err(), context.Canceled) {
+	if err != nil && err != io.EOF && (timeoutError(err) || retryDoH(err)) && !errors.Is(body.ctx.Err(), context.Canceled) {
 		body.owner.retire(body.transport)
 	}
 	return n, err
@@ -111,6 +112,15 @@ func (body *drainingBody) Close() error {
 }
 func timeoutError(err error) bool { var n net.Error; return errors.As(err, &n) && n.Timeout() }
 func retryDoH(err error) bool {
+	var stream http2.StreamError
+	if errors.As(err, &stream) {
+		switch stream.Code {
+		case http2.ErrCodeProtocol, http2.ErrCodeInternal, http2.ErrCodeRefusedStream, http2.ErrCodeCancel:
+			return true
+		default:
+			return false
+		}
+	}
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
 }
 
@@ -133,15 +143,20 @@ func (e *upstreamTimeoutPhase) Temporary() bool { return true }
 
 func exchangeDoH(ctx context.Context, client *http.Client, endpoint string, query []byte) (result []byte, resultErr error) {
 	var phase atomic.Int32
+	var reused atomic.Bool
+	attempts := 0
 	defer func() {
 		if resultErr != nil && (errors.Is(resultErr, context.DeadlineExceeded) || timeoutError(resultErr)) {
 			resultErr = &upstreamTimeoutPhase{phase: int(phase.Load()), cause: resultErr}
+		}
+		if resultErr != nil {
+			resultErr = &upstreamExchangeError{cause: resultErr, phase: int(phase.Load()), attempts: attempts, reused: reused.Load()}
 		}
 	}()
 	trace := &httptrace.ClientTrace{
 		GetConn:              func(string) { phase.Store(0) },
 		TLSHandshakeStart:    func() { phase.Store(1) },
-		GotConn:              func(httptrace.GotConnInfo) { phase.Store(2) },
+		GotConn:              func(info httptrace.GotConnInfo) { phase.Store(2); reused.Store(info.Reused) },
 		WroteRequest:         func(httptrace.WroteRequestInfo) { phase.Store(3) },
 		GotFirstResponseByte: func() { phase.Store(4) },
 	}
@@ -162,6 +177,8 @@ func exchangeDoH(ctx context.Context, client *http.Client, endpoint string, quer
 		}
 		request.Header.Set("Content-Type", "application/dns-message")
 		request.Header.Set("Accept", "application/dns-message")
+		attempts++
+		reused.Store(false)
 		response, err := bounded.Do(request)
 		var body []byte
 		if err == nil {
@@ -182,7 +199,7 @@ func exchangeDoH(ctx context.Context, client *http.Client, endpoint string, quer
 		if requestCtx.Err() != nil {
 			return nil, requestCtx.Err()
 		}
-		if attempt != 0 || !retryDoH(err) {
+		if attempt != 0 || len(query) < 3 || query[2]&0x78 != 0 || !retryDoH(err) {
 			return nil, err
 		}
 	}

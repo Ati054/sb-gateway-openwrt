@@ -94,7 +94,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 
 	var activeTCP, activeUDP stats.Counter
 	switch tag {
-	case "resproxy-transparent", "resproxy-transparent6", "resproxy-socks", "resproxy-http":
+	case "resproxy-transparent", "resproxy-transparent6", "resproxy-dns-transparent", "resproxy-dns-transparent6", "resproxy-socks", "resproxy-http":
 		if manager, ok := core.MustFromContext(ctx).GetFeature(stats.ManagerType()).(stats.Manager); ok {
 			activeTCP, _ = manager.GetOrRegisterCounter("sb-gateway>>>active>>>tcp")
 			activeUDP, _ = manager.GetOrRegisterCounter("sb-gateway>>>active>>>udp")

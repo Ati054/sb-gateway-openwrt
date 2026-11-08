@@ -27,6 +27,7 @@ type BaseConfig struct {
 	ProbeBudget       int
 	ProbeBasePort     int
 	DNSPolicyBasePort int
+	ManagedDNSPort    int // Local DNS backend; external DNS is classified by the core.
 	Policies          []BasePolicy
 	DefaultPolicy     string
 	DomainStrategy    string // AsIs or IPOnDemand; routing DNS is always proxied.
@@ -284,6 +285,16 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 		map[string]any{"tag": "resproxy-http", "listen": "127.0.0.1", "port": c.HTTPPort,
 			"protocol": "http", "settings": map[string]any{"allowTransparent": false}},
 	}
+	transparentTags := []string{"resproxy-transparent", "resproxy-transparent6"}
+	if c.ManagedDNSPort != 0 {
+		for _, gateway := range []struct{ tag, address string }{{"resproxy-dns-transparent", "127.0.0.2"}, {"resproxy-dns-transparent6", "::2"}} {
+			transparentTags = append(transparentTags, gateway.tag)
+			inbounds = append(inbounds, map[string]any{"tag": gateway.tag, "listen": gateway.address, "port": c.TransparentPort,
+				"protocol": "dokodemo-door", "settings": map[string]any{"network": "tcp,udp", "followRedirect": true},
+				"streamSettings": map[string]any{"sockopt": map[string]any{"tproxy": "tproxy", "V6Only": gateway.address == "::2"}},
+				"sniffing":       map[string]any{"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "routeOnly": true}})
+		}
+	}
 	dnsTags := make([]string, 0, len(c.Policies))
 	for index, policy := range c.Policies {
 		tag := "resproxy-dns-" + policy.ID
@@ -294,6 +305,9 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 		})
 	}
 	rules := []any{}
+	if c.ManagedDNSPort != 0 {
+		rules = append(rules, map[string]any{"type": "field", "inboundTag": []string{"resproxy-dns-transparent", "resproxy-dns-transparent6"}, "protocol": []string{"dns"}, "outboundTag": "resproxy-local-dns"})
+	}
 	if c.DomainStrategy == "IPOnDemand" {
 		rules = append(rules, map[string]any{"type": "field", "inboundTag": []string{"resproxy-routing-dns"},
 			"balancerTag": "resproxy-" + c.DefaultPolicy})
@@ -311,9 +325,9 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 			})
 		}
 		if len(policy.SourceCIDRs) > 0 {
-			rules = appendPolicyExceptions(rules, policy, []string{"resproxy-transparent", "resproxy-transparent6"})
+			rules = appendPolicyExceptions(rules, policy, transparentTags)
 			rules = append(rules, map[string]any{
-				"type": "field", "inboundTag": []string{"resproxy-transparent", "resproxy-transparent6"},
+				"type": "field", "inboundTag": transparentTags,
 				"sourceIP": policy.SourceCIDRs, "balancerTag": policy.ProxyTrafficTag(),
 			})
 		}
@@ -337,11 +351,11 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 			fallback.SourceCIDRs = nil
 			// The HTTP inbound is also used for subscription fetching. Never let
 			// a user's direct-WAN group divert that internal proxy-only path.
-			rules = appendPolicyExceptions(rules, fallback, []string{"resproxy-transparent", "resproxy-transparent6", "resproxy-socks"})
+			rules = appendPolicyExceptions(rules, fallback, append(append([]string(nil), transparentTags...), "resproxy-socks"))
 			break
 		}
 	}
-	protectedInbounds := append([]string{"resproxy-transparent", "resproxy-transparent6", "resproxy-socks", "resproxy-http"}, dnsTags...)
+	protectedInbounds := append(append(append([]string(nil), transparentTags...), "resproxy-socks", "resproxy-http"), dnsTags...)
 	rules = append(rules,
 		map[string]any{"type": "field", "inboundTag": protectedInbounds,
 			"ip": []string{"127.0.0.0/8", "169.254.0.0/16", "::1/128", "fe80::/10"}, "outboundTag": "block"},
@@ -354,7 +368,7 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 	rules = append(rules, map[string]any{"type": "field",
 		"inboundTag": []string{"resproxy-http"}, "balancerTag": "resproxy-" + c.DefaultPolicy})
 	rules = append(rules, map[string]any{"type": "field",
-		"inboundTag":  []string{"resproxy-transparent", "resproxy-transparent6", "resproxy-socks"},
+		"inboundTag":  append(append([]string(nil), transparentTags...), "resproxy-socks"),
 		"balancerTag": c.defaultProxyTrafficTag()})
 	config := map[string]any{
 		"policy": map[string]any{"levels": map[string]any{"0": map[string]any{"connIdle": 120, "uplinkOnly": 2, "downlinkOnly": 5}}},
@@ -373,6 +387,19 @@ func RenderBase(c BaseConfig) ([]byte, error) {
 	if c.DomainStrategy == "IPOnDemand" {
 		config["dns"] = map[string]any{"servers": []string{c.RoutingDNSURL},
 			"tag": "resproxy-routing-dns", "queryStrategy": "UseIPv4"}
+	}
+	if c.ManagedDNSPort != 0 {
+		if c.ManagedDNSPort < 1024 || c.ManagedDNSPort > 65535 {
+			return nil, errors.New("invalid managed DNS backend port")
+		}
+		config["outbounds"] = append(config["outbounds"].([]any), map[string]any{"tag": "resproxy-local-dns", "protocol": "dns",
+			"settings": map[string]any{"rewriteNetwork": "udp", "rewriteAddress": "127.0.0.1", "rewritePort": c.ManagedDNSPort, "userLevel": 1}})
+		// The backend has a five-second lookup budget. Keep the relay alive
+		// beyond that deadline so a timeout can return SERVFAIL to the client.
+		config["policy"].(map[string]any)["levels"].(map[string]any)["1"] = map[string]any{"connIdle": 10, "uplinkOnly": 1, "downlinkOnly": 1}
+		if config["dns"] == nil {
+			config["dns"] = map[string]any{"servers": []string{"localhost"}}
+		}
 	}
 	return json.MarshalIndent(config, "", "  ")
 }

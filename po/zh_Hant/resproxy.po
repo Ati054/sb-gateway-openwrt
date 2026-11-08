@@ -1766,9 +1766,6 @@ msgstr "我確認切換。服務設定將保留；切回 OpenWrt DNS 或接管�
 msgid "Protocol through proxy"
 msgstr "透過代理的協定"
 
-msgid "Plain DNS/TCP"
-msgstr "一般 DNS/TCP"
-
 msgid "DNS provider through proxy"
 msgstr "透過代理的 DNS 供應商"
 
@@ -1780,9 +1777,6 @@ msgstr "透過代理的 DNS 位址"
 
 msgid "Protocol through WAN"
 msgstr "透過 WAN 的協定"
-
-msgid "Plain DNS/UDP"
-msgstr "一般 DNS/UDP"
 
 msgid "DNS provider through WAN"
 msgstr "透過 WAN 的 DNS 供應商"
@@ -2365,3 +2359,12 @@ msgstr "將規則關聯至路由清單並套用設定。SB Gateway 執行時會�
 
 msgid "All supported nodes are imported; data-size and storage limits still apply."
 msgstr "匯入所有支援的節點；資料大小和儲存空間限制仍然適用。"
+
+msgid "DNS errors: %s. Failed DNS resolution or routing."
+msgstr "DNS 錯誤：%s。DNS 解析或查詢路由失敗。"
+
+msgid "ISP DNS through WAN"
+msgstr "網路業者 DNS"
+
+msgid "Rejected input: %s."
+msgstr "入口拒絕：%s。"

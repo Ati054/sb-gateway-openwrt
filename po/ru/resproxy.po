@@ -1766,9 +1766,6 @@ msgstr "Подтверждаю переключение. Настройки сл
 msgid "Protocol through proxy"
 msgstr "Протокол через прокси"
 
-msgid "Plain DNS/TCP"
-msgstr "Обычный DNS/TCP"
-
 msgid "DNS provider through proxy"
 msgstr "Провайдер DNS через прокси"
 
@@ -1780,9 +1777,6 @@ msgstr "Адрес DNS через прокси"
 
 msgid "Protocol through WAN"
 msgstr "Протокол через WAN"
-
-msgid "Plain DNS/UDP"
-msgstr "Обычный DNS/UDP"
 
 msgid "DNS provider through WAN"
 msgstr "Провайдер DNS через WAN"
@@ -2365,3 +2359,12 @@ msgstr "Подключите правила к маршрутному листу
 
 msgid "All supported nodes are imported; data-size and storage limits still apply."
 msgstr "Импортируются все поддерживаемые узлы. Ограничения размера данных и свободного места сохраняются."
+
+msgid "DNS errors: %s. Failed DNS resolution or routing."
+msgstr "Ошибки DNS: %s. Сбои разрешения имён или маршрутизации DNS-запросов."
+
+msgid "ISP DNS through WAN"
+msgstr "DNS провайдера WAN"
+
+msgid "Rejected input: %s."
+msgstr "Отклонено на входе: %s."

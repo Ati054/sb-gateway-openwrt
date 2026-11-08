@@ -14,6 +14,99 @@
  		totalAttempt := 0
  		for {
  			select {
+--- /dev/null
++++ b/app/dispatcher/resproxy_dns.go
+@@ -0,0 +1,69 @@
++package dispatcher
++
++import (
++	"context"
++	"encoding/binary"
++	"errors"
++	"github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/common/protocol"
++	dnsproto "github.com/xtls/xray-core/common/protocol/dns"
++	"github.com/xtls/xray-core/common/session"
++)
++
++type managedDNSHeader struct{}
++
++// A short length/header prefix is provisional: preserve TLS/HTTP sniffers
++// while continuing within the existing shared sniffing deadline.
++var errManagedDNSPrefix = errors.New("incomplete managed DNS prefix")
++
++func (managedDNSHeader) Protocol() string { return "dns" }
++func (managedDNSHeader) Domain() string   { return "" }
++
++// These listeners are reached only by managed external port-53 capture. Keep
++// ordinary transparent/SOCKS sniffing unchanged. A missing DNS signature falls
++// through to normal HTTP/TLS/QUIC classification and the client's routing list.
++func managedDNSSniffers(ctx context.Context) []protocolSnifferWithMetadata {
++	in := session.InboundFromContext(ctx)
++	if in == nil || (in.Tag != "resproxy-dns-transparent" && in.Tag != "resproxy-dns-transparent6") {
++		return nil
++	}
++	return []protocolSnifferWithMetadata{
++		{func(_ context.Context, p []byte) (SniffResult, error) { return sniffManagedDNS(p, false) }, false, net.Network_UDP},
++		{func(_ context.Context, p []byte) (SniffResult, error) { return sniffManagedDNS(p, true) }, false, net.Network_TCP},
++	}
++}
++
++func sniffManagedDNS(packet []byte, stream bool) (SniffResult, error) {
++	length := len(packet)
++	if stream {
++		if len(packet) < 2 {
++			return nil, errManagedDNSPrefix
++		}
++		length = int(binary.BigEndian.Uint16(packet[:2]))
++		packet = packet[2:]
++		if length < 12 || length > 8192 {
++			return nil, errUnknownContent
++		}
++	}
++	if len(packet) < 12 {
++		if stream {
++			return nil, errManagedDNSPrefix
++		}
++		return nil, errUnknownContent
++	}
++	// Recognize the DNS request envelope before parsing names. Small malformed
++	// question counts still reach the DNS backend for its FORMERR response.
++	if !dnsproto.IsRequestHeader(packet) {
++		return nil, errUnknownContent
++	}
++	if stream && len(packet) < length {
++		return nil, protocol.ErrProtoNeedMoreData
++	}
++	if stream {
++		packet = packet[:length]
++	}
++	if !dnsproto.IsRequestPacket(packet) {
++		return nil, errUnknownContent
++	}
++	return managedDNSHeader{}, nil
++}
+--- a/app/dispatcher/sniffer.go
++++ b/app/dispatcher/sniffer.go
+@@ -43,6 +43,7 @@
+ 			{func(c context.Context, b []byte) (SniffResult, error) { return bittorrent.SniffUTP(b) }, false, net.Network_UDP},
+ 		},
+ 	}
++	ret.sniffer = append(managedDNSSniffers(ctx), ret.sniffer...)
+ 	if sniffer, err := newFakeDNSSniffer(ctx); err == nil {
+ 		others := ret.sniffer
+ 		ret.sniffer = append(ret.sniffer, sniffer)
+@@ -67,6 +68,10 @@
+ 		if err == common.ErrNoClue {
+ 			pendingSniffer = append(pendingSniffer, si)
+ 			continue
++		} else if err == errManagedDNSPrefix {
++			// DNS length prefixes are not a protocol signature. Keep all other
++			// sniffers available when the remaining bytes identify TLS or HTTP.
++			return nil, protocol.ErrProtoNeedMoreData
+ 		} else if err == protocol.ErrProtoNeedMoreData { // Sniffer protocol matched, but need more data to complete sniffing
+ 			s.sniffer = []protocolSnifferWithMetadata{si}
+ 			return nil, err
 --- a/app/proxyman/inbound/always.go
 +++ b/app/proxyman/inbound/always.go
 @@ -92,6 +92,15 @@
@@ -22,7 +115,7 @@
  
 +	var activeTCP, activeUDP stats.Counter
 +	switch tag {
-+	case "resproxy-transparent", "resproxy-transparent6", "resproxy-socks", "resproxy-http":
++	case "resproxy-transparent", "resproxy-transparent6", "resproxy-dns-transparent", "resproxy-dns-transparent6", "resproxy-socks", "resproxy-http":
 +		if manager, ok := core.MustFromContext(ctx).GetFeature(stats.ManagerType()).(stats.Manager); ok {
 +			activeTCP, _ = manager.GetOrRegisterCounter("sb-gateway>>>active>>>tcp")
 +			activeUDP, _ = manager.GetOrRegisterCounter("sb-gateway>>>active>>>udp")
@@ -50,7 +143,15 @@
  						address:         address,
 --- a/app/proxyman/inbound/worker.go
 +++ b/app/proxyman/inbound/worker.go
-@@ -35,6 +35,7 @@
+@@ -11,6 +11,7 @@
+ 	c "github.com/xtls/xray-core/common/ctx"
+ 	"github.com/xtls/xray-core/common/errors"
+ 	"github.com/xtls/xray-core/common/net"
++	dnsproto "github.com/xtls/xray-core/common/protocol/dns"
+ 	"github.com/xtls/xray-core/common/serial"
+ 	"github.com/xtls/xray-core/common/session"
+ 	"github.com/xtls/xray-core/common/signal/done"
+@@ -35,6 +36,7 @@
  }
  
  type tcpWorker struct {
@@ -58,7 +159,7 @@
  	address         net.Address
  	port            net.Port
  	proxy           proxy.Inbound
-@@ -59,6 +60,10 @@
+@@ -59,6 +61,10 @@
  }
  
  func (w *tcpWorker) callback(conn stat.Connection) {
@@ -69,7 +170,7 @@
  	ctx, cancel := context.WithCancel(w.ctx)
  	sid := session.NewID()
  	ctx = c.ContextWithID(ctx, sid)
-@@ -257,6 +262,7 @@
+@@ -257,6 +263,7 @@
  }
  
  type udpWorker struct {
@@ -77,8 +178,64 @@
  	sync.RWMutex
  
  	proxy           proxy.Inbound
-@@ -330,6 +336,10 @@
- 		common.Must(w.checker.Start())
+@@ -286,6 +293,12 @@
+ 		return conn, true
+ 	}
+ 
++	conn := w.newConnection(id)
++	w.activeConn[id] = conn
++	return conn, false
++}
++
++func (w *udpWorker) newConnection(id connID) *udpConn {
+ 	pReader, pWriter := pipe.New(pipe.DiscardOverflow(), pipe.WithSizeLimit(16*1024))
+ 	conn := &udpConn{
+ 		reader: pReader,
+@@ -305,10 +318,8 @@
+ 		uplink:   w.uplinkCounter,
+ 		downlink: w.downlinkCounter,
+ 	}
+-	w.activeConn[id] = conn
+-
+ 	conn.updateActivity()
+-	return conn, false
++	return conn
+ }
+ 
+ func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest net.Destination) {
+@@ -321,15 +332,39 @@
+ 		}
+ 		b.UDP = &originalDest
+ 	}
+-	conn, existing := w.getConnection(id)
++	// DNS requests are datagrams, not idle UDP sessions. Dispatch each one
++	// independently so replies can release sockets immediately without losing
++	// other requests pipelined through the client's same source port.
++	singleDNS := (w.tag == "resproxy-dns-transparent" || w.tag == "resproxy-dns-transparent6") && dnsproto.IsRequestPacket(b.Bytes())
++	var dnsOrigin *session.DNSOrigin
++	if singleDNS && session.DNSOriginEnabled() {
++		origin := session.NewDNSOrigin(b.Bytes(), 1)
++		dnsOrigin = &origin
++	}
++	var conn *udpConn
++	var existing bool
++	if singleDNS {
++		conn = w.newConnection(id)
++	} else {
++		conn, existing = w.getConnection(id)
++	}
+ 
+ 	// payload will be discarded in pipe is full.
+ 	conn.writer.WriteMultiBuffer(buf.MultiBuffer{b})
++	if singleDNS {
++		common.Must(common.Close(conn.writer))
++	}
+ 
+ 	if !existing {
+-		common.Must(w.checker.Start())
++		if !singleDNS {
++			common.Must(w.checker.Start())
++		}
  
  		go func() {
 +			if w.activeCounter != nil {
@@ -88,6 +245,32 @@
  			ctx, cancel := context.WithCancel(w.ctx)
  			conn.cancel = cancel
  			sid := session.NewID()
+@@ -350,10 +385,12 @@
+ 			}
+ 
+ 			ctx = session.ContextWithInbound(ctx, &session.Inbound{
+-				Source:  source,
+-				Local:   local, // Due to some limitations, in UDP connections, localIP is always equal to listen interface IP
+-				Gateway: net.UDPDestination(w.address, w.port),
+-				Tag:     w.tag,
++				Source:      source,
++				Local:       local, // Due to some limitations, in UDP connections, localIP is always equal to listen interface IP
++				Gateway:     net.UDPDestination(w.address, w.port),
++				Tag:         w.tag,
++				DNSDatagram: singleDNS,
++				DNSOrigin:   dnsOrigin,
+ 			})
+ 			content := new(session.Content)
+ 			content.SniffingRequest = w.sniffingRequest
+@@ -363,7 +400,7 @@
+ 			}
+ 			conn.Close()
+ 			// conn not removed by checker TODO may be lock worker here is better
+-			if !conn.inactive {
++			if !singleDNS && !conn.inactive {
+ 				conn.setInactive()
+ 				w.removeConn(id)
+ 			}
 --- a/app/proxyman/outbound/handler.go
 +++ b/app/proxyman/outbound/handler.go
 @@ -273,6 +273,9 @@
@@ -954,6 +1137,101 @@
  
  	b.ResetTimer()
  
+--- /dev/null
++++ b/common/protocol/dns/request.go
+@@ -0,0 +1,30 @@
++package dns
++
++import (
++	"encoding/binary"
++	"golang.org/x/net/dns/dnsmessage"
++)
++
++// IsRequestHeader recognizes the query envelope used by the managed DNS
++// listeners. Small malformed question counts still reach the DNS backend and
++// receive FORMERR; arbitrary UDP data is left to ordinary proxy routing.
++func IsRequestHeader(p []byte) bool {
++	return len(p) >= 12 && p[2]&0xf8 == 0 && p[3]&0x8f == 0 && binary.BigEndian.Uint16(p[4:6]) <= 8 &&
++		binary.BigEndian.Uint16(p[6:8]) == 0 && binary.BigEndian.Uint16(p[8:10]) <= 1 && binary.BigEndian.Uint16(p[10:12]) <= 64
++}
++
++// IsRequestPacket additionally requires a complete first question, if present.
++func IsRequestPacket(p []byte) bool {
++	if !IsRequestHeader(p) {
++		return false
++	}
++	if binary.BigEndian.Uint16(p[4:6]) == 0 {
++		return true
++	}
++	var parser dnsmessage.Parser
++	if _, err := parser.Start(p); err != nil {
++		return false
++	}
++	_, err := parser.Question()
++	return err == nil
++}
+--- /dev/null
++++ b/common/session/dns_origin.go
+@@ -0,0 +1,47 @@
++package session
++
++import (
++	"crypto/sha256"
++	"encoding/binary"
++	"os"
++)
++
++// Managed gateway packages enable provenance with a linker override. Generic
++// Xray builds keep it off; the environment switch supports controlled comparisons.
++var dnsOriginDefault = "0"
++
++func DNSOriginEnabled() bool {
++	return dnsOriginDefault == "1" && os.Getenv("RESPROXY_DNS_ORIGIN") != "0"
++}
++
++// DNSOrigin is local diagnostic metadata, never an authentication claim.
++// Stage 1 observes the accepted managed UDP buffer after read-only recognition,
++// before transferring it. It does not observe kernel socket truncation flags;
++// stage 2 observes one parsed TCP DNS frame before relay copying.
++type DNSOrigin struct {
++	Stage  byte
++	Size   uint16
++	Header [10]byte // DNS flags/counts only; excludes the transaction ID.
++	Digest [16]byte
++}
++
++func NewDNSOrigin(payload []byte, stage byte) DNSOrigin {
++	result := DNSOrigin{Stage: stage, Size: uint16(len(payload))}
++	if len(payload) > 2 {
++		copy(result.Header[:], payload[2:min(12, len(payload))])
++	}
++	sum := sha256.Sum256(payload)
++	copy(result.Digest[:], sum[:16])
++	return result
++}
++
++// Application-specific PROXY-v2 TLV, fixed layout/version. Its digest is
++// transient on loopback and must not be published in diagnostics.
++func (o DNSOrigin) TLV() [33]byte {
++	var result [33]byte
++	result[0], result[2], result[3], result[4] = 0xe0, 30, 1, o.Stage
++	binary.BigEndian.PutUint16(result[5:7], o.Size)
++	copy(result[7:17], o.Header[:])
++	copy(result[17:], o.Digest[:])
++	return result
++}
+--- a/common/session/session.go
++++ b/common/session/session.go
+@@ -56,6 +56,9 @@
+ 	// CanSpliceCopy is a property for this connection
+ 	// 1 = can, 2 = after processing protocol info should be able to, 3 = cannot
+ 	CanSpliceCopy int
++	// DNSDatagram is one independently dispatched managed DNS query.
++	DNSDatagram bool
++	DNSOrigin   *DNSOrigin
+ }
+ 
+ // Outbound is the metadata of an outbound connection.
 --- a/go.sum
 +++ b/go.sum
 @@ -121,8 +121,8 @@
@@ -966,6 +1244,229 @@
  golang.org/x/sys v0.49.0 h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=
  golang.org/x/sys v0.49.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
  golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
+--- a/proxy/dns/dns.go
++++ b/proxy/dns/dns.go
+@@ -8,6 +8,7 @@
+ 	"sync"
+ 	"time"
+ 
++	"github.com/pires/go-proxyproto"
+ 	"github.com/xtls/xray-core/common"
+ 	"github.com/xtls/xray-core/common/buf"
+ 	"github.com/xtls/xray-core/common/errors"
+@@ -163,6 +164,7 @@
+ 	srcNetwork := ob.Target.Network
+ 
+ 	dest := ob.Target
++	managedRelay := ob.Tag == "resproxy-local-dns"
+ 	if h.rewriteServer.Network != net.Network_Unknown {
+ 		dest.Network = h.rewriteServer.Network
+ 	}
+@@ -213,6 +215,24 @@
+ 			Writer: buf.NewWriter(conn),
+ 		}
+ 	}
++	singleDatagram := false
++	if managedRelay {
++		inbound := session.InboundFromContext(ctx)
++		if inbound == nil || !inbound.Source.IsValid() || dest.Network != net.Network_UDP || !dest.Address.Family().IsIP() || !dest.Address.IP().IsLoopback() {
++			return errors.New("invalid local DNS relay")
++		}
++		header := proxyproto.HeaderProxyFromAddrs(2, inbound.Source.RawNetAddr(), ob.Target.RawNetAddr())
++		prefix, err := header.Format()
++		if err != nil {
++			return err
++		}
++		var origin *session.DNSOrigin
++		if srcNetwork == net.Network_UDP && inbound.DNSDatagram {
++			origin = inbound.DNSOrigin
++		}
++		connWriter = &managedDNSWriter{writer: connWriter, prefix: prefix, origin: origin}
++		singleDatagram = srcNetwork == net.Network_UDP && inbound.DNSDatagram
++	}
+ 
+ 	if session.TimeoutOnlyFromContext(ctx) {
+ 		ctx = context.Background()
+@@ -225,6 +245,24 @@
+ 	}
+ 	timer := signal.CancelAfterInactivity(ctx, terminate, h.timeout)
+ 	defer timer.SetTimeout(0)
++	if managedRelay {
++		defer common.Close(reader)
++	}
++	if singleDatagram {
++		defer common.Close(connReader)
++		b, err := reader.ReadMessage()
++		if err != nil {
++			return err
++		}
++		if err = connWriter.WriteMessage(b); err != nil {
++			return err
++		}
++		reply, err := connReader.ReadMessage()
++		if err != nil {
++			return err
++		}
++		return writer.WriteMessage(reply)
++	}
+ 
+ 	request := func() error {
+ 		defer timer.SetTimeout(0)
+@@ -238,6 +276,12 @@
+ 			}
+ 
+ 			timer.Update()
++			if managedRelay {
++				if err := connWriter.WriteMessage(b); err != nil {
++					return err
++				}
++				continue
++			}
+ 
+ 			if h.isOwnLink(ctx) {
+ 				if err := connWriter.WriteMessage(b); err != nil {
+--- /dev/null
++++ b/proxy/dns/resproxy_relay.go
+@@ -0,0 +1,40 @@
++package dns
++
++import (
++	"encoding/binary"
++	"github.com/xtls/xray-core/common/buf"
++	dnsproto "github.com/xtls/xray-core/common/protocol/dns"
++	"github.com/xtls/xray-core/common/session"
++)
++
++// The loopback-only backend receives a standard PROXY-v2 envelope per UDP
++// message, retaining the actual client's address and transport after capture.
++type managedDNSWriter struct {
++	writer dnsproto.MessageWriter
++	prefix []byte
++	origin *session.DNSOrigin
++}
++
++func (w *managedDNSWriter) WriteMessage(b *buf.Buffer) error {
++	if !session.DNSOriginEnabled() {
++		packet := buf.NewWithSize(int32(len(w.prefix)) + b.Len())
++		packet.Write(w.prefix)
++		packet.Write(b.Bytes())
++		b.Release()
++		return w.writer.WriteMessage(packet)
++	}
++	var origin session.DNSOrigin
++	if w.origin != nil {
++		origin = *w.origin
++	} else {
++		origin = session.NewDNSOrigin(b.Bytes(), 2)
++	}
++	tlv := origin.TLV()
++	packet := buf.NewWithSize(int32(len(w.prefix)+len(tlv)) + b.Len())
++	packet.Write(w.prefix)
++	binary.BigEndian.PutUint16(packet.Bytes()[14:16], uint16(len(w.prefix)-16+len(tlv)))
++	packet.Write(tlv[:])
++	packet.Write(b.Bytes())
++	b.Release()
++	return w.writer.WriteMessage(packet)
++}
+--- /dev/null
++++ b/proxy/dns/resproxy_relay_test.go
+@@ -0,0 +1,96 @@
++package dns
++
++import (
++	"bytes"
++	"crypto/sha256"
++	"encoding/binary"
++	"testing"
++
++	"github.com/pires/go-proxyproto"
++	"github.com/xtls/xray-core/common/buf"
++	"github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/common/session"
++)
++
++type capturedRelay struct{ packets [][]byte }
++
++func (w *capturedRelay) WriteMessage(b *buf.Buffer) error {
++	w.packets = append(w.packets, append([]byte(nil), b.Bytes()...))
++	b.Release()
++	return nil
++}
++func relayPrefix(t *testing.T, udp bool) []byte {
++	t.Helper()
++	source := net.TCPDestination(net.IPAddress([]byte{192, 0, 2, 8}), 12345)
++	target := net.TCPDestination(net.IPAddress([]byte{203, 0, 113, 53}), 53)
++	if udp {
++		source.Network = net.Network_UDP
++		target.Network = net.Network_UDP
++	}
++	p, err := proxyproto.HeaderProxyFromAddrs(2, source.RawNetAddr(), target.RawNetAddr()).Format()
++	if err != nil {
++		t.Fatal(err)
++	}
++	return p
++}
++func writeRelay(t *testing.T, w *managedDNSWriter, p []byte) {
++	t.Helper()
++	b := buf.New()
++	b.Write(p)
++	if err := w.WriteMessage(b); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestManagedDNSWriterTCPRefreshesEveryFrame(t *testing.T) {
++	capture := &capturedRelay{}
++	prefix := relayPrefix(t, false)
++	writer := &managedDNSWriter{writer: capture, prefix: prefix}
++	for _, p := range [][]byte{{}, {0x12}, {0x12, 0x34, 1}, bytes.Repeat([]byte{0x5a}, 36), bytes.Repeat([]byte{0x6b}, 42)} {
++		writeRelay(t, writer, p)
++	}
++	for i, p := range capture.packets {
++		body := p[61:]
++		tlv := p[28:61]
++		sum := sha256.Sum256(body)
++		if tlv[4] != 2 || int(binary.BigEndian.Uint16(tlv[5:7])) != len(body) || !bytes.Equal(tlv[17:], sum[:16]) || binary.BigEndian.Uint16(p[14:16]) != 45 {
++			t.Fatalf("stale TCP frame stamp: %d", i)
++		}
++	}
++	if binary.BigEndian.Uint16(prefix[14:16]) != 12 {
++		t.Fatal("cached address prefix mutated")
++	}
++}
++
++func TestManagedDNSWriterUDPUsesAcceptedBufferStamp(t *testing.T) {
++	first, second := bytes.Repeat([]byte{1}, 36), bytes.Repeat([]byte{2}, 36)
++	capture := &capturedRelay{}
++	for _, original := range [][]byte{first, second} {
++		stamp := session.NewDNSOrigin(original, 1)
++		writer := &managedDNSWriter{writer: capture, prefix: relayPrefix(t, true), origin: &stamp}
++		// Simulate corruption after the accepted UDP buffer was observed.
++		delivered := append([]byte(nil), original...)
++		delivered[len(delivered)-1] ^= 1
++		writeRelay(t, writer, delivered)
++	}
++	for i, p := range capture.packets {
++		original := [][]byte{first, second}[i]
++		sum := sha256.Sum256(original)
++		deliveredSum := sha256.Sum256(p[61:])
++		if p[32] != 1 || !bytes.Equal(p[45:61], sum[:16]) || bytes.Equal(p[45:61], deliveredSum[:16]) {
++			t.Fatal("UDP input stamp was replaced or reused from another packet")
++		}
++	}
++}
++
++func TestManagedDNSWriterDisabledKeepsLegacyEnvelope(t *testing.T) {
++	t.Setenv("RESPROXY_DNS_ORIGIN", "0")
++	capture := &capturedRelay{}
++	prefix := relayPrefix(t, false)
++	writer := &managedDNSWriter{writer: capture, prefix: prefix}
++	body := []byte{1, 2, 3}
++	writeRelay(t, writer, body)
++	if len(capture.packets) != 1 || !bytes.Equal(capture.packets[0], append(prefix, body...)) {
++		t.Fatal("disabled diagnostics changed the relay envelope")
++	}
++}
 --- a/proxy/http/server.go
 +++ b/proxy/http/server.go
 @@ -98,6 +98,22 @@

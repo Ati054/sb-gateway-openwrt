@@ -11,6 +11,7 @@ import (
 type Policy struct {
 	// DNSListenerPort protects a listener during startup/recovery before redirects exist.
 	DNSListenerPort int
+	ProtocolDNS     bool // External port 53 is classified inside the transparent core.
 	IPv6Mode        string
 	BlockPing       bool
 	DirectIPs       []string
@@ -83,6 +84,7 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 		return "", err
 	}
 	normalized.BlockPing = policy.BlockPing
+	normalized.ProtocolDNS = policy.ProtocolDNS
 	autoIPs := []string{}
 	for _, item := range policy.Automatic.Addresses {
 		if item.Kind == "endpoint" {
@@ -177,7 +179,7 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 			if len(custom) > 0 {
 				fmt.Fprintf(&b, "\t\tiifname %q %s daddr { %s } return\n", iface, addr, strings.Join(custom, ", "))
 			}
-			if dnsPort != 0 {
+			if dnsPort != 0 && !normalized.ProtocolDNS {
 				for _, proto := range []string{"udp", "tcp"} {
 					fmt.Fprintf(&b, "\t\tiifname %q %s dport 53 redirect to :%d\n", iface, proto, dnsPort)
 				}
@@ -229,8 +231,16 @@ func render(iface string, port, dnsPort int, policy Policy, emergency []Emergenc
 				emergencyRules(&b, iface, addr, emergency, false, false)
 			} else {
 				if dnsPort != 0 {
-					for _, proto := range []string{"udp", "tcp"} {
-						fmt.Fprintf(&b, "\t\tiifname %q %s dport 53 return\n", iface, proto)
+					if normalized.ProtocolDNS {
+						target := "127.0.0.2"
+						if v6 {
+							target = "[::2]"
+						}
+						fmt.Fprintf(&b, "\t\tiifname %q meta l4proto { tcp, udp } th dport 53 tproxy to %s:%d meta mark set 0x5253 accept\n", iface, target, port)
+					} else {
+						for _, proto := range []string{"udp", "tcp"} {
+							fmt.Fprintf(&b, "\t\tiifname %q %s dport 53 return\n", iface, proto)
+						}
 					}
 				}
 				target := "127.0.0.1"

@@ -35,3 +35,24 @@ requests to eight seconds, including blocked upstream TLS/REALITY handshakes.
 Probe failures release raw sockets and skip REALITY camouflage browsing after
 invalid authentication. Normal client streams and their camouflage behavior
 remain unchanged. Failed ordinary TCP TLS handshakes also release their socket.
+
+Managed external port-53 listeners classify DNS before handing it to the local
+backend. Other TCP/UDP protocols retain their original destination and normal
+client routing. The loopback DNS relay uses bounded PROXY-v2 address metadata
+to preserve client policy. Each managed UDP DNS datagram is dispatched separately
+and releases its relay sockets after the reply, including requests sharing a
+client source port. TCP supports pipelined requests with a ten-second idle
+timeout, leaving room for the backend's five-second deadline and error reply.
+Ordinary transparent listeners keep their existing classifiers and flow cache.
+
+Partial managed TCP DNS length/header prefixes use the existing shared sniffing
+deadline without consuming the two undecided read attempts. Other classifiers
+remain available until a complete DNS header identifies the protocol.
+
+Managed DNS carries fixed, local PROXY-v2 provenance metadata. It checks accepted
+UDP-buffer or parsed TCP-frame bytes across relay copying; it does not claim to
+verify raw TCP reassembly or kernel UDP truncation flags. Digests stay transient.
+SB Gateway packages enable provenance by default. The fixed diagnostic ring is
+bounded, root-only, and published in runtime storage without names or payloads.
+Build-time and environment overrides remain available for controlled comparisons;
+the generic Xray source default keeps the legacy relay envelope without hashing.

@@ -43,6 +43,7 @@ func NewSniffer(ctx context.Context) *Sniffer {
 			{func(c context.Context, b []byte) (SniffResult, error) { return bittorrent.SniffUTP(b) }, false, net.Network_UDP},
 		},
 	}
+	ret.sniffer = append(managedDNSSniffers(ctx), ret.sniffer...)
 	if sniffer, err := newFakeDNSSniffer(ctx); err == nil {
 		others := ret.sniffer
 		ret.sniffer = append(ret.sniffer, sniffer)
@@ -67,6 +68,10 @@ func (s *Sniffer) Sniff(c context.Context, payload []byte, network net.Network) 
 		if err == common.ErrNoClue {
 			pendingSniffer = append(pendingSniffer, si)
 			continue
+		} else if err == errManagedDNSPrefix {
+			// DNS length prefixes are not a protocol signature. Keep all other
+			// sniffers available when the remaining bytes identify TLS or HTTP.
+			return nil, protocol.ErrProtoNeedMoreData
 		} else if err == protocol.ErrProtoNeedMoreData { // Sniffer protocol matched, but need more data to complete sniffing
 			s.sniffer = []protocolSnifferWithMetadata{si}
 			return nil, err

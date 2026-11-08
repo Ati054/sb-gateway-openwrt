@@ -8,6 +8,7 @@ import (
 
 	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
 	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
 	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
 )
 
@@ -18,13 +19,18 @@ type subscriptionControl struct {
 	mu          sync.RWMutex
 	config      settings.Config
 	refresh     chan string
+	wanChanges  chan struct{}
 	readConfig  func(context.Context) (settings.Config, error)
 	applyReload func(context.Context, settings.Config, settings.Config) error
 	preparePool func([]catalog.Node, []settings.Policy) (*agentport.PreparedPool, error)
 }
 
 func newSubscriptionControl(config settings.Config) *subscriptionControl {
-	return &subscriptionControl{config: config, refresh: make(chan string, 16), readConfig: settings.ReadSystemUCI, preparePool: agentport.PreparePool}
+	c := &subscriptionControl{config: config, refresh: make(chan string, 16), readConfig: settings.ReadSystemUCI, preparePool: agentport.PreparePool}
+	if config.DNSDirectURL == dnsproxy.WANResolverURL && config.DNSMode != "system" {
+		c.wanChanges = make(chan struct{}, 1)
+	}
+	return c
 }
 
 func (c *subscriptionControl) update(config settings.Config) {
@@ -36,6 +42,13 @@ func (c *subscriptionControl) update(config settings.Config) {
 func (c *subscriptionControl) handle(request reloadRequest) (reloadResult, bool) {
 	if request.ctx.Err() != nil {
 		return reloadResult{Status: "error", Error: "request expired"}, true
+	}
+	if request.operation == "wan-dns-refresh" {
+		select {
+		case c.wanChanges <- struct{}{}:
+		default:
+		}
+		return reloadResult{Status: "applied"}, true
 	}
 	c.mu.RLock()
 	current := c.config

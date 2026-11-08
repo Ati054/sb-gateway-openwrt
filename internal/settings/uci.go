@@ -172,6 +172,10 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 	if config.DNSPort, err = integer(read("dns_port"), 1053, 1024, 65535); err != nil {
 		return Config{}, fmt.Errorf("dns_port: %w", err)
 	}
+	if config.DNSMode != "system" {
+		config.Base.ManagedDNSPort = config.DNSPort
+		config.Capture.ProtocolDNS = true
+	}
 	seenSources := map[string]bool{}
 	sourceNamePattern := regexp.MustCompile(`^[A-Za-z][A-Za-z0-9 _-]{0,31}$`)
 	for index := 0; index < 16; index++ {
@@ -474,6 +478,12 @@ var dnsPresets = map[string]map[string]string{
 // An absent protocol/provider is a legacy DoH configuration. Preserve its
 // custom URL instead of changing an existing user's resolver on upgrade.
 func resolveDNSProvider(protocol, provider, customURL string, direct bool) (string, error) {
+	if provider == "isp" {
+		if !direct {
+			return "", errors.New("ISP DNS is available only through WAN")
+		}
+		return dnsproxy.WANResolverURL, nil
+	}
 	if protocol == "" {
 		protocol = "doh"
 	}
