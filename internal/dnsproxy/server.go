@@ -1188,7 +1188,11 @@ func (s *server) rejectInput(query []byte, peer netip.AddrPort, ingress dnsIngre
 	s.rejectedHeaders.recordPeer(query, peer, ingress, reason, origins...)
 }
 
-func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct bool, proxyPort int) (result []byte, resultErr error) {
+func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct bool, proxyPort int) ([]byte, error) {
+	return exchangeWireAttempt(ctx, endpoint, query, direct, proxyPort, true)
+}
+
+func exchangeWireAttempt(ctx context.Context, endpoint Endpoint, query []byte, direct bool, proxyPort int, tcpOnTruncation bool) (result []byte, resultErr error) {
 	if endpoint.Protocol == "dns" {
 		if !direct {
 			return nil, errors.New("automatic UDP/TCP DNS requires a WAN path")
@@ -1254,7 +1258,7 @@ func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct b
 		if err != nil {
 			return nil, err
 		}
-		if n >= 3 && buffer[2]&0x02 != 0 {
+		if tcpOnTruncation && n >= 3 && buffer[2]&0x02 != 0 {
 			// Release UDP before opening the TCP fallback socket.
 			conn.Close()
 			fallback := endpoint

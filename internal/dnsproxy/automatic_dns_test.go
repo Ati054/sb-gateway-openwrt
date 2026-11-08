@@ -17,6 +17,8 @@ type automaticDNSFixture struct {
 	udpAnswers, tcpAnswers atomic.Bool
 	udpCalls, tcpCalls     atomic.Int32
 	rcode                  atomic.Uint32
+	udpTruncated           atomic.Bool
+	tcpDelayMS             atomic.Int64
 }
 
 func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
@@ -46,6 +48,9 @@ func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
 			if f.udpAnswers.Load() {
 				answer := cacheableDoHReply(message[:n], 42)
 				answer[3] = answer[3]&0xf0 | byte(f.rcode.Load())
+				if f.udpTruncated.Load() {
+					answer[2] |= 2
+				}
 				_, _ = udp.WriteTo(answer, peer)
 			}
 		}
@@ -76,6 +81,7 @@ func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
 					return
 				}
 				answer := cacheableDoHReply(query, 42)
+				time.Sleep(time.Duration(f.tcpDelayMS.Load()) * time.Millisecond)
 				binary.BigEndian.PutUint16(size[:], uint16(len(answer)))
 				_, _ = conn.Write(append(size[:], answer...))
 			}()
@@ -83,6 +89,70 @@ func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
 	}()
 	t.Cleanup(func() { tcp.Close(); udp.Close(); workers.Wait() })
 	return f
+}
+
+func TestAutomaticDNSTruncationGivesTCPTheRemainingSharedDeadline(t *testing.T) {
+	f := newAutomaticDNSFixture(t)
+	f.udpAnswers.Store(true)
+	f.udpTruncated.Store(true)
+	f.tcpDelayMS.Store(1100)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	var preference atomic.Bool
+	if _, err := exchangeAutomaticDNS(ctx, f.endpoint, dnsQuery("large.example"), &preference); err != nil {
+		t.Fatalf("TCP after TC=1 lost the remaining total budget: %v", err)
+	}
+	if !preference.Load() || f.udpCalls.Load() != 1 || f.tcpCalls.Load() != 1 {
+		t.Fatalf("actual TCP transport was not retained: UDP=%d TCP=%d", f.udpCalls.Load(), f.tcpCalls.Load())
+	}
+}
+
+func TestAutomaticDNSTruncatedUDPDoesNotLoopAfterTCPTimeout(t *testing.T) {
+	f := newAutomaticDNSFixture(t)
+	f.udpAnswers.Store(true)
+	f.udpTruncated.Store(true)
+	f.tcpAnswers.Store(false)
+	ctx, cancel := context.WithTimeout(t.Context(), 160*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := exchangeAutomaticDNS(ctx, f.endpoint, dnsQuery("truncated-timeout.example"), nil)
+	var wire *upstreamExchangeError
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.As(err, &wire) || wire.protocol != "tcp" || f.udpCalls.Load() != 1 || f.tcpCalls.Load() != 1 {
+		t.Fatalf("truncation failure lost TCP identity or repeated UDP: %v, UDP=%d TCP=%d", err, f.udpCalls.Load(), f.tcpCalls.Load())
+	}
+	if elapsed := time.Since(start); elapsed < 100*time.Millisecond || elapsed > time.Second {
+		t.Fatalf("TCP did not use the remaining common deadline: %v", elapsed)
+	}
+}
+
+func TestAutomaticDNSCancellationDuringTruncatedTCPDoesNotRetryUDP(t *testing.T) {
+	f := newAutomaticDNSFixture(t)
+	f.udpAnswers.Store(true)
+	f.udpTruncated.Store(true)
+	f.tcpAnswers.Store(false)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := exchangeAutomaticDNS(ctx, f.endpoint, dnsQuery("cancel-tc.example"), nil)
+		done <- err
+	}()
+	until := time.Now().Add(time.Second)
+	for f.tcpCalls.Load() == 0 && time.Now().Before(until) {
+		time.Sleep(time.Millisecond)
+	}
+	if f.tcpCalls.Load() != 1 {
+		t.Fatal("TC did not start TCP")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) || f.udpCalls.Load() != 1 || f.tcpCalls.Load() != 1 {
+			t.Fatalf("canceled TC exchange was retried: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("TCP cancellation did not stop the exchange")
+	}
 }
 
 func TestAutomaticDNSDoesNotRetryValidNegativeAnswers(t *testing.T) {

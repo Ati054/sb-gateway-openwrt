@@ -1,6 +1,7 @@
 package dnsproxy
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sync/atomic"
@@ -82,10 +83,24 @@ func exchangeAutomaticDNS(ctx context.Context, endpoint Endpoint, query []byte, 
 		attempt, cancelAttempt := context.WithTimeout(ctx, budget)
 		selected := endpoint
 		selected.Protocol = protocol
-		response, err := exchangeWire(attempt, selected, query, true, 0)
+		response, err := exchangeWireAttempt(attempt, selected, query, true, 0, false)
 		cancelAttempt()
+		if err == nil && protocol == "udp" && repeatableDNSQuery(query) && len(response) >= 12 &&
+			response[2]&0x82 == 0x82 && response[2]&0x78 == query[2]&0x78 && bytes.Equal(response[:2], query[:2]) {
+			// The UDP socket is already closed. TC explicitly requests TCP,
+			// which owns the remaining total budget, not the UDP probe budget.
+			selected.Protocol = "tcp"
+			response, err = exchangeWire(ctx, selected, query, true, 0)
+			if err == nil && !matchingQuestion(query, response) {
+				err = &upstreamExchangeError{cause: errDNSResponseMismatch, protocol: "tcp", phase: -1, attempts: 1}
+			}
+			if err == nil && tcpPreferred != nil {
+				tcpPreferred.Store(true)
+			}
+			return response, err
+		}
 		if err == nil && !matchingQuestion(query, response) {
-			err = errDNSResponseMismatch
+			err = &upstreamExchangeError{cause: errDNSResponseMismatch, protocol: protocol, phase: -1, attempts: 1}
 		}
 		if err == nil {
 			if tcpPreferred != nil {
@@ -94,12 +109,6 @@ func exchangeAutomaticDNS(ctx context.Context, endpoint Endpoint, query []byte, 
 			return response, nil
 		}
 		last = err
-		var wireFailure *upstreamExchangeError
-		if protocol == "udp" && errors.As(err, &wireFailure) && wireFailure.protocol == "tcp" {
-			// UDP explicitly requested TCP with TC=1. Repeating UDP cannot
-			// replace the failed TCP exchange for this response.
-			return nil, err
-		}
 		if index == 0 {
 			retryFirst = timeoutError(err)
 		} else if index == 1 && !retryFirst {
