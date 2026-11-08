@@ -10,7 +10,8 @@ import (
 )
 
 // Pending UDP recipients have no goroutine, TLS state or private response
-// buffer. Only the leader owns an upstream operation. TCP connections retain
+// buffer. Only the leader owns upstream work; a concurrent transport fallback
+// needs its own reservation from the same work budget. TCP connections retain
 // their independently budgeted reader, with one outstanding query each.
 const dnsRecipientMemory int64 = 512
 const dnsLookupTimeout = 5 * time.Second
@@ -53,6 +54,7 @@ type dnsRequests struct {
 	used, pending              int64
 	executing                  int64
 	active, queued, recipients int64
+	hedged                     int64
 	rejected                   uint64
 	queueTimeouts              uint64
 	closed                     bool
@@ -131,6 +133,33 @@ func (r *dnsRequests) canStart(path string) bool {
 	return r.executing+dnsRequestMemory <= limit && r.permits(path, dnsRequestMemory, false)
 }
 
+// A hedged wire exchange consumes the same work/memory allowance as any other
+// upstream operation. It never waits while retaining its leader's reservation.
+func (r *dnsRequests) borrowTransport(ctx context.Context, path string) (func(), bool) {
+	r.mu.Lock()
+	if r.closed || ctx.Err() != nil || !r.canStart(path) {
+		r.mu.Unlock()
+		return nil, false
+	}
+	p := r.path(path)
+	r.used += dnsRequestMemory
+	r.executing += dnsRequestMemory
+	r.hedged++
+	p.used += dnsRequestMemory
+	p.executing += dnsRequestMemory
+	r.mu.Unlock()
+	return func() {
+		r.mu.Lock()
+		r.used -= dnsRequestMemory
+		r.executing -= dnsRequestMemory
+		r.hedged--
+		p.used -= dnsRequestMemory
+		p.executing -= dnsRequestMemory
+		r.dispatch()
+		r.mu.Unlock()
+	}, true
+}
+
 func (r *dnsRequests) submit(ctx context.Context, path, key string, query []byte, work func(context.Context) ([]byte, error), done func([]byte, error)) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -197,7 +226,8 @@ func (r *dnsRequests) dispatch() {
 				var body []byte
 				err := job.ctx.Err()
 				if err == nil {
-					body, err = job.work(job.ctx)
+					borrow := dnsTransportBorrow(func() (func(), bool) { return r.borrowTransport(job.ctx, job.path) })
+					body, err = job.work(context.WithValue(job.ctx, dnsTransportBudgetKey{}, borrow))
 				}
 				r.complete(job, body, err)
 			}()
@@ -324,5 +354,5 @@ func (r *dnsRequests) close() {
 func (r *dnsRequests) stats() map[string]uint64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return map[string]uint64{"active_upstream": uint64(r.active), "queued_upstream": uint64(r.queued), "waiting_shared": uint64(max(int64(0), r.recipients-r.active-r.queued)), "pending_query_bytes": uint64(r.pending), "dns_work_bytes": uint64(r.used), "dns_admission_rejected": r.rejected, "dns_queue_timeouts": r.queueTimeouts}
+	return map[string]uint64{"active_upstream": uint64(r.active + r.hedged), "queued_upstream": uint64(r.queued), "waiting_shared": uint64(max(int64(0), r.recipients-r.active-r.queued)), "pending_query_bytes": uint64(r.pending), "dns_work_bytes": uint64(r.used), "dns_admission_rejected": r.rejected, "dns_queue_timeouts": r.queueTimeouts}
 }

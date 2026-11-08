@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -17,10 +16,12 @@ import (
 // dnsmasq is pointed at this process. This prevents a recursive DoH lookup.
 // It also proves the chosen WAN resolver can answer without Xray.
 type DirectBootstrap struct {
-	IP           string
-	upstream     string
-	wan          *wanDNSSnapshot
-	tcpPreferred bool
+	IP             string
+	upstream       string
+	wan            *wanDNSSnapshot
+	tcpPreferred   bool
+	transportKnown bool
+	transportRTT   time.Duration
 }
 
 func directProbeQuery() []byte {
@@ -50,12 +51,12 @@ func PreflightDirect(ctx context.Context, raw string) (DirectBootstrap, error) {
 		}
 		return DirectBootstrap{upstream: raw, wan: state.current.Load()}, nil
 	}
-	var preferred atomic.Bool
+	var preferred dnsTransportPreference
 	ip, err := bootstrapDirectEndpoint(ctx, raw, &preferred)
-	return DirectBootstrap{IP: ip, upstream: raw, tcpPreferred: preferred.Load()}, err
+	return DirectBootstrap{IP: ip, upstream: raw, tcpPreferred: preferred.Load(), transportKnown: preferred.Known(), transportRTT: preferred.latency()}, err
 }
 
-func bootstrapDirectEndpoint(ctx context.Context, raw string, tcpPreferred *atomic.Bool) (string, error) {
+func bootstrapDirectEndpoint(ctx context.Context, raw string, tcpPreferred *dnsTransportPreference) (string, error) {
 	endpoint, err := ParseEndpoint(raw, true)
 	if err != nil {
 		return "", err

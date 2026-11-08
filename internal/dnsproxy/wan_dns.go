@@ -25,7 +25,7 @@ type wanDNSSnapshot struct {
 	servers      []Endpoint
 	key          string
 	preferred    atomic.Uint32
-	tcpPreferred []atomic.Bool
+	tcpPreferred []dnsTransportPreference
 }
 
 type wanDNSState struct {
@@ -217,7 +217,7 @@ func (w *wanDNSState) refresh(ctx context.Context) error {
 			identity.WriteByte('\n')
 		}
 		if len(next.servers) > 0 {
-			next.tcpPreferred = make([]atomic.Bool, len(next.servers))
+			next.tcpPreferred = make([]dnsTransportPreference, len(next.servers))
 			sum := sha256.Sum256([]byte(identity.String()))
 			next.key = hex.EncodeToString(sum[:16])
 		}
@@ -284,7 +284,7 @@ func exchangeWANDNS(ctx context.Context, snapshot *wanDNSSnapshot, query []byte)
 		}
 		deadline, _ := ctx.Deadline()
 		attempt, cancelAttempt := context.WithTimeout(ctx, time.Until(deadline)/time.Duration(attempts-index))
-		var transport *atomic.Bool
+		var transport *dnsTransportPreference
 		if selected < len(snapshot.tcpPreferred) {
 			transport = &snapshot.tcpPreferred[selected]
 		}

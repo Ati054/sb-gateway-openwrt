@@ -18,7 +18,9 @@ type automaticDNSFixture struct {
 	udpCalls, tcpCalls     atomic.Int32
 	rcode                  atomic.Uint32
 	udpTruncated           atomic.Bool
+	udpDelayMS             atomic.Int64
 	tcpDelayMS             atomic.Int64
+	tcpBlocked             atomic.Int32
 }
 
 func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
@@ -46,6 +48,7 @@ func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
 			}
 			f.udpCalls.Add(1)
 			if f.udpAnswers.Load() {
+				time.Sleep(time.Duration(f.udpDelayMS.Load()) * time.Millisecond)
 				answer := cacheableDoHReply(message[:n], 42)
 				answer[3] = answer[3]&0xf0 | byte(f.rcode.Load())
 				if f.udpTruncated.Load() {
@@ -77,10 +80,12 @@ func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
 				}
 				f.tcpCalls.Add(1)
 				if !f.tcpAnswers.Load() {
+					f.tcpBlocked.Add(1)
 					io.Copy(io.Discard, conn)
 					return
 				}
 				answer := cacheableDoHReply(query, 42)
+				answer[3] = answer[3]&0xf0 | byte(f.rcode.Load())
 				time.Sleep(time.Duration(f.tcpDelayMS.Load()) * time.Millisecond)
 				binary.BigEndian.PutUint16(size[:], uint16(len(answer)))
 				_, _ = conn.Write(append(size[:], answer...))
@@ -98,12 +103,36 @@ func TestAutomaticDNSTruncationGivesTCPTheRemainingSharedDeadline(t *testing.T) 
 	f.tcpDelayMS.Store(1100)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
-	var preference atomic.Bool
+	var preference dnsTransportPreference
 	if _, err := exchangeAutomaticDNS(ctx, f.endpoint, dnsQuery("large.example"), &preference); err != nil {
 		t.Fatalf("TCP after TC=1 lost the remaining total budget: %v", err)
 	}
 	if !preference.Load() || f.udpCalls.Load() != 1 || f.tcpCalls.Load() != 1 {
 		t.Fatalf("actual TCP transport was not retained: UDP=%d TCP=%d", f.udpCalls.Load(), f.tcpCalls.Load())
+	}
+	runtimeCtx, stop := context.WithTimeout(t.Context(), 2*time.Second)
+	defer stop()
+	if _, err := exchangeAutomaticDNS(runtimeCtx, f.endpoint, dnsQuery("runtime-large.example"), &preference); err != nil {
+		t.Fatal(err)
+	}
+	if f.udpCalls.Load() != 1 || f.tcpCalls.Load() != 2 {
+		t.Fatalf("known slow TCP was needlessly probed again: UDP=%d TCP=%d", f.udpCalls.Load(), f.tcpCalls.Load())
+	}
+}
+
+func TestAutomaticDNSKnownUDPHasTimeForAnOrdinarySlowAnswer(t *testing.T) {
+	f := newAutomaticDNSFixture(t)
+	f.udpAnswers.Store(true)
+	f.udpDelayMS.Store(1100)
+	var preference dnsTransportPreference
+	preference.remember(false, 1100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	if _, err := exchangeAutomaticDNS(ctx, f.endpoint, dnsQuery("slow-udp.example"), &preference); err != nil {
+		t.Fatal(err)
+	}
+	if preference.Load() || f.udpCalls.Load() != 1 || f.tcpCalls.Load() != 0 {
+		t.Fatal("known UDP was replaced before its ordinary answer arrived")
 	}
 }
 
@@ -138,7 +167,7 @@ func TestAutomaticDNSCancellationDuringTruncatedTCPDoesNotRetryUDP(t *testing.T)
 		done <- err
 	}()
 	until := time.Now().Add(time.Second)
-	for f.tcpCalls.Load() == 0 && time.Now().Before(until) {
+	for (f.tcpCalls.Load() == 0 || f.udpCalls.Load() == 0) && time.Now().Before(until) {
 		time.Sleep(time.Millisecond)
 	}
 	if f.tcpCalls.Load() != 1 {
@@ -160,7 +189,9 @@ func TestAutomaticDNSDoesNotRetryValidNegativeAnswers(t *testing.T) {
 		f := newAutomaticDNSFixture(t)
 		f.udpAnswers.Store(true)
 		f.rcode.Store(rcode)
-		answer, err := exchangeAutomaticDNS(t.Context(), f.endpoint, dnsQuery("negative.example"), nil)
+		var preference dnsTransportPreference
+		preference.Store(false)
+		answer, err := exchangeAutomaticDNS(t.Context(), f.endpoint, dnsQuery("negative.example"), &preference)
 		if err != nil || len(answer) < 12 || uint32(answer[3]&15) != rcode {
 			t.Fatalf("negative answer changed: code=%d err=%v", rcode, err)
 		}
@@ -175,7 +206,12 @@ func TestAutomaticDNSCancellationDoesNotStartAnotherTransport(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { _, err := exchangeAutomaticDNS(ctx, f.endpoint, dnsQuery("cancel.example"), nil); done <- err }()
+	var preference dnsTransportPreference
+	preference.Store(false)
+	go func() {
+		_, err := exchangeAutomaticDNS(ctx, f.endpoint, dnsQuery("cancel.example"), &preference)
+		done <- err
+	}()
 	until := time.Now().Add(time.Second)
 	for f.udpCalls.Load() == 0 && time.Now().Before(until) {
 		time.Sleep(time.Millisecond)
@@ -236,7 +272,8 @@ func TestWANTransportPreferenceIsInvalidatedByUplinkIdentity(t *testing.T) {
 
 func TestAutomaticWANDNSUsesTCPWhenUDPDoesNotAnswerAndRemembersIt(t *testing.T) {
 	f := newAutomaticDNSFixture(t)
-	snapshot := &wanDNSSnapshot{servers: []Endpoint{f.endpoint}, tcpPreferred: make([]atomic.Bool, 1)}
+	f.tcpDelayMS.Store(1100)
+	snapshot := &wanDNSSnapshot{servers: []Endpoint{f.endpoint}, tcpPreferred: make([]dnsTransportPreference, 1)}
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if _, err := exchangeWANDNS(ctx, snapshot, dnsQuery("first.example")); err != nil {
@@ -257,7 +294,7 @@ func TestAutomaticDNSRecoversUDPIfPreferredTCPStopsWorking(t *testing.T) {
 	f := newAutomaticDNSFixture(t)
 	f.udpAnswers.Store(true)
 	f.tcpAnswers.Store(false)
-	var preference atomic.Bool
+	var preference dnsTransportPreference
 	preference.Store(true)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
@@ -313,6 +350,34 @@ func TestDirectPreflightCarriesWorkingTCPIntoTheDNSListener(t *testing.T) {
 	}
 	if f.udpCalls.Load() != 1 || f.tcpCalls.Load() != 2 {
 		t.Fatal("listener repeated the failed UDP preflight")
+	}
+}
+
+func TestDirectPreflightCarriesKnownUDPIntoTheDNSListener(t *testing.T) {
+	f := newAutomaticDNSFixture(t)
+	f.udpAnswers.Store(true)
+	f.udpDelayMS.Store(1100)
+	f.tcpAnswers.Store(false)
+	raw := "dns://" + f.endpoint.Address
+	bootstrap, err := PreflightDirect(t.Context(), raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := Prepare(Config{Port: 1053, ProxyPort: 19080, ProxyURL: "https://1.1.1.1/dns-query", DirectURL: raw, DirectBootstrapIP: bootstrap.IP, DirectBootstrap: bootstrap, Mode: "proxy-only", DefaultPolicy: "main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !prepared.server.directTCPPreferred.Known() || prepared.server.directTCPPreferred.Load() {
+		t.Fatal("known UDP preflight was lost")
+	}
+	f.udpDelayMS.Store(1100)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	if _, err := exchangeAutomaticDNS(ctx, f.endpoint, dnsQuery("known-udp-runtime.example"), &prepared.server.directTCPPreferred); err != nil {
+		t.Fatal(err)
+	}
+	if f.udpCalls.Load() != 2 || f.tcpCalls.Load() != 1 {
+		t.Fatal("known UDP was cold-probed again")
 	}
 }
 

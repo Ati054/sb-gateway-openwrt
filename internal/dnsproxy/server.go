@@ -81,7 +81,7 @@ type server struct {
 	policyProxies         map[string]*http.Client
 	direct                *http.Client
 	directAddress         string
-	directTCPPreferred    atomic.Bool
+	directTCPPreferred    dnsTransportPreference
 	prefixes              []policyPrefix
 	matcherMu             sync.RWMutex
 	matchers              map[string]domainMatcher
@@ -235,8 +235,8 @@ func Prepare(config Config) (*Prepared, error) {
 		matchers:      matchers,
 	}
 	s.clientMemory = newMemoryGate(s.clientBudget, dnsClientMemory)
-	if config.DirectBootstrap.upstream == config.DirectURL {
-		s.directTCPPreferred.Store(config.DirectBootstrap.tcpPreferred)
+	if config.DirectBootstrap.upstream == config.DirectURL && config.DirectBootstrap.transportKnown {
+		s.directTCPPreferred.remember(config.DirectBootstrap.tcpPreferred, config.DirectBootstrap.transportRTT)
 	}
 	if directEndpoint.Protocol == "wan" {
 		lookup := config.WANNameservers
