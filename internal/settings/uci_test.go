@@ -183,7 +183,7 @@ func TestReadUCIDNSProtocols(t *testing.T) {
 		"resproxy.main.dns_direct_provider": "adguard",
 	}))
 	if err != nil || config.DNSProxyURL != "tls://dns.quad9.net:853" ||
-		config.DNSDirectURL != "udp://94.140.14.14:53" {
+		config.DNSDirectURL != "dns://94.140.14.14:53" {
 		t.Fatalf("DNS protocols not resolved: %+v %v", config, err)
 	}
 	if _, err := ReadUCI(context.Background(), fake(map[string]string{

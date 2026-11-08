@@ -25,6 +25,7 @@ func TestParseEndpoint(t *testing.T) {
 		{"tls://dns.google:853", false, "dot"},
 		{"tcp://1.1.1.1:53", false, "tcp"},
 		{"udp://1.1.1.1:53", true, "udp"},
+		{"dns://192.0.2.53:5353", true, "dns"},
 	} {
 		parsed, err := ParseEndpoint(item.address, item.direct)
 		if err != nil || parsed.Protocol != item.want {
@@ -36,6 +37,8 @@ func TestParseEndpoint(t *testing.T) {
 		direct  bool
 	}{
 		{"udp://1.1.1.1:53", false},
+		{"dns://1.1.1.1:53", false},
+		{"dns://resolver.example:53", true},
 		{"tcp://dns.google:53", false},
 		{"tls://user:pass@dns.google:853", false},
 		{"tls://dns.google:853/path", false},

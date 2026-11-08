@@ -2368,3 +2368,6 @@ msgstr "DNS ارائه‌دهندهٔ اینترنت"
 
 msgid "Rejected input: %s."
 msgstr "ردشده در ورودی: %s."
+
+msgid "WAN DNS is unavailable. OpenWrt DNS remains active."
+msgstr "DNS مسیر WAN در دسترس نیست. DNS خود OpenWrt همچنان فعال است."

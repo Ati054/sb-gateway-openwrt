@@ -18,6 +18,7 @@ type DNSInterop struct {
 	EffectiveMode      string `json:"effective_mode"`
 	Reason             string `json:"reason,omitempty"`
 	ConflictingService string `json:"conflicting_service,omitempty"`
+	HandoffConfirmed   bool   `json:"handoff_confirmed,omitempty"`
 }
 
 var dnsPort53 = regexp.MustCompile(`(^|[^0-9])53([^0-9]|$)`)

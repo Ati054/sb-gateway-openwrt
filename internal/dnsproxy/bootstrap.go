@@ -9,33 +9,58 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
 // BootstrapDirect pins an independently resolved direct DNS endpoint before
 // dnsmasq is pointed at this process. This prevents a recursive DoH lookup.
 // It also proves the chosen WAN resolver can answer without Xray.
+type DirectBootstrap struct {
+	IP           string
+	upstream     string
+	wan          *wanDNSSnapshot
+	tcpPreferred bool
+}
+
+func directProbeQuery() []byte {
+	return []byte{0x72, 0x34, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+		7, 'e', 'x', 'a', 'm', 'p', 'l', 'e', 3, 'c', 'o', 'm', 0, 0, 1, 0, 1}
+}
+
 func BootstrapDirect(ctx context.Context, raw string) (string, error) {
+	prepared, err := PreflightDirect(ctx, raw)
+	return prepared.IP, err
+}
+
+// Preserve the tested resolver and transport through DNS ownership changes.
+// Otherwise the first real requests would repeat a failed UDP preflight.
+func PreflightDirect(ctx context.Context, raw string) (DirectBootstrap, error) {
+	if raw == WANResolverURL {
+		state := &wanDNSState{lookup: discoverWANDNS}
+		if err := state.refresh(ctx); err != nil {
+			return DirectBootstrap{}, err
+		}
+		response, err := exchangeWANDNS(ctx, state.current.Load(), directProbeQuery())
+		if err != nil {
+			return DirectBootstrap{}, err
+		}
+		if len(response) < 12 || response[3]&15 != 0 {
+			return DirectBootstrap{}, errors.New("WAN DNS preflight returned no valid answer")
+		}
+		return DirectBootstrap{upstream: raw, wan: state.current.Load()}, nil
+	}
+	var preferred atomic.Bool
+	ip, err := bootstrapDirectEndpoint(ctx, raw, &preferred)
+	return DirectBootstrap{IP: ip, upstream: raw, tcpPreferred: preferred.Load()}, err
+}
+
+func bootstrapDirectEndpoint(ctx context.Context, raw string, tcpPreferred *atomic.Bool) (string, error) {
 	endpoint, err := ParseEndpoint(raw, true)
 	if err != nil {
 		return "", err
 	}
-	query := []byte{0x72, 0x34, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0,
-		7, 'e', 'x', 'a', 'm', 'p', 'l', 'e', 3, 'c', 'o', 'm', 0, 0, 1, 0, 1}
-	if endpoint.Protocol == "wan" {
-		state := &wanDNSState{lookup: discoverWANDNS}
-		if err := state.refresh(ctx); err != nil {
-			return "", err
-		}
-		response, err := exchangeWANDNS(ctx, state.current.Load(), query)
-		if err != nil {
-			return "", err
-		}
-		if len(response) < 12 || response[3]&15 != 0 {
-			return "", errors.New("WAN DNS preflight returned no valid answer")
-		}
-		return "", nil
-	}
+	query := directProbeQuery()
 	address, port, err := net.SplitHostPort(endpoint.Address)
 	if err != nil {
 		return "", err
@@ -68,6 +93,8 @@ func BootstrapDirect(ctx context.Context, raw string) (string, error) {
 			}}
 		defer transport.CloseIdleConnections()
 		response, err = exchangeDoH(probeCtx, &http.Client{Transport: transport, Timeout: 6 * time.Second}, raw, query)
+	} else if endpoint.Protocol == "dns" {
+		response, err = exchangeAutomaticDNS(probeCtx, endpoint, query, tcpPreferred)
 	} else {
 		endpoint.Address = net.JoinHostPort(address, port)
 		response, err = exchangeWire(probeCtx, endpoint, query, true, 0)

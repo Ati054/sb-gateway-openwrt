@@ -2368,3 +2368,6 @@ msgstr "ISP DNS through WAN"
 
 msgid "Rejected input: %s."
 msgstr "Rejected input: %s."
+
+msgid "WAN DNS is unavailable. OpenWrt DNS remains active."
+msgstr "WAN DNS is unavailable. OpenWrt DNS remains active."

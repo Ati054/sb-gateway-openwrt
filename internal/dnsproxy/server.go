@@ -60,6 +60,7 @@ type Config struct {
 	ProxyURL          string
 	DirectURL         string
 	DirectBootstrapIP string                                    // resolved before taking over router DNS
+	DirectBootstrap   DirectBootstrap                           `json:"-"`
 	WANNameservers    func(context.Context) ([]Endpoint, error) `json:"-"` // nil uses active netifd WAN connections
 	WANChanges        <-chan struct{}                           `json:"-"` // netifd interface notifications, coalesced by the controller
 	Mode              string                                    // proxy-only or proxy-fallback-wan
@@ -80,6 +81,7 @@ type server struct {
 	policyProxies         map[string]*http.Client
 	direct                *http.Client
 	directAddress         string
+	directTCPPreferred    atomic.Bool
 	prefixes              []policyPrefix
 	matcherMu             sync.RWMutex
 	matchers              map[string]domainMatcher
@@ -233,12 +235,18 @@ func Prepare(config Config) (*Prepared, error) {
 		matchers:      matchers,
 	}
 	s.clientMemory = newMemoryGate(s.clientBudget, dnsClientMemory)
+	if config.DirectBootstrap.upstream == config.DirectURL {
+		s.directTCPPreferred.Store(config.DirectBootstrap.tcpPreferred)
+	}
 	if directEndpoint.Protocol == "wan" {
 		lookup := config.WANNameservers
 		if lookup == nil {
 			lookup = discoverWANDNS
 		}
 		s.wanDNS = &wanDNSState{lookup: lookup}
+		if config.DirectBootstrap.upstream == config.DirectURL && config.DirectBootstrap.wan != nil {
+			s.wanDNS.current.Store(config.DirectBootstrap.wan)
+		}
 	}
 	if config.DirectBootstrapIP != "" {
 		_, port, _ := net.SplitHostPort(directEndpoint.Address)
@@ -1096,6 +1104,8 @@ func (s *server) resolveAsyncPeer(ctx context.Context, query []byte, peer netip.
 			body, err = exchangeDoH(lookupCtx, client, endpoint, query)
 		} else if parsed.Protocol == "wan" {
 			body, err = exchangeWANDNS(lookupCtx, wanSnapshot, query)
+		} else if parsed.Protocol == "dns" {
+			body, err = exchangeAutomaticDNS(lookupCtx, parsed, query, &s.directTCPPreferred)
 		} else {
 			if viaWAN && s.directAddress != "" {
 				parsed.Address = s.directAddress
@@ -1179,6 +1189,12 @@ func (s *server) rejectInput(query []byte, peer netip.AddrPort, ingress dnsIngre
 }
 
 func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct bool, proxyPort int) (result []byte, resultErr error) {
+	if endpoint.Protocol == "dns" {
+		if !direct {
+			return nil, errors.New("automatic UDP/TCP DNS requires a WAN path")
+		}
+		return exchangeAutomaticDNS(ctx, endpoint, query, nil)
+	}
 	requestCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	defer func() {
@@ -1239,6 +1255,8 @@ func exchangeWire(ctx context.Context, endpoint Endpoint, query []byte, direct b
 			return nil, err
 		}
 		if n >= 3 && buffer[2]&0x02 != 0 {
+			// Release UDP before opening the TCP fallback socket.
+			conn.Close()
 			fallback := endpoint
 			fallback.Protocol = "tcp"
 			return exchangeWire(requestCtx, fallback, query, true, proxyPort)

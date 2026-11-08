@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"os/exec"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -21,9 +22,10 @@ const WANResolverURL = "wan://auto"
 var errWANDNSUnavailable = errors.New("WAN connection has no usable DNS server")
 
 type wanDNSSnapshot struct {
-	servers   []Endpoint
-	key       string
-	preferred atomic.Uint32
+	servers      []Endpoint
+	key          string
+	preferred    atomic.Uint32
+	tcpPreferred []atomic.Bool
 }
 
 type wanDNSState struct {
@@ -48,14 +50,17 @@ func parseWANDNS(body []byte, local map[netip.Addr]bool) ([]Endpoint, error) {
 		Mask    int    `json:"mask"`
 	}
 	type iface struct {
-		Up     bool      `json:"up"`
-		Name   string    `json:"interface"`
-		Proto  string    `json:"proto"`
-		Device string    `json:"l3_device"`
-		DNS    []string  `json:"dns-server"`
-		Routes []route   `json:"route"`
-		IPv4   []address `json:"ipv4-address"`
-		IPv6   []address `json:"ipv6-address"`
+		Up       bool      `json:"up"`
+		Name     string    `json:"interface"`
+		Proto    string    `json:"proto"`
+		Device   string    `json:"l3_device"`
+		DNS      []string  `json:"dns-server"`
+		Routes   []route   `json:"route"`
+		IPv4     []address `json:"ipv4-address"`
+		IPv6     []address `json:"ipv6-address"`
+		Inactive struct {
+			DNS []string `json:"dns-server"`
+		} `json:"inactive"`
 	}
 	var dump struct {
 		Interfaces []iface `json:"interface"`
@@ -108,7 +113,23 @@ func parseWANDNS(body []byte, local map[netip.Addr]bool) ([]Endpoint, error) {
 			Routes       []route
 		}{c.info.Name, c.info.Device, c.info.IPv4, c.info.IPv6, c.info.Routes})
 		identity := string(identityBody)
-		for _, text := range c.info.DNS {
+		// peerdns=0 excludes DHCP DNS from the router's system resolver but
+		// netifd still exposes it under inactive.dns-server. This code runs
+		// only for an explicit ISP-DNS selection. Preserve valid active DNS;
+		// otherwise use the advertised peers without editing network UCI.
+		addresses := c.info.DNS
+		usable := func(text string) bool {
+			ip, err := netip.ParseAddr(text)
+			if err != nil {
+				return false
+			}
+			ip = ip.Unmap()
+			return !ip.IsUnspecified() && !ip.IsLoopback() && !ip.IsMulticast() && !local[ip.WithZone("")]
+		}
+		if !slices.ContainsFunc(addresses, usable) {
+			addresses = c.info.Inactive.DNS
+		}
+		for _, text := range addresses {
 			ip, err := netip.ParseAddr(text)
 			if err != nil {
 				continue
@@ -196,6 +217,7 @@ func (w *wanDNSState) refresh(ctx context.Context) error {
 			identity.WriteByte('\n')
 		}
 		if len(next.servers) > 0 {
+			next.tcpPreferred = make([]atomic.Bool, len(next.servers))
 			sum := sha256.Sum256([]byte(identity.String()))
 			next.key = hex.EncodeToString(sum[:16])
 		}
@@ -250,19 +272,24 @@ func exchangeWANDNS(ctx context.Context, snapshot *wanDNSSnapshot, query []byte)
 	defer cancel()
 	var last error
 	start := int(snapshot.preferred.Load()) % len(servers)
-	for index := range servers {
+	attempts := len(servers)
+	if !repeatableDNSQuery(query) {
+		attempts = 1
+	}
+	for index := range attempts {
 		selected := (start + index) % len(servers)
 		endpoint := servers[selected]
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		deadline, _ := ctx.Deadline()
-		attempt, cancelAttempt := context.WithTimeout(ctx, time.Until(deadline)/time.Duration(len(servers)-index))
-		body, err := exchangeWire(attempt, endpoint, query, true, 0)
-		cancelAttempt()
-		if err == nil && !matchingQuestion(query, body) {
-			err = errDNSResponseMismatch
+		attempt, cancelAttempt := context.WithTimeout(ctx, time.Until(deadline)/time.Duration(attempts-index))
+		var transport *atomic.Bool
+		if selected < len(snapshot.tcpPreferred) {
+			transport = &snapshot.tcpPreferred[selected]
 		}
+		body, err := exchangeAutomaticDNS(attempt, endpoint, query, transport)
+		cancelAttempt()
 		if err == nil {
 			snapshot.preferred.Store(uint32(selected))
 			return body, nil

@@ -49,8 +49,13 @@ return view.extend({
 		var directProtocol = section.option(form.ListValue, 'dns_direct_protocol', _('Protocol through WAN'));
 		directProtocol.value('doh', 'DNS-over-HTTPS (DoH)');
 		directProtocol.value('dot', 'DNS-over-TLS (DoT)');
-		directProtocol.value('tcp', 'DNS/TCP');
-		directProtocol.value('udp', 'DNS/UDP');
+		directProtocol.value('dns', 'DNS (UDP/TCP)');
+		var loadDirectProtocol = directProtocol.load;
+		directProtocol.load = function(section_id) {
+			return Promise.resolve(loadDirectProtocol.call(this, section_id)).then(function(value) {
+				return value === 'tcp' || value === 'udp' ? 'dns' : value;
+			});
+		};
 		directProtocol.depends({'dns_direct_provider':'isp','!reverse':true});
 		directProtocol.default = 'doh';
 		directProtocol.rmempty = false;
@@ -68,7 +73,7 @@ return view.extend({
 		directProvider.rmempty = false;
 		var direct = section.option(form.Value, 'dns_direct_url', _('DNS address through WAN'));
 		direct.default = 'https://1.1.1.1/dns-query';
-		direct.placeholder = 'https://… · tls://… · tcp://IP:53 · udp://IP:53';
+		direct.placeholder = 'https://… · tls://… · dns://IP:53';
 		direct.rmempty = false;
 		direct.retain = true;
 		direct.depends('dns_direct_provider', 'custom');

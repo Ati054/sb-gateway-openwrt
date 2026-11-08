@@ -213,7 +213,9 @@ func TestUDPDuplicatesUseOneUpstreamWorker(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	stats := waitDNSStats(t, s, func(m map[string]uint64) bool { return m["waiting_shared"] == 63 })
+	stats := waitDNSStats(t, s, func(m map[string]uint64) bool {
+		return m["waiting_shared"] == 63 && calls.Load() > 0
+	})
 	if stats["active_upstream"] != 1 || calls.Load() != 1 {
 		t.Fatalf("UDP copies created separate workers: %v calls=%d", stats, calls.Load())
 	}

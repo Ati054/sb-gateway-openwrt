@@ -2368,3 +2368,6 @@ msgstr "DNS провайдера WAN"
 
 msgid "Rejected input: %s."
 msgstr "Отклонено на входе: %s."
+
+msgid "WAN DNS is unavailable. OpenWrt DNS remains active."
+msgstr "DNS через WAN недоступен. Сохранён DNS OpenWrt."

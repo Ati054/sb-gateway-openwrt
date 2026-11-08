@@ -191,6 +191,19 @@ try {
   files['dns-status.json']={queries:100,failures:14};
   await poller();
   if(dnsValue('Errors')!=='14' || dnsHelp().title!=='DNS errors: 14. Failed DNS resolution or routing.')throw Error('Legacy DNS totals lost their meaning');
+  files['dns-interop.json']={effective_mode:'system',reason:'https-dns-proxy-running'};
+  await poller();
+  const takeoverWarning=()=>Array.from(dashboard.querySelectorAll('.alert-message')).find(node=>!node.hidden && (node.textContent.includes('Configure DNS takeover') || node.textContent.includes('DNS takeover failed')));
+  if(takeoverWarning()?.textContent!=='https-dns-proxy is running. Configure DNS takeover on the DNS page.')throw Error('Unconfirmed DNS takeover lost its instruction');
+  files['dns-interop.json'].handoff_confirmed=true;
+  await poller();
+  if(takeoverWarning()?.textContent!=='DNS takeover failed; previous DNS restored. See the journal.')throw Error('Confirmed failed DNS takeover incorrectly asks for confirmation again');
+  files['dns-interop.json'].reason='wan-dns-preflight-failed';
+  await poller();
+  if(!Array.from(dashboard.querySelectorAll('.alert-message')).some(node=>!node.hidden && node.textContent==='WAN DNS is unavailable. OpenWrt DNS remains active.'))throw Error('Unavailable WAN DNS hid the actual reason behind a repeated consent instruction');
+  files['dns-interop.json']={effective_mode:'proxy-only',handoff_confirmed:true};
+  await poller();
+  if(takeoverWarning())throw Error('Recovered DNS takeover retained its failure warning');
   for(const [phase,label] of [['starting','Waiting for service startup'],['queued','waiting for its turn'],['downloading','Downloading rule databases'],['applying','Applying rule databases'],['unused','No downloadable rule databases']]) {
    files['rulesets-status.json']={phase,packs:[{id:'youtube',state:'pending',entries:0}]};
    await poller();
@@ -271,7 +284,7 @@ try {
 	if(journalOutput.textContent.includes('system-only entry'))throw Error('Search restored lines from a failed old category');
   await new Promise(resolve => setTimeout(resolve, 50));
   if (document.querySelector('img,svg,script') || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
-  return {negativeControl:true, health:true, picker:true, commaAlternatives:true, quotedNames:true, sharedNameCases:nameCases.length, exclusionPrecedence:true, deltaSigns:true, scalarAndCallback:true, overviewMonitoring:true, overviewTransientErrors:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
+  return {negativeControl:true, health:true, picker:true, commaAlternatives:true, quotedNames:true, sharedNameCases:nameCases.length, exclusionPrecedence:true, deltaSigns:true, scalarAndCallback:true, overviewMonitoring:true, overviewTransientErrors:true, dnsTakeoverStatus:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
  }, { sources, stockDOM, nameCases });
  assert.deepEqual(errors, []);
  console.log(JSON.stringify(result));

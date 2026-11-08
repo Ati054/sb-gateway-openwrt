@@ -191,10 +191,11 @@ func TestWANFailoverUsesSharedDeadlineAndKeepsWorkingResolver(t *testing.T) {
 	if snapshot.preferred.Load() != 1 {
 		t.Fatal("healthy ISP resolver was not retained")
 	}
+	failedCalls := slowCalls.Load()
 	if _, err := exchangeWANDNS(t.Context(), snapshot, dnsQuery("second.example")); err != nil {
 		t.Fatal(err)
 	}
-	if slowCalls.Load() != 1 || healthyCalls.Load() != 2 {
+	if failedCalls < 1 || failedCalls > 2 || slowCalls.Load() != failedCalls || healthyCalls.Load() != 2 {
 		t.Fatalf("kept retrying the failed resolver: %d/%d", slowCalls.Load(), healthyCalls.Load())
 	}
 }

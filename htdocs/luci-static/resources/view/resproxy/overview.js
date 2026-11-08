@@ -114,7 +114,8 @@ return view.extend({
    addPair(dns,E('span',{title:dnsHelp,tabindex:'0','aria-label':_('Errors')+'. '+dnsHelp},_('Errors')),dnsErrors);
    var interop=status && status.dns_interop;
    var warning={
-    'https-dns-proxy-running':_('https-dns-proxy is running. Configure DNS takeover on the DNS page.'),
+    'https-dns-proxy-running':interop && interop.handoff_confirmed ? _('DNS takeover failed; previous DNS restored. See the journal.') : _('https-dns-proxy is running. Configure DNS takeover on the DNS page.'),
+    'wan-dns-preflight-failed':_('WAN DNS is unavailable. OpenWrt DNS remains active.'),
     'other-dns-service':_('Another DNS service is running; DNS capture is disabled.'),
     'other-dns-redirect':_('Another DNS redirect is present; DNS capture is disabled.'),
     'firewall-inspection-failed':_('Unable to inspect firewall; DNS capture is disabled.'),

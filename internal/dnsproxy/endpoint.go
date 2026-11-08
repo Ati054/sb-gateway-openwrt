@@ -54,13 +54,19 @@ func ParseEndpoint(raw string, direct bool) (Endpoint, error) {
 		}
 		result.Protocol = "udp"
 		defaultPort = "53"
+	case "dns":
+		if !direct {
+			return Endpoint{}, errors.New("automatic UDP/TCP DNS is supported only through WAN")
+		}
+		result.Protocol = "dns"
+		defaultPort = "53"
 	default:
 		return Endpoint{}, fmt.Errorf("unsupported DNS protocol %q", u.Scheme)
 	}
 	if result.Protocol != "doh" && (u.Path != "" || u.RawPath != "") {
 		return Endpoint{}, errors.New("DNS upstream path is not allowed")
 	}
-	if result.Protocol == "tcp" || result.Protocol == "udp" {
+	if result.Protocol == "tcp" || result.Protocol == "udp" || result.Protocol == "dns" {
 		if _, err := netip.ParseAddr(result.ServerName); err != nil {
 			return Endpoint{}, errors.New("plain DNS upstream must be an IP address")
 		}

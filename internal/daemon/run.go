@@ -193,6 +193,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	captureDNSPort := 0
 	dnsInterop := DNSInterop{RequestedMode: config.DNSMode, EffectiveMode: "off"}
 	if config.RouteEnabled {
+		var directBootstrap dnsproxy.DirectBootstrap
 		dnsConfig := func(mode, bootstrap string) dnsproxy.Config {
 			policyProxyPorts := make(map[string]int, len(routingBase.Policies))
 			for index, policy := range routingBase.Policies {
@@ -202,7 +203,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				Routes:          routes,
 				TrustLocalRelay: config.Base.ManagedDNSPort != 0,
 				Port:            config.DNSPort, ProxyPort: config.Base.HTTPPort, PolicyProxyPorts: policyProxyPorts,
-				ProxyURL: config.DNSProxyURL, DirectURL: config.DNSDirectURL, DirectBootstrapIP: bootstrap, WANChanges: wanDNSChanges,
+				ProxyURL: config.DNSProxyURL, DirectURL: config.DNSDirectURL, DirectBootstrapIP: bootstrap, DirectBootstrap: directBootstrap, WANChanges: wanDNSChanges,
 				Mode: mode, DefaultPolicy: config.Base.DefaultPolicy, Policies: dnsPoliciesFromBase(routingBase),
 				HealthStatePath: filepath.Join(paths.RunRoot, "health-state", "selector-runtime.json"),
 				StatusPath:      filepath.Join(paths.RunRoot, "dns-status.json"),
@@ -220,11 +221,14 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			}
 		}()
 		handedOff := false
+		directPreflightFailed := false
 		directBootstrapIP := ""
 		if config.DNSMode != "system" {
 			if config.DNSHandoffConfirmed && httpsDNSProxyOps().running() {
-				directBootstrapIP, err = dnsproxy.BootstrapDirect(ctx, config.DNSDirectURL)
+				directBootstrap, err = dnsproxy.PreflightDirect(ctx, config.DNSDirectURL)
+				directBootstrapIP = directBootstrap.IP
 				if err != nil {
+					directPreflightFailed = true
 					log.Printf("resproxy: direct WAN DNS preflight failed; https-dns-proxy retained: %v", err)
 				} else {
 					preparedConfig := dnsConfig(config.DNSMode, directBootstrapIP)
@@ -256,6 +260,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				}
 				dnsInterop = resolveDNSInterop(ctx, config.DNSMode, currentNFTRules, activeExternalDNSService)
 			}
+		}
+		if directPreflightFailed && dnsInterop.Reason == "https-dns-proxy-running" {
+			dnsInterop.Reason = "wan-dns-preflight-failed"
 		}
 		if handedOff && dnsInterop.EffectiveMode == "system" {
 			if err := RestoreDNSHandoff(paths); err != nil {
@@ -315,6 +322,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				}
 			}
 		}
+		dnsInterop.HandoffConfirmed = config.DNSHandoffConfirmed
 		if dnsInterop.Reason != "" {
 			log.Printf("resproxy: DNS coexistence: %s", dnsInterop.Reason)
 		}

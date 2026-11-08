@@ -108,7 +108,17 @@ try {
   if(ispView.querySelector('select[id$=".dns_direct_provider"]').value!=='isp'||!ispView.querySelector('[data-name="dns_direct_protocol"]').classList.contains('hidden'))throw Error('Saved ISP DNS did not reopen correctly');
   const restoreProvider=ispView.querySelector('select[id$=".dns_direct_provider"]');restoreProvider.value='yandex';restoreProvider.dispatchEvent(new Event('change',{bubbles:true}));dnsMap.checkDepends();await turn();
   if(ispView.querySelector('[data-name="dns_direct_protocol"]').classList.contains('hidden')||ispView.querySelector('select[id$=".dns_direct_protocol"]').value!=='doh')throw Error('Returning from ISP DNS lost the selected protocol');
+  const plainProtocol=ispView.querySelector('select[id$=".dns_direct_protocol"]');
+  if(Array.from(plainProtocol.options).filter(option=>option.value==='dns'&&option.textContent==='DNS (UDP/TCP)').length!==1||Array.from(plainProtocol.options).some(option=>option.value==='udp'||option.value==='tcp'))throw Error('WAN plain DNS was not combined into one automatic choice');
+  plainProtocol.value='dns';plainProtocol.dispatchEvent(new Event('change',{bubbles:true}));await dnsMap.parse();
+  if(config.main.dns_direct_protocol!=='dns')throw Error('Automatic WAN DNS choice was not saved');
   ispView.remove();
+  for(const legacy of ['tcp','udp']){
+   config.main.dns_direct_protocol=legacy;
+   const legacyDNS=await dns.render(await dns.load());document.body.append(legacyDNS);await turn();
+   if(legacyDNS.querySelector('select[id$=".dns_direct_protocol"]').value!=='dns')throw Error('Saved plain DNS did not reopen with automatic transport: '+legacy);
+   legacyDNS.remove();
+  }
   const subscription=instantiate(sources.subscription,{sbgTheme:{decorate:n=>n},view:baseclass,plugins:{render:()=>E('div')},form,IntervalValue,fs,uci,ui,rpc,poll,monitor,safeDOM,_});
   config.sub={'.name':'sub','.type':'subscription',id:'Test',url:'https://example.com/sub',fetch_via:'direct-only',update_mode:'daily',update_time:'12:34',max_nodes:'321'};
   const subView=await subscription.render(await subscription.load());document.body.append(subView);

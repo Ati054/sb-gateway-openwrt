@@ -473,6 +473,13 @@ var dnsPresets = map[string]map[string]string{
 		"quad9":      "udp://9.9.9.9:53",
 		"adguard":    "udp://94.140.14.14:53",
 	},
+	"dns": {
+		"cloudflare": "dns://1.1.1.1:53",
+		"google":     "dns://8.8.8.8:53",
+		"yandex":     "dns://77.88.8.8:53",
+		"quad9":      "dns://9.9.9.9:53",
+		"adguard":    "dns://94.140.14.14:53",
+	},
 }
 
 // An absent protocol/provider is a legacy DoH configuration. Preserve its
@@ -486,6 +493,9 @@ func resolveDNSProvider(protocol, provider, customURL string, direct bool) (stri
 	}
 	if protocol == "" {
 		protocol = "doh"
+	}
+	if direct && (protocol == "tcp" || protocol == "udp") {
+		protocol = "dns"
 	}
 	if protocol == "udp" && !direct {
 		return "", errors.New("plain UDP is not available through the Xray HTTP proxy")
@@ -513,6 +523,14 @@ func resolveDNSProvider(protocol, provider, customURL string, direct bool) (stri
 	parsed, err := dnsproxy.ParseEndpoint(endpoint, direct)
 	if err != nil {
 		return "", err
+	}
+	if direct && protocol == "dns" && (parsed.Protocol == "tcp" || parsed.Protocol == "udp") {
+		value, err := url.Parse(endpoint)
+		if err != nil {
+			return "", err
+		}
+		value.Scheme = "dns"
+		return value.String(), nil
 	}
 	if parsed.Protocol != protocol {
 		return "", fmt.Errorf("DNS address protocol must be %s", protocol)

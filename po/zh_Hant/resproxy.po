@@ -2368,3 +2368,6 @@ msgstr "網路業者 DNS"
 
 msgid "Rejected input: %s."
 msgstr "入口拒絕：%s。"
+
+msgid "WAN DNS is unavailable. OpenWrt DNS remains active."
+msgstr "WAN DNS 無法使用，繼續使用 OpenWrt DNS。"
