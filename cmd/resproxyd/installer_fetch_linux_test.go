@@ -20,10 +20,16 @@ func TestInstallerFetchReportsDownloadFailure(t *testing.T) {
 	}
 	source := string(body)
 	start := strings.Index(source, "fetch() {")
-	end := strings.Index(source, "\necho 'Checking release...'")
-	if start < 0 || end <= start {
+	if start < 0 {
 		t.Fatal("installer download function not found")
 	}
+	// Test the downloader itself; the following installer action can be an
+	// online release check or a local signed-APK migration.
+	closing := strings.Index(source[start:], "\n}\n")
+	if closing < 0 {
+		t.Fatal("installer download function is incomplete")
+	}
+	end := start + closing + len("\n}\n")
 	for _, tc := range []struct {
 		name, payload, diagnostic, want string
 		status, limit                   int

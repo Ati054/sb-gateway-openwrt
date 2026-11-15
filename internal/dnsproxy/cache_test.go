@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
 )
 
 func TestCacheLRUEvictsColdEntryWithinByteBudget(t *testing.T) {

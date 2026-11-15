@@ -264,13 +264,17 @@ func (controller *healthController) probeEmergencyCandidates(now time.Time, poli
 		return true
 	}
 
-	if urgent, ok := controller.runtime.(emergencyAvailabilityRuntime); ok && len(candidates) > 0 {
+	if scoped, ok := controller.runtime.(interface {
+		ProbeAvailabilityParallelForPolicy(policyProbeScope, []string, func(string, probeEvidence) bool, bool) map[string]probeEvidence
+	}); ok && len(candidates) > 0 {
+		measured = scoped.ProbeAvailabilityParallelForPolicy(controller.probeScope(policyID), candidates, accept, true)
+	} else if urgent, ok := controller.runtime.(emergencyAvailabilityRuntime); ok && len(candidates) > 0 {
 		measured = urgent.ProbeEmergencyAvailabilityParallel(candidates, accept)
 	} else if parallel, ok := controller.runtime.(parallelAvailabilityRuntime); ok && len(candidates) > 1 {
 		measured = parallel.ProbeAvailabilityParallel(candidates, accept)
 	} else {
 		for _, candidate := range candidates {
-			evidence := controller.runtime.ProbeAvailability(candidate)
+			evidence := controller.probeAvailability(policyID, candidate, availabilityProbeRequest{Emergency: true})
 			if evidence.LocalFailure {
 				return measured, selected, errProbeSelectorUnavailable
 			}

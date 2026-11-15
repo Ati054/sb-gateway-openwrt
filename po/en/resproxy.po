@@ -2,10 +2,10 @@ msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: en\nPlural-Forms: nplurals=2; plural=(n != 1);\n"
 
 msgid "Resilient Proxy"
-msgstr "Resilient Proxy"
+msgstr "XRoute"
 
-msgid "SB Gateway for OpenWrt"
-msgstr "SB Gateway for OpenWrt"
+msgid "XRoute"
+msgstr "XRoute"
 
 msgid "Package update"
 msgstr "Package update"
@@ -49,8 +49,8 @@ msgstr "Installing version %s…"
 msgid "Choose APK and update"
 msgstr "Choose APK and update"
 
-msgid "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
-msgstr "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgid "Only XRoute is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgstr "Only XRoute is updated. The proxy service briefly restarts; subscription updates remain restart-free."
 
 msgid "New source"
 msgstr "New source"
@@ -1343,8 +1343,8 @@ msgstr "List"
 msgid "ms"
 msgstr "ms"
 
-msgid "Enable SB Gateway"
-msgstr "Enable SB Gateway"
+msgid "Enable XRoute"
+msgstr "Enable XRoute"
 
 msgid "Device routing"
 msgstr "Device routing"
@@ -1385,8 +1385,8 @@ msgstr "Check the subscription fields."
 msgid "Could not save subscription settings."
 msgstr "Could not save subscription settings."
 
-msgid "Subscription saved. Enable SB Gateway in Overview."
-msgstr "Subscription saved. Enable SB Gateway in Overview."
+msgid "Subscription saved. Enable XRoute in Overview."
+msgstr "Subscription saved. Enable XRoute in Overview."
 
 msgid "Could not apply subscription settings."
 msgstr "Could not apply subscription settings."
@@ -1739,8 +1739,8 @@ msgstr "Xray is near its open-file limit."
 msgid "Xray was stopped by the kernel for lack of memory. See the journal."
 msgstr "Xray was stopped by the kernel for lack of memory. See the journal."
 
-msgid "Finish configuring route lists before enabling SB Gateway."
-msgstr "Finish configuring route lists before enabling SB Gateway."
+msgid "Finish configuring route lists before enabling XRoute."
+msgstr "Finish configuring route lists before enabling XRoute."
 
 msgid "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
 msgstr "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
@@ -2342,8 +2342,8 @@ msgstr "No downloadable rule databases are used by route lists."
 msgid "Rule database update finished with errors."
 msgstr "Rule database update finished with errors."
 
-msgid "Start SB Gateway to load rule databases."
-msgstr "Start SB Gateway to load rule databases."
+msgid "Start XRoute to load rule databases."
+msgstr "Start XRoute to load rule databases."
 
 msgid "Waiting for automatic rule database loading."
 msgstr "Waiting for automatic rule database loading."
@@ -2354,8 +2354,8 @@ msgstr "Cached"
 msgid "Waiting for download"
 msgstr "Waiting for download"
 
-msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
-msgstr "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
+msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while XRoute is running."
+msgstr "Attach rules to a route list and apply the settings. Missing databases load automatically while XRoute is running."
 
 msgid "All supported nodes are imported; data-size and storage limits still apply."
 msgstr "All supported nodes are imported; data-size and storage limits still apply."
@@ -2371,3 +2371,6 @@ msgstr "Rejected input: %s."
 
 msgid "WAN DNS is unavailable. OpenWrt DNS remains active."
 msgstr "WAN DNS is unavailable. OpenWrt DNS remains active."
+
+msgid "Unable to inspect DNS services; OpenWrt DNS remains active."
+msgstr "Unable to inspect DNS services; OpenWrt DNS remains active."

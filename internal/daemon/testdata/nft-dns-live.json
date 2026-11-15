@@ -1,0 +1,1300 @@
+[
+  {
+    "name": "literal",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 122
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 2,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": 53
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": true
+  },
+  {
+    "name": "exclude-dns",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 123
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 2,
+            "expr": [
+              {
+                "match": {
+                  "op": "!=",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": 53
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": false
+  },
+  {
+    "name": "not-https",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 124
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 2,
+            "expr": [
+              {
+                "match": {
+                  "op": "!=",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": 443
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": true
+  },
+  {
+    "name": "inline",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 125
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "tcp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": {
+                    "set": [
+                      53,
+                      853
+                    ]
+                  }
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": true
+  },
+  {
+    "name": "range-in",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 126
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 2,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": {
+                    "range": [
+                      50,
+                      60
+                    ]
+                  }
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": true
+  },
+  {
+    "name": "range-out",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 127
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 2,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": {
+                    "range": [
+                      80,
+                      90
+                    ]
+                  }
+                }
+              },
+              {
+                "redirect": {
+                  "port": 53
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": false
+  },
+  {
+    "name": "comment",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 128
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 2,
+            "comment": "dport 53 redirect",
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "tcp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": 443
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": false
+  },
+  {
+    "name": "address",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 129
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 2,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "ip",
+                      "field": "daddr"
+                    }
+                  },
+                  "right": "192.0.2.53"
+                }
+              },
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "tcp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": 443
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": false
+  },
+  {
+    "name": "generic",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 130
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "meta": {
+                      "key": "l4proto"
+                    }
+                  },
+                  "right": {
+                    "set": [
+                      6,
+                      17
+                    ]
+                  }
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": true
+  },
+  {
+    "name": "transport-header",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 131
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "meta": {
+                      "key": "l4proto"
+                    }
+                  },
+                  "right": {
+                    "set": [
+                      6,
+                      17
+                    ]
+                  }
+                }
+              },
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "th",
+                      "field": "dport"
+                    }
+                  },
+                  "right": 53
+                }
+              },
+              {
+                "tproxy": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": true
+  },
+  {
+    "name": "named-dns",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 132
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "set": {
+            "family": "inet",
+            "name": "ports",
+            "table": "sb_dns_fixture",
+            "type": "inet_service",
+            "handle": 2
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": "@ports"
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [
+      {
+        "family": "inet",
+        "name": "ports",
+        "table": "sb_dns_fixture",
+        "type": "inet_service",
+        "handle": 2,
+        "elem": [
+          53
+        ]
+      }
+    ],
+    "want": true
+  },
+  {
+    "name": "named-web",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 133
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "set": {
+            "family": "inet",
+            "name": "ports",
+            "table": "sb_dns_fixture",
+            "type": "inet_service",
+            "handle": 2
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": "@ports"
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [
+      {
+        "family": "inet",
+        "name": "ports",
+        "table": "sb_dns_fixture",
+        "type": "inet_service",
+        "handle": 2,
+        "elem": [
+          443
+        ]
+      }
+    ],
+    "want": false
+  },
+  {
+    "name": "named-empty",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 134
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "set": {
+            "family": "inet",
+            "name": "ports",
+            "table": "sb_dns_fixture",
+            "type": "inet_service",
+            "handle": 2
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": "@ports"
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [
+      {
+        "family": "inet",
+        "name": "ports",
+        "table": "sb_dns_fixture",
+        "type": "inet_service",
+        "handle": 2
+      }
+    ],
+    "want": false
+  },
+  {
+    "name": "named-range",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 135
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "set": {
+            "family": "inet",
+            "name": "ports",
+            "table": "sb_dns_fixture",
+            "type": "inet_service",
+            "handle": 2,
+            "flags": [
+              "interval"
+            ]
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": "@ports"
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [
+      {
+        "family": "inet",
+        "name": "ports",
+        "table": "sb_dns_fixture",
+        "type": "inet_service",
+        "handle": 2,
+        "flags": [
+          "interval"
+        ],
+        "elem": [
+          {
+            "range": [
+              50,
+              60
+            ]
+          }
+        ]
+      }
+    ],
+    "want": true
+  },
+  {
+    "name": "named-inverse",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 136
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "set": {
+            "family": "inet",
+            "name": "ports",
+            "table": "sb_dns_fixture",
+            "type": "inet_service",
+            "handle": 2
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "!=",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": "@ports"
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [
+      {
+        "family": "inet",
+        "name": "ports",
+        "table": "sb_dns_fixture",
+        "type": "inet_service",
+        "handle": 2,
+        "elem": [
+          53
+        ]
+      }
+    ],
+    "want": false
+  },
+  {
+    "name": "named-inverse-web",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb_dns_fixture",
+            "handle": 137
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "set": {
+            "family": "inet",
+            "name": "ports",
+            "table": "sb_dns_fixture",
+            "type": "inet_service",
+            "handle": 2
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb_dns_fixture",
+            "chain": "sample",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "!=",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": "@ports"
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [
+      {
+        "family": "inet",
+        "name": "ports",
+        "table": "sb_dns_fixture",
+        "type": "inet_service",
+        "handle": 2,
+        "elem": [
+          443
+        ]
+      }
+    ],
+    "want": true
+  },
+  {
+    "name": "quoted-identifiers",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "sb dns fixture",
+            "handle": 138
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "sb dns fixture",
+            "name": "dns chain",
+            "handle": 2
+          }
+        },
+        {
+          "set": {
+            "family": "inet",
+            "name": "dns ports",
+            "table": "sb dns fixture",
+            "type": "inet_service",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "sb dns fixture",
+            "chain": "dns chain",
+            "handle": 3,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": "@dns ports"
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [
+      {
+        "family": "inet",
+        "name": "dns ports",
+        "table": "sb dns fixture",
+        "type": "inet_service",
+        "handle": 1,
+        "elem": [
+          53
+        ]
+      }
+    ],
+    "want": true
+  },
+  {
+    "name": "ipv6",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "ip6",
+            "name": "sb_dns_fixture6",
+            "handle": 139
+          }
+        },
+        {
+          "chain": {
+            "family": "ip6",
+            "table": "sb_dns_fixture6",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "ip6",
+            "table": "sb_dns_fixture6",
+            "chain": "sample",
+            "handle": 2,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "tcp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": 53
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": true
+  },
+  {
+    "name": "same-name-foreign-family",
+    "snapshot": {
+      "nftables": [
+        {
+          "metainfo": {
+            "version": "1.1.6",
+            "release_name": "Commodore Bullmoose #7",
+            "json_schema_version": 1
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "name": "resproxy",
+            "handle": 140
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "table": "resproxy",
+            "name": "sample",
+            "handle": 1
+          }
+        },
+        {
+          "rule": {
+            "family": "inet",
+            "table": "resproxy",
+            "chain": "sample",
+            "handle": 2,
+            "expr": [
+              {
+                "match": {
+                  "op": "==",
+                  "left": {
+                    "payload": {
+                      "protocol": "udp",
+                      "field": "dport"
+                    }
+                  },
+                  "right": 53
+                }
+              },
+              {
+                "redirect": {
+                  "port": 5454
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sets": [],
+    "want": true
+  }
+]

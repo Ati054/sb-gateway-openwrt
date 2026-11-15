@@ -1,0 +1,26 @@
+#!/bin/sh
+# Retire only the exact private r6 workaround. APK may protect a locally
+# modified init script even when it is not declared as a conffile.
+set -eu
+init=/etc/init.d/resproxy
+[ -f "$init" ] && [ ! -L "$init" ] || exit 0
+grep -q RESPROXY_NFT_HOTFIX "$init" || exit 0
+pattern='^[[:space:]]*procd_append_param env PATH=/usr/libexec/resproxy-nft-hotfix:/usr/sbin:/usr/bin:/sbin:/bin # RESPROXY_NFT_HOTFIX[[:space:]]*$'
+[ "$(grep -c RESPROXY_NFT_HOTFIX "$init")" = 1 ] &&
+ [ "$(grep -Ec "$pattern" "$init")" = 1 ] || {
+ echo 'Unrecognized private DNS workaround; init was left unchanged' >&2
+ exit 1
+}
+temporary=$(mktemp "$init.dns-migrate.XXXXXX")
+trap 'rm -f "$temporary"' EXIT
+cp -p "$init" "$temporary"
+awk -v pattern="$pattern" '$0 !~ pattern' "$init" > "$temporary"
+sh -n "$temporary"
+mv "$temporary" "$init"
+# An identical protected-path copy is redundant. Keep any different candidate
+# so a user's other local changes are never overwritten or silently discarded.
+if [ -f "$init.apk-new" ] && [ ! -L "$init.apk-new" ] && cmp -s "$init" "$init.apk-new"; then
+ rm -f "$init.apk-new"
+fi
+# Keep the small private backup through activation/possible rollback. It is no
+# longer on the daemon's PATH and cannot intercept its nft commands.

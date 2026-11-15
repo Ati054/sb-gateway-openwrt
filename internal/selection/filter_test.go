@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 )
 
 func TestFilterPreservesSubscriptionOrderAndUpdatesMembership(t *testing.T) {

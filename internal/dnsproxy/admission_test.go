@@ -12,10 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
 )
 
 func listenerFixture(t *testing.T, delay time.Duration, workBytes int64, options ...func(*server)) (*server, string, func()) {
+	return listenerFixtureObserved(t, delay, workBytes, nil, options...)
+}
+
+func listenerFixtureObserved(t *testing.T, delay time.Duration, workBytes int64, observe func(net.PacketConn) net.PacketConn, options ...func(*server)) (*server, string, func()) {
 	t.Helper()
 	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query, _ := io.ReadAll(r.Body)
@@ -53,6 +57,9 @@ func listenerFixture(t *testing.T, delay time.Duration, workBytes int64, options
 		t.Fatal(err)
 	}
 	configureUDPQueue(udp, workBytes)
+	if observe != nil {
+		udp = observe(udp)
+	}
 	s := &server{config: Config{DefaultPolicy: "main", DirectURL: upstream.URL + "/dns-query", ProxyURL: upstream.URL + "/dns-query"},
 		direct: client, proxy: client, cacheBudget: dnsCacheBudget(256 * resources.MiB),
 		requestBudget: workBytes, clientMemory: newMemoryGate(dnsWorkBudget(256*resources.MiB), dnsClientMemory)}

@@ -10,17 +10,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
-	"github.com/Ati054/sb-gateway-openwrt/internal/health"
-	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
-	"github.com/Ati054/sb-gateway-openwrt/internal/selection"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/capture"
+	"github.com/Ati054/xroute-openwrt/internal/dnsproxy"
+	"github.com/Ati054/xroute-openwrt/internal/health"
+	"github.com/Ati054/xroute-openwrt/internal/rulesets"
+	"github.com/Ati054/xroute-openwrt/internal/selection"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 type Getter func(context.Context, string) (string, error)
 
 type Config struct {
+	URLTestPlanningMode  string
 	Enabled              bool
 	RouteEnabled         bool
 	LANInterface         string
@@ -104,6 +105,12 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 		RouteEnabled: read("route_enabled") == "1",
 		ProviderID:   read("provider_id"), UpdateMode: read("update_mode"), UpdateSeconds: 1800, MaxNodes: 0,
 		Base: xray.DefaultBaseConfig(),
+	}
+	config.URLTestPlanningMode = read("urltest_planning_mode")
+	switch config.URLTestPlanningMode {
+	case "", "fresh-paired", "isolated-paired", "route-paired":
+	default:
+		return Config{}, errors.New("urltest_planning_mode must be fresh-paired, route-paired or isolated-paired")
 	}
 	if config.ProviderID == "" {
 		config.ProviderID = "primary"

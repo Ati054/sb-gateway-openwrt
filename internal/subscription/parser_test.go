@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 )
 
 const testVLESS = "vless://2f1c08fc-3f43-4e95-8f57-f8bded750a1a@edge.example.test:443?security=tls&type=ws&path=%2Fproxy#CA%20Toronto"

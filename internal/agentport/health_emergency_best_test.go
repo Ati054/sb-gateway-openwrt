@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -92,34 +93,35 @@ func TestEmergencyBestPreferredTimeoutReleasesCompletedReserve(t *testing.T) {
 	availabilityProbeTimeout, availabilityFallbackTimeout = 100*time.Millisecond, 150*time.Millisecond
 	runtime, _ := delayedAvailabilityRuntime(t, time.Millisecond, nil)
 	started := make(chan struct{})
-	hanging := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		close(started)
-		<-r.Context().Done()
-	}))
-	defer hanging.Close()
-	fast := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case <-started:
-		case <-r.Context().Done():
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer fast.Close()
-	// Workers take jobs from a shared queue; a node is not tied to a lane.
+	// The mock API distinguishes the production selector from each probe lane.
+	// Its proxy endpoint stays fixed, as it does in the actual rendered core.
 	for _, lane := range runtime.backgrounds {
-		lane := lane
-		selected := ""
+		var selected atomic.Value
+		selected.Store("")
+		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if selected.Load().(string) == "a" {
+				close(started)
+				<-r.Context().Done()
+				return
+			}
+			select {
+			case <-started:
+			case <-r.Context().Done():
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		t.Cleanup(proxy.Close)
+		lane.opts.ProbeURL = proxy.URL
 		lane.command = func(_ context.Context, _ time.Duration, _ string, args ...string) ([]byte, error) {
 			if len(args) > 1 && args[1] == "bo" {
-				selected = args[len(args)-1]
-				lane.opts.ProbeURL = fast.URL
-				if selected == "a" {
-					lane.opts.ProbeURL = hanging.URL
-				}
+				selected.Store(args[len(args)-1])
 				return nil, nil
 			}
-			return selectorInfo(selected), nil
+			if len(args) > 1 && args[1] == "bi" && args[len(args)-1] != lane.probeSelector {
+				return selectorInfo("block"), nil
+			}
+			return selectorInfo(selected.Load().(string)), nil
 		}
 	}
 	runtime.ctx = context.Background()

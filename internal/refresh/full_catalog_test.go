@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
 )
 
 func TestImportWholeSubscriptionBeyondOldNodeLimits(t *testing.T) {

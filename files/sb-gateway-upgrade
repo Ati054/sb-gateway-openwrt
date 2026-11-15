@@ -3,7 +3,8 @@
 # Staging, status and the compact-install recovery snapshot live in RAM.
 set -eu
 
-pkg=sb-gateway-openwrt
+pkg=xroute-openwrt
+legacy_pkg=sb-gateway-openwrt
 candidate=/tmp/sb-gateway-upgrade.apk
 staged=/tmp/.sb-gateway-verified.apk
 runner=/tmp/.sb-gateway-upgrade-runner
@@ -19,8 +20,28 @@ note() { logger -t sb-gateway-upgrade "$*" 2>/dev/null || :; }
 write_phase() { printf '%s\n' "$1" > "$phase"; note "$1"; }
 
 installed_field() {
-	apk query --fields name,version,arch --format json --installed "$pkg" 2>/dev/null |
-		sed -n "s/^[[:space:]]*\"$1\": \"\([^\"]*\)\".*/\1/p" | head -n 1
+	for installed_query in xroute-openwrt sb-gateway-openwrt; do
+		installed_meta=$(apk query --fields name,version,arch --format json --installed "$installed_query" 2>/dev/null) || continue
+		installed_name=$(printf '%s\n' "$installed_meta" | jsonfilter -e '@[0].name')
+		case "$installed_name" in xroute-openwrt|sb-gateway-openwrt) ;; *) continue;; esac
+		printf '%s\n' "$installed_meta" | jsonfilter -e "@[0].$1"
+		return
+	done
+	return 1
+}
+
+# Relax the old local-APK checksum pin only in the same transaction that
+# replaces it. PROVIDES keeps old dependency/world entries valid afterwards.
+apk_transaction() {
+	if [ "$migration" = yes ]; then apk add "$@" "$legacy_pkg"
+	else apk add "$@"; fi
+}
+
+restore_autostart() {
+	case "${old_autostart:-}" in
+		yes) /etc/init.d/resproxy enable;;
+		no) /etc/init.d/resproxy disable;;
+	esac
 }
 
 archive_field() {
@@ -41,7 +62,7 @@ check_archive() {
 	archive_version=$(archive_field version)
 	archive_arch=$(archive_field arch)
 	archive_installed_size=$(archive_field installed-size)
-	[ "$archive_name" = "$pkg" ] || die "This APK is not $pkg"
+	[ "$archive_name" = xroute-openwrt ] || die "This APK is not xroute-openwrt"
 	[ -n "$archive_version" ] && [ -n "$archive_arch" ] || die "Incomplete APK metadata"
 	printf '%s' "$archive_version" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._+~-]*$' || die "Invalid APK version"
 	printf '%s' "$archive_installed_size" | grep -Eq '^[0-9]+$' || die "Invalid APK installed size"
@@ -136,10 +157,14 @@ restore_compact() {
  rm -f /usr/bin/resproxyd
  tar -C / -xf "$state/previous-payload.tar" || return 1
  /etc/init.d/resproxy start || return 1
+ previous_recovered=yes
  note "previous package payload restored after installation failure"
 }
 
 preflight() {
+	pkg=$(installed_field name) || die "Installed package metadata unavailable"
+	migration=no
+	[ "$pkg" != "$legacy_pkg" ] || migration=yes
 	check_archive "$1"
 	old_version=$(installed_field version)
 	[ -n "$old_version" ] || die "Installed package version is unavailable"
@@ -155,17 +180,36 @@ preflight() {
   check_compact_ram planned-stop
   compact=yes
  fi
-	plan=$(apk add --simulate "$1") || die "APK dependency preflight failed"
+	plan=$(apk_transaction --simulate "$1") || die "APK dependency preflight failed"
 	# New dependencies may be installed, but existing unrelated packages must
  # never be removed, downgraded or upgraded by this package's update.
- printf '%s\n' "$plan" | awk -v package="$pkg" '
+ printf '%s\n' "$plan" | awk -v package="$pkg" -v replacement=xroute-openwrt -v legacy="$legacy_pkg" -v migration="$migration" '
   /^\([0-9]+\/[0-9]+\) / {
-   if ($3 == package && $2 == "Upgrading") { own++; next }
-   if ($3 != package && $2 == "Installing") { next }
+   if (migration == "yes" && $3 == package && $2 == "Purging") { removed++; next }
+   if (migration == "yes" && $3 == replacement && $2 == "Installing") { own++; next }
+   if (migration != "yes" && $3 == package && $2 == "Upgrading") { own++; next }
+   if ($3 != package && $3 != replacement && $3 != legacy && $2 == "Installing") { next }
    unsafe=1
   }
-  END { exit (unsafe || own != 1) }
+  END { exit (unsafe || own != 1 || removed != (migration == "yes" ? 1 : 0)) }
  ' || die "APK update plan contains unexpected package changes"
+}
+
+dns_ready() {
+ [ "$(uci -q get resproxy.main.route_enabled 2>/dev/null || echo 0)" = 1 ] || return 0
+ [ "$(uci -q get resproxy.main.dns_mode 2>/dev/null || echo system)" != system ] || return 0
+ ucode -e '
+import { readfile } from "fs";
+let raw = readfile("/var/run/resproxy/dns-interop.json");
+if (!raw) exit(1);
+let dns = json(raw);
+if (dns.effective_mode == "proxy-only") {
+ let status = readfile("/var/run/resproxy/dns-status.json");
+ exit(status && type(json(status)) == "object" ? 0 : 1);
+}
+if (dns.effective_mode == "system" && index(["https-dns-proxy-running", "other-dns-service", "other-dns-redirect"], dns.reason) >= 0) exit(0);
+exit(2);
+' 2>/dev/null
 }
 
 ready() {
@@ -174,6 +218,7 @@ ready() {
  core_pid=$(cat /var/run/resproxy/xray-ready 2>/dev/null || :)
  case "$core_pid" in ''|*[!0-9]*) return 1;; esac
  [ "$core_pid" -gt 1 ] && kill -0 "$core_pid" 2>/dev/null || return 1
+ dns_ready || return $?
  # A live process does not yet prove that its routing contract was applied.
  local_pool_hash=$(sha256sum /var/run/resproxy/health-pool.json 2>/dev/null | cut -d ' ' -f 1)
  [ -n "$local_pool_hash" ] || return 1
@@ -183,21 +228,47 @@ ready() {
 finish_install() {
  result=$?
  trap - EXIT
+ # Recovery must no longer look like APK activation: otherwise the init
+ # script deliberately suppresses the old service's restart.
+ if [ "$result" -ne 0 ]; then write_phase failed; fi
+ # Recovery must no longer look like APK activation: otherwise the init
+ # script deliberately suppresses the old service's restart.
+ if [ "$result" -ne 0 ]; then write_phase failed; fi
  if [ "${compact_released:-no}" = yes ] && [ "${package_installed:-no}" != yes ]; then
   if restore_compact; then
    compact_released=no
    rm -f "$state/previous-payload.tar" "$state/previous-payload.sha256" "$state/previous-files"
   else note "recovery snapshot retained in RAM"; fi
- elif [ "${compact_stopped:-no}" = yes ] && [ "${package_installed:-no}" != yes ]; then
+ elif [ "${compact_stopped:-no}" = yes ] && [ "${package_installed:-no}" != yes ] && [ "${previous_recovered:-no}" != yes ]; then
   /etc/init.d/resproxy start || :
  fi
- if [ "$result" -ne 0 ]; then write_phase failed; fi
+ # A failed non-compact transaction can leave the old process alive behind
+ # the intentional update guard. Reapply its routing contract only when the
+ # package database still identifies exactly the previous installed version.
+ # Never restore an old payload across a committed package replacement.
+ if [ "$result" -ne 0 ] && [ "${capture_prepared:-no}" = yes ] &&
+    [ "${package_installed:-no}" != yes ] && [ "${previous_recovered:-no}" != yes ] &&
+    [ "$(installed_field name 2>/dev/null || :)" = "$pkg" ] &&
+    [ "$(installed_field version 2>/dev/null || :)" = "${old_version:-}" ]; then
+  if /etc/init.d/resproxy restart; then
+   note "previous package service restarted after failed update"
+  else note "previous package restart failed; protection retained"; fi
+ fi
+ if ! restore_autostart; then note "Cannot restore service autostart"; result=1; fi
+ if [ "$result" -ne 0 ]; then
+  write_phase failed
+  if [ "${install_attempted:-no}" = yes ] && [ -f "$staged" ]; then
+   mv "$staged" "$state/recovery.apk" || :
+   note "Verified APK retained in RAM for recovery"
+  fi
+ fi
  rm -f "$busy" "$staged" "$runner" "$state/inspected-sha256" "$state/worker.pid"
  exit "$result"
 }
 
 install() {
- compact_stopped=no; compact_released=no; package_installed=no
+ compact_stopped=no; compact_released=no; package_installed=no; install_attempted=no
+ capture_prepared=no; previous_recovered=no
  trap finish_install EXIT
  trap 'exit 1' HUP INT TERM
 	# Repeat guards immediately before installation, after the asynchronous stage.
@@ -205,10 +276,19 @@ install() {
  inspected_hash=$(cat "$state/inspected-sha256")
  [ "$(sha256sum "$staged" | cut -d ' ' -f 1)" = "$inspected_hash" ] || die "APK changed since inspection"
  printf '%s\n' "$archive_version" > "$state/version"
+ old_autostart=no
+ if /etc/init.d/resproxy enabled; then old_autostart=yes; fi
  /usr/bin/resproxyd capture-protect || die "Cannot protect LAN before update"
+ capture_prepared=yes
  if [ "$compact" = yes ]; then prepare_compact; fi
  write_phase installing
- if ! apk add "$staged"; then
+ install_attempted=yes
+ # APK normally sanitizes script environments. Preserve only this trusted
+ # environment so old package removal hooks cannot open a capture gap.
+ if [ "$migration" = yes ]; then set -- "$staged" "$legacy_pkg"; else set -- "$staged"; fi
+ if ! env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin RESPROXY_KEEP_CAPTURE=1 apk --preserve-env add "$@"; then
+  write_phase failed
+  write_phase failed
   if [ "$compact" = yes ]; then
    if restore_compact; then
     compact_released=no
@@ -230,8 +310,9 @@ install() {
  # APK has committed the new version; restoring old files would no longer
  # match its database. Release installation-only RAM before starting both
  # processes, including on devices with a small tmpfs.
- rm -f "$state/previous-payload.tar" "$state/previous-payload.sha256" "$state/previous-files" "$staged"
+ rm -f "$state/previous-payload.tar" "$state/previous-payload.sha256" "$state/previous-files"
  compact_released=no
+ restore_autostart || die "Package installed, but cannot restore service autostart"
  printf '%s\n' "$archive_version" > "$state/status-version"
 	write_phase activating
 	if ! /etc/init.d/resproxy restart; then
@@ -240,10 +321,17 @@ install() {
 	fi
 	i=0
 	while [ "$i" -lt 120 ]; do
-		if ready; then
+		readiness=0
+		ready || readiness=$?
+		if [ "$readiness" = 0 ]; then
 			write_phase completed
+   rm -f "$state/recovery.apk"
    rm -f "$state/previous-payload.tar" "$state/previous-payload.sha256" "$state/previous-files"
 			exit 0
+		fi
+		if [ "$readiness" = 2 ]; then
+			dns_reason=$(jsonfilter -i /var/run/resproxy/dns-interop.json -e '@.reason' 2>/dev/null || echo unknown)
+			die "Package installed, but configured DNS is unavailable: $dns_reason"
 		fi
 		i=$((i + 1))
 		sleep 1
@@ -339,7 +427,7 @@ case "${1:-}" in
   ( set -C; : > "$busy" ) 2>/dev/null || die "Another update is in progress"
   trap 'rm -f "$busy" "$runner"' EXIT
   printf '%s\n' "$(installed_field version)" > "$state/status-version"
-  cp /usr/libexec/sb-gateway-upgrade "$runner"; chmod 700 "$runner"
+  cp "$0" "$runner"; chmod 700 "$runner"
   if [ "$1" = check ]; then
    echo checking > "$remote_phase"
    /bin/sh "$runner" github-check-worker </dev/null > "$state/check-worker.log" 2>&1 &
@@ -391,7 +479,7 @@ case "${1:-}" in
   umask 077
   mv "$candidate" "$staged"
   printf '%s\n' "$expected_hash" > "$state/inspected-sha256"
-  cp /usr/libexec/sb-gateway-upgrade "$runner"
+  cp "$0" "$runner"
   chmod 700 "$runner"
   echo idle > "$remote_phase"
   write_phase staged

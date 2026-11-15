@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
+	"github.com/Ati054/xroute-openwrt/internal/healthcontract"
 )
 
 const historyRecentSamples = 32

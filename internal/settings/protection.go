@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/capture"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 // libuci is available before rpcd and netifd. Keep the snapshot in memory and

@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
-	"github.com/Ati054/sb-gateway-openwrt/internal/daemon"
+	"github.com/Ati054/xroute-openwrt/internal/agentport"
+	"github.com/Ati054/xroute-openwrt/internal/daemon"
 	"os"
 	"path/filepath"
 	"testing"

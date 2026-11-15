@@ -1,100 +1,118 @@
-# SB Gateway для OpenWrt
+[English](README.md) | [Русский](README-RU.md) | [فارسی](README-FA.md) | [简体中文](README-ZH.md) | [繁體中文](README-ZH-TW.md)
 
-Русский | [English](README.en.md)
+<img src="docs/images/xroute.svg" width="40" height="40" alt="XRoute">
 
-Маршрутизация устройств и сервисов через прокси с автоматическим выбором узлов. Настройка и мониторинг — в LuCI, ядро Xray входит в пакет. Интерфейс доступен на русском, английском, упрощённом и традиционном китайском и фарси.
+# XRoute for OpenWrt
 
-**Обновление подписок, переключение узлов и изменение интервалов мониторинга работают без перезапуска службы.**
+**[MikroTik RouterOS7 version here →](https://github.com/Ati054/xroute)**
 
-## Возможности
+I made XRoute to manage proxies on OpenWrt from LuCI. You can add subscriptions, choose servers for devices and websites, and set up a backup for server failures. Xray is included in the package.
 
-- **Подписки:** несколько источников; ссылки, Clash YAML, sing-box JSON и Xray JSON. Некорректные и неподдерживаемые узлы пропускаются; обновление вручную и по расписанию. Рабочий каталог сохраняется при ошибке обновления; успешное обновление применяется без перезапуска ядра.
-- **Протоколы:** VLESS, VMess, Trojan, Shadowsocks и Hysteria2. Для Shadowsocks доступны устанавливаемые из интерфейса SIP003-плагины v2ray-plugin и obfs-local.
-- **Маршрутные листы:** отдельные настройки для всех устройств, выбранных IP-адресов или подсетей. Устройства можно выбрать из статических DHCP-привязок OpenWrt или указать вручную. Выбор узлов по названию, подписке, стране, локации, протоколу и фильтрам.
-- **Фильтры названий:** части названия через запятую или `|` работают как «ИЛИ». В двойных кавычках задаётся полное название. Например, `Швеция, "Амстердам Premium 01"` выбирает узлы со «Швеция» в названии и конкретный узел «Амстердам Premium 01». Те же правила действуют для исключений; исключения имеют приоритет.
-- **URLTest:** полная задержка HTTPS с новым соединением для каждого замера. Для планового переключения нужны две согласованные свежие пары с заданным интервалом между подтверждениями. Преимущество должны показать последний замер и медиана до трёх свежих замеров. Замеры пары должны завершиться с разницей не более 10 секунд. Частые проверки активного узла обновляют последний результат, а история медианы пополняется не чаще интервала качества. Ошибки и восстановление учитываются сразу. Проверки отказа работают отдельно.
-- **Приоритет / резерв:** использование узлов в заданном порядке, переход на резерв при отказе и возврат к доступному узлу с более высоким приоритетом.
-- **Правила:** готовые наборы для России, Китая и Ирана; карточки YouTube, Discord, Telegram, WhatsApp, социальных сетей, AI-сервисов, игр, бирж и умного дома. Сайт биржи и её API включены в одну карточку.
-- **Свои правила:** домены, IP-сети, порты, TCP/UDP и определяемые протоколы. Действие — через прокси маршрутного листа или напрямую через WAN; первое совпадение задаёт маршрут.
-- **При отказе всех прокси:** отдельная настройка в базе правил — блокировать прокси-трафик или временно выпускать его через WAN. Доступна в готовых вариантах и своих правилах; действие выбранных карточек задаётся независимо. После восстановления узла трафик возвращается на прокси.
-- **Системные протоколы:** локальные адреса, VPN и прямые IP-исключения обрабатываются раньше ограничений WAN. Multicast, broadcast и связанные ICMP-ошибки сохраняются. WAN ping можно заблокировать; GRE/ESP вне исключений блокируются. В режиме IPv6 «напрямую» ограничение протоколов не применяется.
-- **DNS:** настройки резолверов для прокси и WAN, DoH/DoT, обработка запросов устройств с учётом маршрутного листа и правил. Выход DNS через WAN при отказе определяется правилом. При работе сторонней DNS-службы сохраняется DNS OpenWrt; передача DNS от https-dns-proxy подтверждается отдельно.
-- **Мониторинг:** активные узлы и резерв, доступность, ошибки HTTPS, задержка и последнее корректное парное сравнение Delta. Время обоих замеров видно при наведении; минус означает быстрее, плюс — медленнее. Данные обновляются без перезагрузки страницы; активный узел показан первым, таблица содержит до 10 узлов. Показаны память процессов, свободная ОЗУ и число TCP/UDP-сессий.
-- **Обновления:** проверка GitHub и установка по кнопке с сохранением настроек; ручная загрузка APK также доступна. Пакеты проверяются по подписи проекта; APK и резервная копия при компактном обновлении хранятся в RAM.
+You can use the interface in English, Russian, Simplified or Traditional Chinese, and Persian.
 
-Контроллер и Xray работают двумя процессами из одного файла. История замеров и журналы находятся в RAM с лимитами. Обычные записи истории объединяются с интервалом до 10 секунд; изменения маршрута, ошибки и текущий статус публикуются сразу. Применение настроек сохраняет историю и рабочий выбор узла, если он остаётся допустимым для маршрутного листа. Если рабочий прокси-узел недоступен, действует выбранное в базе правил поведение: блокировка или WAN. Прямые правила WAN продолжают работать. DNS следует тому же правилу при отказе прокси. Защита строгих листов действует при загрузке роутера, перезапуске службы и обновлении пакета. Прямые IP-исключения и маршруты VPN сохраняются, в том числе для DNS. Явное выключение службы снимает перехват.
+![XRoute](docs/images/overview-en.png)
 
-Во время обновления не отключайте питание роутера. При нехватке flash используется компактная установка с резервной копией в RAM; после отключения питания в этот момент может потребоваться повторная установка APK. Настройки сохраняются. Для восстановления загрузите APK на роутер по инструкции ниже и выполните `apk --no-cache add --force-reinstall /tmp/sb-gateway.apk`.
+## Features
 
-## Установка
+- **Subscriptions:** add multiple sources with links, Clash YAML, sing-box JSON, or Xray JSON. Update them by hand or on a schedule. Failed downloads leave the previous nodes in place; successful updates do not require an Xray restart.
+- **Protocols:** VLESS, VMess, Trojan, Shadowsocks, and Hysteria2. Shadowsocks SIP003 plugins v2ray-plugin and obfs-local can be installed from the interface.
+- **Route lists:** separate settings for all devices, selected IP addresses, or subnets. Pick devices from OpenWrt static DHCP reservations or enter addresses manually. Select nodes by name, subscription, country, location, protocol, and filters.
+- **Name filters:** comma-separated or `|`-separated fragments are alternatives. Double quotes require a full name: `Sweden, "Amsterdam Premium 01"` matches names containing Sweden and the specific Amsterdam node. Exclusion uses the same syntax and takes precedence.
+- **URLtest:** choose a node by HTTPS latency. Switching requires two confirmations of an improvement to avoid changing servers after a single latency spike. Availability checks and failover run separately.
+- **Priority / reserve:** uses nodes in the specified order, falls back when a node fails, and returns to an available node with higher priority.
+- **Presets:** country rules for Russia, China, and Iran; service cards for YouTube, Discord, Telegram, WhatsApp, social networks, AI services, games, exchanges, and smart homes. Each exchange card includes its website and API.
+- **Custom rules:** domains, IP networks, ports, TCP/UDP, and detected protocols. Send traffic through the route list's proxy or directly through WAN; the first matching rule determines the route.
+- **All proxies unavailable:** choose blocking or temporary WAN access in each rule. You can set different actions for presets and custom rules. Traffic returns to the proxy when a node recovers.
+- **System protocols:** local addresses, VPN routes, and direct IP exceptions take precedence over WAN restrictions. Multicast, broadcast, and related ICMP errors are preserved. WAN ping can be blocked; GRE/ESP are blocked outside exceptions. IPv6 direct mode does not restrict other protocols.
+- **DNS:** proxy and WAN resolvers, DoH/DoT, and device queries handled according to their route list and rules. DNS WAN fallback follows the rule’s proxy failure setting. An active external DNS service keeps OpenWrt DNS; handing over https-dns-proxy requires separate confirmation.
+- **Monitoring:** view the active node and backups, availability, latency, and the Delta comparison. Hover over Delta to see both measurement times: negative means faster and positive means slower. You can also check process memory, available RAM, and TCP/UDP session counts.
+- **Updates:** check GitHub and install with a button while preserving settings; manual APK upload is also available. Packages are verified against the project signing key. Compact updates keep the APK and backup in RAM.
 
-**OpenWrt 25.12 с APK, ARM64 и x86_64.** Архитектура пакетов указана в `/etc/apk/arch`:
+Update subscriptions, switch nodes, and change monitoring intervals without restarting the service. XRoute keeps history and the selected node when you apply settings, provided the node still matches the route list.
 
-Рекомендуется от 256 МБ ОЗУ. На роутерах со 128 МБ flash доступное место зависит от прошивки; установщик проверяет его перед установкой.
+Choose blocking or WAN access for each rule if its proxy fails. DNS follows the same rule. Strict lists keep traffic blocked during router boot, restarts, and package updates. Direct IP exceptions and VPN routes remain available. Turning XRoute off removes interception.
 
-| Архитектура | APK |
+Keep the router powered during an update. If flash space is low, the installer keeps its package backup in RAM. A power interruption at that point may require reinstalling the APK. Your settings remain on the router. To recover, transfer the APK using the instructions below and run `apk --no-cache add --force-reinstall /tmp/xroute.apk`.
+
+## Installation
+
+You need **OpenWrt 25.12 with APK, ARM64 or x86_64**. Check the package architecture in `/etc/apk/arch`.
+
+At least 256 MB RAM is recommended. Available flash space depends on the firmware; the installer checks it before installation.
+
+| Architecture | APK |
 |---|---|
-| `aarch64_generic` | Сборка ARM64 Generic |
-| `aarch64_cortex-a53` | Сборка Cortex-A53 / Filogic |
-| `x86_64` | Сборка x86-64 |
+| `aarch64_generic` | ARM64 Generic build |
+| `aarch64_cortex-a53` | Cortex-A53 / Filogic build |
+| `x86_64` | x86-64 build |
 
-Выполните в терминале ПК, в том числе в Windows PowerShell. Замените `192.168.1.1` на IP роутера:
+Run this in a terminal on your PC, including Windows PowerShell. Replace `192.168.1.1` with your router's IP address:
 
 ```sh
-ssh root@192.168.1.1 "wget -O /tmp/sb-gateway-install.sh https://raw.githubusercontent.com/Ati054/sb-gateway-openwrt/main/install.sh && sh /tmp/sb-gateway-install.sh"
+ssh root@192.168.1.1 "wget -O /tmp/xroute-install.sh https://raw.githubusercontent.com/Ati054/xroute-openwrt/main/install.sh && sh /tmp/xroute-install.sh"
 ```
 
-Скрипт определит архитектуру, проверит место, скачает последнюю стабильную версию, проверит подпись APK и SHA-256, затем установит зависимости.
+The installer detects the architecture, checks available space, downloads the latest stable version, verifies the APK signature and SHA-256, and installs dependencies.
 
-### Если роутер не открывает GitHub
+### If the router cannot access GitHub
 
-1. Узнайте архитектуру роутера. В PowerShell выполните, заменив IP на свой:
-
-   ```powershell
-   ssh root@192.168.1.1 "cat /etc/apk/arch"
-   ```
-
-2. В [Releases](https://github.com/Ati054/sb-gateway-openwrt/releases) скачайте APK с такой же архитектурой в названии. Например, для `aarch64_cortex-a53` — файл, оканчивающийся на `-aarch64_cortex-a53.apk`. Сохраните его на ПК как `sb-gateway.apk`. В ту же папку скачайте [ключ подписи проекта](https://raw.githubusercontent.com/Ati054/sb-gateway-openwrt/main/files/update-key.pub) с именем `ati054-sb-gateway.rsa.pub`.
-3. Откройте папку с файлом в Проводнике, нажмите правой кнопкой по пустому месту → **Открыть в терминале**. Выберите PowerShell. В Windows 10: **Shift + правая кнопка → Открыть окно PowerShell здесь**.
-4. Передайте APK и ключ на роутер, добавьте ключ и установите пакет:
+1. Check its architecture: `ssh root@192.168.1.1 "cat /etc/apk/arch"`.
+2. Download the matching APK from [Releases](https://github.com/Ati054/xroute-openwrt/releases) and the [installer](https://raw.githubusercontent.com/Ati054/xroute-openwrt/main/install.sh). Save them in one folder as `xroute.apk` and `install.sh`.
+3. Open PowerShell in that folder and run:
 
    ```powershell
-   scp -O .\sb-gateway.apk .\ati054-sb-gateway.rsa.pub root@192.168.1.1:/tmp/
-   ssh root@192.168.1.1 "mkdir -p /etc/apk/keys && cp /tmp/ati054-sb-gateway.rsa.pub /etc/apk/keys/ati054-sb-gateway.rsa.pub && apk --no-cache add /tmp/sb-gateway.apk"
+   scp -O .\xroute.apk .\install.sh root@192.168.1.1:/tmp/
+   ssh root@192.168.1.1 "sh /tmp/install.sh --local /tmp/xroute.apk"
    ```
 
-`-O` включает SCP для Dropbear. Подпись APK проверяется ключом проекта; зависимости устанавливаются из репозиториев OpenWrt.
+`-O` uses SCP with Dropbear. The installer checks the APK against the pinned project key before installation. OpenWrt repositories are still needed for missing dependencies.
 
-Ключ проекта устанавливается в `/etc/apk/keys`: APK доверяет любому пакету, подписанному этим ключом.
+### Upgrading from SB Gateway
 
-### Настройка
+Run the installer above once. It replaces the old package with XRoute in one APK transaction and preserves settings, subscriptions, rules, and autostart. The old package's LuCI uploader cannot accept the renamed APK. After migration, use **XRoute → Package update** normally.
 
-После первой установки служба выключена. Откройте **Службы → SB Gateway** в LuCI:
+The package uses the existing `resproxy` service and configuration paths so that current settings and diagnostic commands keep working. Its APK name is `xroute-openwrt`.
 
-1. Добавьте подписки и загрузите узлы — включать службу для этого не нужно.
-2. Создайте правила и маршрутные листы, выберите устройства и узлы.
-3. Настройте DNS, включите SB Gateway, сохраните и примените настройки.
+### Setup
 
-Подписки импортируются без ограничения количества узлов. Размер данных и свободное место проверяются; полные настройки подключений хранятся на диске и загружаются по мере необходимости.
+The service is disabled after the first installation. Open **Services → XRoute** in LuCI:
 
-Базы скачиваются для правил, подключённых к маршрутным листам. Если подключить правило позже и применить настройки, недостающие базы загрузятся автоматически. Ход загрузки и ошибки видны в обзоре.
+1. Add subscriptions and download nodes while the service is still disabled.
+2. Create rules and route lists, then select devices and nodes.
+3. Configure DNS, enable XRoute, save, and apply settings.
 
-При переходе с PassWall2 сначала остановите его и отключите автозапуск в **Система → Автозагрузка**. Подписки и правила SB Gateway можно подготовить заранее, пока он выключен. Если нет листа «Все устройства», остальные адреса продолжают работать через WAN.
+There is no node-count cap for subscriptions. XRoute checks data size and available space during import.
 
-При запуске и восстановлении службы временный выход через WAN со штатным DNS OpenWrt доступен только листам с разрешением WAN для всего прокси-трафика. Строгие листы и их DNS остаются закрытыми. Если настройки нельзя прочитать или проверить, прокси-трафик остаётся закрытым. Без работающего ядра условные правила по доменам недоступны; восстановление службы продолжается автоматически.
+Databases are downloaded for rules attached to route lists. Attach a rule later and apply the settings to load its missing databases automatically. Download progress and errors appear on the overview page.
 
-Для обновления откройте **Обновление пакета → Проверить обновления → Обновить с GitHub**. Проверка получает сведения о версии; скачивание и установка начинаются после отдельного нажатия «Обновить с GitHub». Промежуточные версии можно пропускать. Настройки и состояние включения службы сохраняются; работающая служба перезапускается.
+When switching from PassWall2, stop it and disable its autostart in **System → Startup** before enabling XRoute. Subscriptions and rules can be prepared while XRoute is disabled. Without an all-device list, other addresses continue to use WAN.
 
-## Сборка
+During service startup and recovery, temporary WAN access with the OpenWrt DNS resolver is available only to lists that permit WAN for all proxy traffic. Strict lists and their DNS remain blocked. If settings cannot be read or validated, proxy traffic remains blocked. Domain-based rules require a working core; service recovery continues automatically.
 
-Используйте OpenWrt 25.12 SDK для нужной цели ARM64 или x86/64 и Go 1.27.3. Поместите репозиторий в `SDK/package/resproxy` и выполните:
+To update, open **Package update → Check for updates → Update from GitHub**. Checking only fetches version information; download and installation start after a separate click on **Update from GitHub**. You can skip intermediate versions. Settings and the service's enabled or disabled state are preserved; a running service restarts during the update.
+
+See [DNS diagnostics](docs/DNS-DIAGNOSTICS.en.md) for counters and commands to include in a problem report.
+
+## Building
+
+Use the OpenWrt 25.12 SDK for your ARM64 or x86/64 target and Go 1.27.4. Place the repository in `SDK/package/resproxy` and run:
 
 ```sh
 make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s
 ```
 
-Зависимости включены в `vendor`, исходники ядра — в `third_party/xray-core`.
+Dependencies are included in `vendor`; the core source is in `third_party/xray-core`.
 
-## Лицензии
+## Licenses
 
-AGPL-3.0 для проекта; лицензии ядра и зависимостей сохранены в [LICENSE](LICENSE), [NOTICE.md](NOTICE.md), `vendor` и `third_party`.
+The project uses AGPL-3.0. Core and dependency licenses are preserved in [LICENSE](LICENSE), [NOTICE.md](NOTICE.md), `vendor`, and `third_party`.
+
+## FAQ
+
+**Can I proxy only selected websites or devices?**
+
+Yes. Add a subscription, create a service, domain, or IP rule with the proxy action, and attach it to a route list for the required devices. Set other traffic to WAN if it should remain direct. For MikroTik RouterOS 7, use the [MikroTik version and its Web interface setup](https://github.com/Ati054/xroute).
+
+**How does XRoute differ from Podkop and PassWall2?**
+
+[Podkop](https://github.com/itdoginfo/podkop/blob/main/README.md) uses sing-box. [PassWall2](https://github.com/Openwrt-Passwall/openwrt-passwall2/blob/main/README.md) supports several proxy cores and related packages. XRoute includes one Xray core and manages subscriptions, route lists, node selection, and DNS in its LuCI interface. This package targets OpenWrt 25.12 with APK on ARM64 and x86_64.

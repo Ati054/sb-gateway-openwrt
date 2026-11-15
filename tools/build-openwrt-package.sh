@@ -36,19 +36,20 @@ mv "$stage" "$sdk/package/resproxy"
 # A fresh SDK has no package selection for a newly staged feed entry.
 # Regenerate metadata before compiling so a disabled package cannot turn the
 # compile target into a successful no-op.
-if ! grep -Eq '^CONFIG_PACKAGE_sb-gateway-openwrt=[ym]$' "$sdk/.config"; then
- sed -i '/^# CONFIG_PACKAGE_sb-gateway-openwrt is not set$/d; /^CONFIG_PACKAGE_sb-gateway-openwrt=/d' "$sdk/.config"
- printf '\nCONFIG_PACKAGE_sb-gateway-openwrt=m\n' >> "$sdk/.config"
+if ! grep -Eq '^CONFIG_PACKAGE_xroute-openwrt=[ym]$' "$sdk/.config"; then
+ sed -i '/^# CONFIG_PACKAGE_xroute-openwrt is not set$/d; /^CONFIG_PACKAGE_xroute-openwrt=/d' "$sdk/.config"
+ printf '\nCONFIG_PACKAGE_xroute-openwrt=m\n' >> "$sdk/.config"
 fi
 make -C "$sdk" defconfig V=s
 make -C "$sdk/package/resproxy" TOPDIR="$sdk" clean V=s
 make -C "$sdk/package/resproxy" TOPDIR="$sdk" compile V=s
 mkdir -p "$source/dist"
-cp "$sdk/bin/packages/$arch/base/sb-gateway-openwrt-$version.apk" "$source/dist/sb-gateway-openwrt-$version-$arch.apk"
+cp "$sdk/bin/packages/$arch/base/xroute-openwrt-$version.apk" "$source/dist/xroute-openwrt-$version-$arch.apk"
 # Release keys stay outside the source stage and are provided by the maintainer.
-if [ -n "${SB_GATEWAY_SIGN_KEY:-}" ]; then
- "$sdk/staging_dir/host/bin/apk" --allow-untrusted adbsign --reset-signatures --sign-key "$SB_GATEWAY_SIGN_KEY" "$source/dist/sb-gateway-openwrt-$version-$arch.apk"
- "$sdk/staging_dir/host/bin/apk" --keys-dir "$source/files" verify "$source/dist/sb-gateway-openwrt-$version-$arch.apk"
+sign_key=${XROUTE_SIGN_KEY:-${SB_GATEWAY_SIGN_KEY:-}}
+if [ -n "$sign_key" ]; then
+ "$sdk/staging_dir/host/bin/apk" --allow-untrusted adbsign --reset-signatures --sign-key "$sign_key" "$source/dist/xroute-openwrt-$version-$arch.apk"
+ "$sdk/staging_dir/host/bin/apk" --keys-dir "$source/files" verify "$source/dist/xroute-openwrt-$version-$arch.apk"
 fi
 # Keep the previous sources on failure for recovery, but do not accumulate a
 # complete vendor/source copy after every successful build and delivery.

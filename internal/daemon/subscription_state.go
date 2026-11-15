@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 var errSubscriptionSettingsChanged = errors.New("subscription settings changed during refresh; previous catalog retained")

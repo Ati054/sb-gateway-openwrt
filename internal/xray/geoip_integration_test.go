@@ -2,7 +2,7 @@ package xray
 
 import (
 	"encoding/json"
-	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
+	"github.com/Ati054/xroute-openwrt/internal/geoipasset"
 	"os"
 	"os/exec"
 	"path/filepath"

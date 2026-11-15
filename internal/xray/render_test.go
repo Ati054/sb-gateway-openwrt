@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/subscription"
 )
 
 func TestRenderOutboundFromSubscription(t *testing.T) {

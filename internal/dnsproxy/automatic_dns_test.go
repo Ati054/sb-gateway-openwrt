@@ -17,7 +17,9 @@ type automaticDNSFixture struct {
 	udpAnswers, tcpAnswers atomic.Bool
 	udpCalls, tcpCalls     atomic.Int32
 	rcode                  atomic.Uint32
+	wrongID                atomic.Bool
 	udpTruncated           atomic.Bool
+	udpTCVariant           atomic.Uint32
 	udpDelayMS             atomic.Int64
 	tcpDelayMS             atomic.Int64
 	tcpBlocked             atomic.Int32
@@ -50,9 +52,31 @@ func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
 			if f.udpAnswers.Load() {
 				time.Sleep(time.Duration(f.udpDelayMS.Load()) * time.Millisecond)
 				answer := cacheableDoHReply(message[:n], 42)
+				if f.wrongID.Load() {
+					answer[0]++
+				}
 				answer[3] = answer[3]&0xf0 | byte(f.rcode.Load())
 				if f.udpTruncated.Load() {
 					answer[2] |= 2
+				}
+				switch f.udpTCVariant.Load() {
+				case 1:
+					answer[0]++
+				case 2:
+					answer[2] &^= 0x80
+				case 3:
+					answer[13] ^= 1
+				case 4:
+					answer = answer[:3]
+				case 5:
+					answer = answer[:len(answer)-1]
+				case 6:
+					answer = answer[:12]
+					clear(answer[4:12])
+				case 7:
+					answer[2] ^= 8
+				case 8:
+					answer[5] = 2
 				}
 				_, _ = udp.WriteTo(answer, peer)
 			}
@@ -85,6 +109,9 @@ func newAutomaticDNSFixture(t *testing.T) *automaticDNSFixture {
 					return
 				}
 				answer := cacheableDoHReply(query, 42)
+				if f.wrongID.Load() {
+					answer[0]++
+				}
 				answer[3] = answer[3]&0xf0 | byte(f.rcode.Load())
 				time.Sleep(time.Duration(f.tcpDelayMS.Load()) * time.Millisecond)
 				binary.BigEndian.PutUint16(size[:], uint16(len(answer)))

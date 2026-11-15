@@ -48,6 +48,15 @@ esac
 exit 0
 `)
 	write(filepath.Join(h.root, "bin/nft"), `#!/bin/sh
+case "$*" in
+ 'list tables')
+  [ "${TEST_NFT_LIST_FAIL:-0}" = 0 ] || exit 1
+  [ "${TEST_FW4:-0}" = 0 ] || echo 'table inet fw4'
+  exit 0;;
+ '-n -s -t -a list chain inet fw4 input')
+  [ "${TEST_INPUT_FAIL:-0}" = 0 ] || exit 1
+  exit 0;;
+esac
 case "$1" in
  list|-a) exit 1;;
  -c) exit 0;;
@@ -187,5 +196,26 @@ func TestRemoveFirewallClearsPhaseMarkersAfterCommit(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(h.state, name)); !os.IsNotExist(err) {
 			t.Fatalf("stopped capture kept %s: %v", name, err)
 		}
+	}
+}
+
+func TestFirewallInspectionFailurePreservesPreviousTransaction(t *testing.T) {
+	for _, failure := range []string{"TEST_NFT_LIST_FAIL=1", "TEST_INPUT_FAIL=1"} {
+		t.Run(failure, func(t *testing.T) {
+			h := newFirewallHarness(t)
+			if err := os.WriteFile(filepath.Join(h.state, "firewall.nft"), []byte("previous\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if output, err := h.command("apply", "TEST_FW4=1", failure).CombinedOutput(); err == nil {
+				t.Fatalf("inspection failure committed a transaction: %s", output)
+			}
+			body, err := os.ReadFile(filepath.Join(h.state, "firewall.nft"))
+			if err != nil || string(body) != "previous\n" {
+				t.Fatalf("inspection failure replaced previous state: %s %v", body, err)
+			}
+			if _, err := os.Stat(filepath.Join(h.state, "kernel")); !os.IsNotExist(err) {
+				t.Fatalf("inspection failure changed the kernel: %v", err)
+			}
+		})
 	}
 }

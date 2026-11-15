@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 func protectionFile(paths Paths) string {

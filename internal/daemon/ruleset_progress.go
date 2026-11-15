@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/rulesets"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 func selectedRulesetSources(config settings.Config) ([]string, map[string]rulesets.CountrySelection) {

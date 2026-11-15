@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
@@ -26,20 +27,38 @@ var errDNSResponseMismatch = errors.New("DNS response does not match question")
 // original error text, endpoint, queried name, policy name or client address.
 var upstreamFailureNames = [...]string{"timeout", "canceled", "eof", "reset", "refused", "broken_pipe", "unreachable", "tls", "http_response", "response_mismatch", "closed", "http2", "other"}
 
+const upstreamFailureCapacity = 8
+
 type upstreamFailureSample struct {
-	At        string `json:"at"`
-	Cause     string `json:"cause"`
-	Protocol  string `json:"protocol"`
-	Phase     string `json:"phase,omitempty"`
-	Attempts  int    `json:"attempts,omitempty"`
-	Reused    bool   `json:"connection_reused"`
-	Status    int    `json:"http_status,omitempty"`
-	HTTP2Code string `json:"http2_code,omitempty"`
+	At        string               `json:"at"`
+	Cause     string               `json:"cause"`
+	Protocol  string               `json:"protocol"`
+	Phase     string               `json:"phase,omitempty"`
+	Attempts  int                  `json:"attempts,omitempty"`
+	Reused    bool                 `json:"connection_reused"`
+	Status    int                  `json:"http_status,omitempty"`
+	HTTP2Code string               `json:"http2_code,omitempty"`
+	Query     *upstreamQuerySample `json:"query,omitempty"`
+}
+
+// Fixed numeric fields distinguish resolver rejection of a questionless probe
+// from rejection of an ordinary lookup. Never retain wire bytes or names.
+type upstreamQuerySample struct {
+	Bytes       int    `json:"bytes"`
+	Opcode      uint16 `json:"opcode"`
+	Questions   uint16 `json:"qdcount"`
+	Answers     uint16 `json:"ancount"`
+	Authorities uint16 `json:"nscount"`
+	Additionals uint16 `json:"arcount"`
 }
 
 type upstreamFailurePath struct {
-	counts [len(upstreamFailureNames)]uint64
-	last   upstreamFailureSample
+	counts       [len(upstreamFailureNames)]uint64
+	last         upstreamFailureSample
+	questionless uint64
+	recent       [upstreamFailureCapacity]upstreamFailureSample
+	recentNext   int
+	recentCount  int
 }
 
 type upstreamFailureDiagnostics struct {
@@ -110,12 +129,16 @@ func upstreamFailureCause(err error) int {
 	return 12
 }
 
-func (d *upstreamFailureDiagnostics) record(viaWAN bool, protocol string, err error) {
+func (d *upstreamFailureDiagnostics) record(viaWAN bool, protocol string, err error, queries ...[]byte) {
 	if err == nil {
 		return
 	}
 	cause := upstreamFailureCause(err)
 	sample := upstreamFailureSample{At: time.Now().UTC().Format(time.RFC3339Nano), Cause: upstreamFailureNames[cause]}
+	if len(queries) > 0 && len(queries[0]) >= 12 {
+		query := queries[0]
+		sample.Query = &upstreamQuerySample{Bytes: len(query), Opcode: uint16(query[2]>>3) & 15, Questions: binary.BigEndian.Uint16(query[4:6]), Answers: binary.BigEndian.Uint16(query[6:8]), Authorities: binary.BigEndian.Uint16(query[8:10]), Additionals: binary.BigEndian.Uint16(query[10:12])}
+	}
 	switch protocol {
 	case "doh", "dot", "tcp", "udp":
 		sample.Protocol = protocol
@@ -148,7 +171,14 @@ func (d *upstreamFailureDiagnostics) record(viaWAN bool, protocol string, err er
 	}
 	d.mu.Lock()
 	d.paths[index].counts[cause]++
+	if sample.Query != nil && sample.Query.Questions == 0 {
+		d.paths[index].questionless++
+	}
 	d.paths[index].last = sample
+	path := &d.paths[index]
+	path.recent[path.recentNext] = sample
+	path.recentNext = (path.recentNext + 1) % upstreamFailureCapacity
+	path.recentCount = min(path.recentCount+1, upstreamFailureCapacity)
 	d.sequence++
 	d.mu.Unlock()
 }
@@ -170,13 +200,15 @@ func (s *server) writeUpstreamErrors() error {
 	sequence, paths := d.sequence, d.paths
 	d.mu.Unlock()
 	type pathReport struct {
-		Failed uint64                 `json:"failed_exchanges"`
-		Causes map[string]uint64      `json:"causes"`
-		Last   *upstreamFailureSample `json:"last,omitempty"`
+		Failed       uint64                  `json:"failed_exchanges"`
+		Causes       map[string]uint64       `json:"causes"`
+		Last         *upstreamFailureSample  `json:"last,omitempty"`
+		Questionless uint64                  `json:"questionless_failed_exchanges,omitempty"`
+		Recent       []upstreamFailureSample `json:"recent_samples,omitempty"`
 	}
 	report := make(map[string]pathReport, 2)
 	for index, name := range []string{"proxy", "wan"} {
-		path := pathReport{Causes: map[string]uint64{}}
+		path := pathReport{Causes: map[string]uint64{}, Questionless: paths[index].questionless}
 		for cause, count := range paths[index].counts {
 			if count != 0 {
 				path.Failed += count
@@ -185,6 +217,12 @@ func (s *server) writeUpstreamErrors() error {
 		}
 		if path.Failed != 0 {
 			path.Last = &paths[index].last
+		}
+		// The fixed array was copied under the lock. Samples own immutable
+		// numeric query metadata, so marshaling cannot race with new traffic.
+		for i := range paths[index].recentCount {
+			slot := (paths[index].recentNext + upstreamFailureCapacity - paths[index].recentCount + i) % upstreamFailureCapacity
+			path.Recent = append(path.Recent, paths[index].recent[slot])
 		}
 		report[name] = path
 	}

@@ -1,7 +1,7 @@
 package selection
 
 import (
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 	"fmt"
 	"testing"
 )

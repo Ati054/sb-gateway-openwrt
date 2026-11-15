@@ -238,26 +238,47 @@ func (w *wanDNSState) watch(ctx context.Context, changes <-chan struct{}) {
 			if !ok {
 				return
 			}
-			// Retry only this failed notification, never poll stable WAN state.
-			// A transient ubus failure must not erase a working configuration.
-			refreshed := false
-			for _, delay := range []time.Duration{0, 50 * time.Millisecond, 200 * time.Millisecond, 750 * time.Millisecond, 2 * time.Second} {
-				if delay > 0 {
-					timer := time.NewTimer(delay)
-					select {
-					case <-ctx.Done():
-						timer.Stop()
-						return
-					case <-timer.C:
+			// Retry the failed notification until status can be verified. A
+			// confirmed missing WAN clears DNS immediately and ends recovery;
+			// stable status never needs periodic polling.
+			backoff := 2 * time.Second
+			for ctx.Err() == nil {
+				refreshed := false
+				for _, delay := range []time.Duration{0, 50 * time.Millisecond, 200 * time.Millisecond, 750 * time.Millisecond, 2 * time.Second} {
+					if delay > 0 {
+						timer := time.NewTimer(delay)
+						select {
+						case <-ctx.Done():
+							timer.Stop()
+							return
+						case <-timer.C:
+						}
+					}
+					if w.refresh(ctx) == nil {
+						refreshed = true
+						break
 					}
 				}
-				if w.refresh(ctx) == nil {
-					refreshed = true
+				if refreshed || ctx.Err() != nil {
 					break
 				}
-			}
-			if !refreshed && ctx.Err() == nil {
+				// Keep the existing fail-closed behavior after the initial
+				// grace period, but do not require another hotplug event to
+				// recover from an unavailable status reader.
 				w.current.Store(&wanDNSSnapshot{key: "unavailable"})
+				timer := time.NewTimer(backoff)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				case _, ok := <-changes:
+					timer.Stop()
+					if !ok {
+						return
+					}
+				case <-timer.C:
+				}
+				backoff = min(backoff*2, 30*time.Second)
 			}
 		}
 	}

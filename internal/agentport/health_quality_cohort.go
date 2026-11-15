@@ -126,7 +126,7 @@ func probeLaneJobsWithMeasurement(candidates []string, workers int, quality bool
 		if i%workers == 0 {
 			barrier = &qualityStartBarrier{id: qualityWaveSequence.Add(1), ready: make(chan struct{}), cancel: cancel}
 			barrier.left.Store(int32(minInt(workers, len(candidates)-i)))
-			if measurement == qualityMeasurementWarm {
+			if measurement == qualityMeasurementWarm || measurement == qualityMeasurementIsolatedPaired || measurement == qualityMeasurementRoutePaired {
 				warmBarrier = &qualityStartBarrier{id: qualityWaveSequence.Add(1), ready: make(chan struct{}), cancel: cancel}
 				warmBarrier.left.Store(int32(minInt(workers, len(candidates)-i)))
 			}

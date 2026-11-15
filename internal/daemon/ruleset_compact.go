@@ -3,8 +3,8 @@ package daemon
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
-	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
+	"github.com/Ati054/xroute-openwrt/internal/geoipasset"
+	"github.com/Ati054/xroute-openwrt/internal/rulesets"
 )
 
 // Persist every domain set once. The small snapshot retains references/counts;

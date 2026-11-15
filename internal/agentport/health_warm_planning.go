@@ -10,20 +10,20 @@ import (
 // The opt-in affects ordinary best-mode surveys only. Startup and emergency
 // entry points keep their existing cold request contract.
 func (controller *healthController) qualityMeasurementForPolicy(policyID string, contract healthPolicyContract) qualityMeasurement {
-	if isPairedPlanningMeasurement(controller.opts.planningMeasurement()) && contract.Mode == "best" && controller.warmStarted[policyID] {
-		return controller.opts.planningMeasurement()
+	if isPairedPlanningMeasurement(controller.planningMeasurement()) && contract.Mode == "best" && controller.warmStarted[policyID] {
+		return controller.planningMeasurement()
 	}
 	return qualityMeasurementCold
 }
 
 func (controller *healthController) qualityContextKey() string {
-	digest := sha256.Sum256([]byte(fmt.Sprintf("%s\n%s\n%s\n%d\n%d\n%s", controller.opts.planningMeasurement(), controller.opts.ProbeURL, healthTargets[0].url,
+	digest := sha256.Sum256([]byte(fmt.Sprintf("%s\n%s\n%s\n%d\n%d\n%s", controller.planningMeasurement(), controller.opts.ProbeURL, healthTargets[0].url,
 		healthTargets[0].status, controller.processedGeneration.XrayPID, controller.processedGeneration.PoolSHA256)))
 	return hex.EncodeToString(digest[:])
 }
 
 func (controller *healthController) prepareWarmPlanning(contract healthPolicyContract, item *policyHealthState) {
-	if !isPairedPlanningMeasurement(controller.opts.planningMeasurement()) || contract.Mode != "best" {
+	if !isPairedPlanningMeasurement(controller.planningMeasurement()) || contract.Mode != "best" {
 		resetWarmPlanning(item)
 		return
 	}
@@ -34,13 +34,13 @@ func (controller *healthController) prepareWarmPlanning(contract healthPolicyCon
 		fmt.Fprintln(hash, node, contract.Nodes[node].Fingerprint)
 	}
 	signature := hex.EncodeToString(hash.Sum(nil))
-	if item.WarmPlanningMarker == string(controller.opts.planningMeasurement()) && item.WarmPlanningSignature == signature && item.warmPlanningLatest != nil && item.warmPlanningCountedAt != nil {
+	if item.WarmPlanningMarker == string(controller.planningMeasurement()) && item.WarmPlanningSignature == signature && item.warmPlanningLatest != nil && item.warmPlanningCountedAt != nil {
 		return
 	}
 	resetWarmPlanning(item)
 	clearOptimizationCandidate(item)
 	item.OptimizationLastResult, item.displayComparisons = nil, nil
-	item.WarmPlanningMarker, item.WarmPlanningSignature = string(controller.opts.planningMeasurement()), signature
+	item.WarmPlanningMarker, item.WarmPlanningSignature = string(controller.planningMeasurement()), signature
 	item.WarmPlanningSamples = make(map[string][]healthSample)
 	item.WarmPlanningLastProbeAt = make(map[string]float64)
 	item.warmPlanningLatest = make(map[string]warmQualityEvidence)
@@ -128,6 +128,9 @@ func collectWarmPlanning(now time.Time, candidates []string, measured map[string
 			if previous, exists := item.warmPlanningLatest[node]; exists && !value.ObservedAt.After(previous.ObservedAt) {
 				continue // Shared or late evidence never becomes a second sample.
 			}
+			if previous, exists := item.warmPlanningLatest[node]; exists && previous.Transport != value.Transport {
+				invalidateWarmNode(item, node)
+			}
 			item.warmPlanningLatest[node] = value
 			sample := healthSample{At: float64(value.ObservedAt.UnixNano()) / 1e9, OK: true, DelayMS: value.DelayMS}
 			item.WarmPlanningSamples[node] = appendQualityHistory(now, item.WarmPlanningSamples[node], sample, p)
@@ -201,6 +204,8 @@ func planningComparison(now time.Time, selected, candidate string, measured map[
 	view := warmPlanningView(item)
 	comparison := regularOptimizationComparison(now, selected, candidate, warmPlanningMeasured(measured, item), view, quality && view.QualityOK[candidate], available, p)
 	if comparison != nil && item.WarmPlanningMarker != "" {
+		comparison.ActiveTransport = item.warmPlanningLatest[selected].Transport
+		comparison.CandidateTransport = item.warmPlanningLatest[candidate].Transport
 		comparison.Measurement = item.WarmPlanningMarker
 	}
 	return comparison
@@ -229,4 +234,8 @@ func recentQualitySamples(now time.Time, samples []healthSample, p effectivePoli
 		result = append([]healthSample(nil), result[len(result)-3:]...)
 	}
 	return result
+}
+
+func (controller *healthController) planningMeasurement() qualityMeasurement {
+	return controller.opts.planningMeasurement()
 }

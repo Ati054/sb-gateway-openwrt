@@ -160,9 +160,9 @@ try {
   let configured=[{id:'all',mode:'best',selection_order:['all:*']},{id:'pc',mode:'priority',selection_order:['country:FR']}],enabledOption;
   const uci={load:async()=>{},sections:()=>configured};
   function Map() {this.section=()=>({option:(_type,name)=>{const option={};if(name==='enabled')enabledOption=option;return option;}});this.render=async()=>document.createElement('div');}
-  const overview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_',sources.overview)(
+  const overview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_','L',sources.overview)(
    {decorate:node=>node},health,{extend:value=>value},{Map,NamedSection:{},Flag:{extend:value=>value}},fs,uci,
-   {add:fn=>{poller=fn;},remove:()=>{}},safeDOM,monitor,_);
+   {add:fn=>{poller=fn;},remove:()=>{}},safeDOM,monitor,_,{resource:path=>'/luci-static/resources/'+path});
   const dashboard=await overview.render(await overview.load());document.body.append(dashboard);
   if(enabledOption.validate('main','1')!==true)throw Error('Configured routes could not be enabled');
   const savedPolicies=configured;configured=[];
@@ -218,7 +218,9 @@ try {
    if(!routeRows()[0].textContent.includes('Active') || !dashboard.textContent.includes('48.0 MiB'))throw Error('PC clock hid active route or RAM');
   }
   Date.now=realNow;
-  if(dashboard.querySelector('img'))throw Error('Prepared label parsed as HTML');
+  const trustedLogo=dashboard.querySelector('.xroute-brand > img');
+  if(!trustedLogo || trustedLogo.getAttribute('src')!=='/luci-static/resources/view/resproxy/xroute.svg')throw Error('Packaged brand asset missing');
+  if(dashboard.querySelector('.sbg-overview img'))throw Error('Prepared label parsed as HTML');
   runtime.policies['resproxy-pc']={selected:'b',runtime_selected:'b',runtime_confirmed:true};runtime.updated_at=stamp();
   await poller();
   if(routeRows()[1].textContent.includes('Fallback WAN'))throw Error('Overview retained stale fallback after recovery');
@@ -236,15 +238,16 @@ try {
     if(unavailable && rulesUnavailable)throw Error('temporary rules RPC failure');
     return fs.exec(command);
    }};
-   const recoveringOverview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_',sources.overview)(
+   const recoveringOverview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_','L',sources.overview)(
     {decorate:node=>node},health,{extend:value=>value},{Map,NamedSection:{},Flag:{extend:value=>value}},transientFS,uci,
-    {add:fn=>{recoveryPoll=fn;},remove:()=>{}},safeDOM,transientMonitor,_);
+    {add:fn=>{recoveryPoll=fn;},remove:()=>{}},safeDOM,transientMonitor,_,{resource:path=>'/luci-static/resources/'+path});
    const recoveringDashboard=await recoveringOverview.render(await recoveringOverview.load());
    document.body.append(recoveringDashboard);
    const warning=Array.from(recoveringDashboard.querySelectorAll('.alert-message')).find(node=>node.textContent.startsWith('No fresh data:'));
    if(!warning || warning.hidden || !recoveringDashboard.querySelector('.sbg-overview-toolbar button'))throw Error('Initial monitoring failure hid the usable overview or its warning');
    unavailable=false;alive=true;await recoveryPoll();
    if(!warning.hidden || !recoveringDashboard.textContent.includes('842 nodes'))throw Error('Overview did not recover after a transient monitoring failure: rules='+rulesUnavailable+', warning='+warning.textContent);
+   recoveringDashboard.remove();
   }
 	// Category changes must issue distinct requests and ignore older replies.
 	const journalRequests=[];
@@ -283,7 +286,7 @@ try {
 	journalSearch.value='system-only';journalSearch.dispatchEvent(new Event('input'));
 	if(journalOutput.textContent.includes('system-only entry'))throw Error('Search restored lines from a failed old category');
   await new Promise(resolve => setTimeout(resolve, 50));
-  if (document.querySelector('img,svg,script') || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
+  if (document.querySelector('svg,script') || Array.from(document.images).some(img=>img!==trustedLogo) || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
   return {negativeControl:true, health:true, picker:true, commaAlternatives:true, quotedNames:true, sharedNameCases:nameCases.length, exclusionPrecedence:true, deltaSigns:true, scalarAndCallback:true, overviewMonitoring:true, overviewTransientErrors:true, dnsTakeoverStatus:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
  }, { sources, stockDOM, nameCases });
  assert.deepEqual(errors, []);

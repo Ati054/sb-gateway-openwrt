@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
+	"github.com/Ati054/xroute-openwrt/internal/healthcontract"
 )
 
 func TestUnconfirmedObservationPreservesRouteScopedDNSCache(t *testing.T) {

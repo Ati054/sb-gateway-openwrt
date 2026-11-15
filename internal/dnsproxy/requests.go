@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
 )
 
 // Pending UDP recipients have no goroutine, TLS state or private response

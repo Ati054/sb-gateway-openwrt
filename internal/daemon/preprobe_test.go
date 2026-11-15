@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/selection"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/selection"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 func TestRefreshProbesUseDefaultListsOwnFilterAfterReordering(t *testing.T) {

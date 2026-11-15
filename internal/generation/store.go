@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 )
 
 const maxGenerationBytes = 16 << 20

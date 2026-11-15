@@ -25,10 +25,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
-	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
-	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/dnsroute"
+	"github.com/Ati054/xroute-openwrt/internal/geoipasset"
+	"github.com/Ati054/xroute-openwrt/internal/healthcontract"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
 	"github.com/xtls/xray-core/common/geodata"
 	"github.com/xtls/xray-core/common/geodata/strmatcher"
 )
@@ -112,6 +112,7 @@ type server struct {
 	fallbackUse           atomic.Uint64
 	cacheHits             atomic.Uint64
 	localUse              atomic.Uint64
+	unsupportedOpcode     atomic.Uint64
 	failures              atomic.Uint64
 	dnsFailures           atomic.Uint64
 	failureInvalidQuery   atomic.Uint64
@@ -362,6 +363,7 @@ func (s *server) writeStatus(ctx context.Context) {
 			"queries": s.queries.Load(), "proxy": s.proxyUse.Load(),
 			"direct": s.directUse.Load(), "fallback": s.fallbackUse.Load(),
 			"cache_hits": s.cacheHits.Load(), "local": s.localUse.Load(),
+			"unsupported_opcode":      s.unsupportedOpcode.Load(),
 			"failures":                s.failures.Load(),
 			"dns_failures":            s.dnsFailures.Load(),
 			"failure_invalid_query":   s.failureInvalidQuery.Load(),
@@ -861,14 +863,22 @@ func configureUDPQueue(conn net.PacketConn, workBudget int64) int {
 }
 
 func (s *server) serveTCP(ctx context.Context, listener net.Listener) {
+	var retryDelay time.Duration
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		conn, err := listener.Accept()
 		if err != nil {
+			if retryDNSAccept(ctx, err, &retryDelay) {
+				continue
+			}
 			if ctx.Err() == nil {
 				log.Printf("resproxy: LAN DNS TCP listener: %v", err)
 			}
 			return
 		}
+		retryDelay = 0
 		if err := s.clientMemory.acquire(ctx); err != nil {
 			_ = conn.Close()
 			return
@@ -970,6 +980,21 @@ func (s *server) resolveAsyncPeer(ctx context.Context, query []byte, peer netip.
 		if invalidReason == queryTooLarge {
 			response[3] = 5
 		} // A configured size limit is REFUSED, not malformed DNS.
+		finish(response)
+		return
+	}
+	opcode := query[2] >> 3 & 15
+	if opcode == 1 || opcode == 2 {
+		// IQUERY is obsolete (RFC 3425); this resolver does not implement
+		// STATUS (RFC 1035). Reply locally instead of sending either to a
+		// recursive upstream that may reject its contents. This is an
+		// unsupported operation, not a failed lookup or malformed packet.
+		// Origin integrity, QR and section validation have already run.
+		response := make([]byte, 12)
+		copy(response[:2], query[:2])
+		response[2], response[3] = 0x80|query[2]&0x79, 4 // QR, opcode/RD, NOTIMP.
+		s.localUse.Add(1)
+		s.unsupportedOpcode.Add(1)
 		finish(response)
 		return
 	}
@@ -1113,7 +1138,7 @@ func (s *server) resolveAsyncPeer(ctx context.Context, query []byte, peer netip.
 			body, err = exchangeWire(lookupCtx, parsed, query, viaWAN, proxyPort)
 		}
 		if err != nil {
-			s.upstreamErrors.record(viaWAN, diagnosticProtocol, err)
+			s.upstreamErrors.record(viaWAN, diagnosticProtocol, err, query)
 			var timeout *upstreamTimeoutPhase
 			if errors.As(err, &timeout) && timeout.phase >= 0 && timeout.phase < len(s.upstreamTimeoutPhases) {
 				s.upstreamTimeoutPhases[timeout.phase].Add(1)
@@ -1121,7 +1146,7 @@ func (s *server) resolveAsyncPeer(ctx context.Context, query []byte, peer netip.
 			return nil, err
 		}
 		if !matchingQuestion(query, body) {
-			s.upstreamErrors.record(viaWAN, diagnosticProtocol, errDNSResponseMismatch)
+			s.upstreamErrors.record(viaWAN, diagnosticProtocol, errDNSResponseMismatch, query)
 			return nil, errDNSResponseMismatch
 		}
 		if managedRoute {
@@ -1203,9 +1228,11 @@ func exchangeWireAttempt(ctx context.Context, endpoint Endpoint, query []byte, d
 	defer cancel()
 	defer func() {
 		protocol := endpoint.Protocol
+		attempts := 1
 		var prior *upstreamExchangeError
 		if errors.As(resultErr, &prior) && prior.protocol != "" {
 			protocol = prior.protocol
+			attempts = max(attempts, prior.attempts)
 		}
 		// Deadline cancellation closes the socket to unblock reads. Preserve
 		// the timeout cause instead of reporting that close as a transport fault.
@@ -1213,7 +1240,7 @@ func exchangeWireAttempt(ctx context.Context, endpoint Endpoint, query []byte, d
 			resultErr = context.DeadlineExceeded
 		}
 		if resultErr != nil {
-			resultErr = &upstreamExchangeError{cause: resultErr, protocol: protocol, phase: -1, attempts: 1}
+			resultErr = &upstreamExchangeError{cause: resultErr, protocol: protocol, phase: -1, attempts: attempts}
 		}
 	}()
 	var conn net.Conn
@@ -1258,12 +1285,16 @@ func exchangeWireAttempt(ctx context.Context, endpoint Endpoint, query []byte, d
 		if err != nil {
 			return nil, err
 		}
-		if tcpOnTruncation && n >= 3 && buffer[2]&0x02 != 0 {
+		if tcpOnTruncation && n >= 3 && buffer[2]&0x02 != 0 && repeatableDNSQuery(query) {
+			if !matchingTruncatedDNSResponse(query, buffer[:n]) {
+				return nil, errDNSResponseMismatch
+			}
 			// Release UDP before opening the TCP fallback socket.
 			conn.Close()
 			fallback := endpoint
 			fallback.Protocol = "tcp"
-			return exchangeWire(requestCtx, fallback, query, true, proxyPort)
+			answer, err := exchangeWire(requestCtx, fallback, query, true, proxyPort)
+			return answer, dnsAttemptError(err, 2)
 		}
 		return buffer[:n], nil
 	}

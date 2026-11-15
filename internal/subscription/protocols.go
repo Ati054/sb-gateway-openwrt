@@ -3,7 +3,7 @@ package subscription
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
+	"github.com/Ati054/xroute-openwrt/internal/sip003"
 	"net"
 	"net/url"
 	"strconv"

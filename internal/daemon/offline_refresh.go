@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/refresh"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
-	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/refresh"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/subscription"
 )
 
 // One owner may publish the catalog: the running daemon or a temporary
@@ -27,7 +27,7 @@ func acquireCatalog(paths Paths) (*os.File, error) {
 	}
 	if err = lockCatalogFile(file); err != nil {
 		file.Close()
-		return nil, errors.New("subscription loading or SB Gateway is already running")
+		return nil, errors.New("subscription loading or XRoute is already running")
 	}
 	return file, nil
 }

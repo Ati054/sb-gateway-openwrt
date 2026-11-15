@@ -12,10 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/health"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/agentport"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/health"
+	"github.com/Ati054/xroute-openwrt/internal/selection"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 var ErrRestartRequired = errors.New("configuration requires service restart")
@@ -52,17 +53,40 @@ func monitoringOnly(previous, next settings.Config) bool {
 	return reflect.DeepEqual(strip(previous), strip(next))
 }
 
+// Membership and health affect the controller pool, not the Xray startup graph.
+// Policy identity, mode, traffic rules, DNS and listeners still need their own
+// lifecycle; a mixed edit must never be mistaken for a pool-only publication.
+func poolOnly(previous, next settings.Config) bool {
+	strip := func(config settings.Config) settings.Config {
+		config.Policies = append([]settings.Policy(nil), config.Policies...)
+		for i := range config.Policies {
+			config.Policies[i].Health = health.Policy{}
+			config.Policies[i].SelectionOrder = nil
+			config.Policies[i].NodeFilter = selection.Filter{}
+		}
+		return config
+	}
+	return reflect.DeepEqual(strip(previous), strip(next))
+}
+
 func applyMonitoringReload(ctx context.Context, previous, next settings.Config, nodes []catalog.Node, poolPath string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if !monitoringOnly(previous, next) {
+	if !poolOnly(previous, next) {
 		return ErrRestartRequired
 	}
 	if reflect.DeepEqual(previous, next) {
 		return nil
 	}
-	return agentport.WritePool(poolPath, nodes, next.Policies)
+	prepared, err := agentport.PreparePool(nodes, next.Policies)
+	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return prepared.Publish(poolPath, next.Policies)
 }
 
 func RequestReload(ctx context.Context, paths Paths) error {
@@ -71,6 +95,10 @@ func RequestReload(ctx context.Context, paths Paths) error {
 
 func RequestWANDNSRefresh(ctx context.Context, paths Paths) error {
 	return requestControlOperation(ctx, paths, "wan-dns-refresh")
+}
+
+func RequestCaptureRestore(ctx context.Context, paths Paths) error {
+	return requestControlOperation(ctx, paths, "capture-restore")
 }
 
 func requestControlOperation(ctx context.Context, paths Paths, operation string) error {
@@ -142,7 +170,7 @@ func startReloadServer(ctx context.Context, paths Paths, immediate ...func(reloa
 					Signature string    `json:"signature"`
 					Deadline  time.Time `json:"deadline"`
 				}
-				if err := json.NewDecoder(io.LimitReader(conn, 1024)).Decode(&message); err != nil || (message.Operation != "reload" && message.Operation != "refresh" && message.Operation != "wan-dns-refresh") {
+				if err := json.NewDecoder(io.LimitReader(conn, 1024)).Decode(&message); err != nil || (message.Operation != "reload" && message.Operation != "refresh" && message.Operation != "wan-dns-refresh" && message.Operation != "capture-restore") {
 					return
 				}
 				if !message.Deadline.IsZero() && message.Deadline.Before(deadline) {

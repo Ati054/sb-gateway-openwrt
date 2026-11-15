@@ -1,4 +1,7 @@
-/* A small, theme-aware finish for SB Gateway's existing LuCI views. */
+/* A small, theme-aware finish for XRoute's existing LuCI views. */
+.xroute-brand { display: flex; align-items: center; gap: .65em; }
+.xroute-brand img { flex: none; width: 40px; height: 40px; }
+.xroute-brand strong { font: inherit; font-weight: 600; letter-spacing: -.02em; }
 .sbg-page {
 	--sbg-surface: var(--background-color-medium, #292929);
 	--sbg-surface-raised: var(--background-color-low, #333);

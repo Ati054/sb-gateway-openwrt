@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/subscription"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 type Runtime interface {

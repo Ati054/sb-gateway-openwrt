@@ -1,26 +1,39 @@
 #!/bin/sh
-# Install the latest published SB Gateway package on OpenWrt.
+# Install or migrate XRoute using a project-signed APK.
 set -eu
 umask 077
-repo=https://github.com/Ati054/sb-gateway-openwrt
+repo=https://github.com/Ati054/xroute-openwrt
 [ "$(id -u)" = 0 ] || { echo 'Run this command as root.' >&2; exit 1; }
 command -v apk >/dev/null || { echo 'OpenWrt with APK is required.' >&2; exit 1; }
 command -v jsonfilter >/dev/null || { echo 'Install jsonfilter: apk add jsonfilter' >&2; exit 1; }
+local_apk=
+case "$#:${1:-}" in
+ 0:) ;;
+ 2:--local) local_apk=$2; [ -f "$local_apk" ] && [ ! -L "$local_apk" ] || exit 1;;
+ *) echo 'Usage: install.sh [--local /tmp/xroute.apk]' >&2; exit 2;;
+esac
 arch=$(cat /etc/apk/arch 2>/dev/null || :)
 case "$arch" in aarch64_generic|aarch64_cortex-a53|x86_64) ;; *) echo "No APK for architecture $arch." >&2; exit 1;;esac
-work=$(mktemp -d /tmp/sb-gateway-install.XXXXXX)
+work=$(mktemp -d /tmp/xroute-install.XXXXXX)
 bootstrap_key_added=0
 fetch_pid=
 project_key=/etc/apk/keys/ati054-sb-gateway.rsa.pub
+is_installed() { apk info -e xroute-openwrt >/dev/null 2>&1 || apk info -e sb-gateway-openwrt >/dev/null 2>&1; }
 cleanup() {
  if [ -n "$fetch_pid" ]; then kill "$fetch_pid" 2>/dev/null || :; wait "$fetch_pid" 2>/dev/null || :; fi
  rm -rf "$work"
- if [ "$bootstrap_key_added" = 1 ] && ! apk info -e sb-gateway-openwrt >/dev/null 2>&1; then rm -f "$project_key"; fi
+ if [ "$bootstrap_key_added" = 1 ] && ! is_installed; then rm -f "$project_key"; fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
+check_ram() {
+ ram=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+ free=$(df -Pk /tmp | awk 'NR==2 {print $4}')
+ printf '%s:%s' "$ram" "$free" | grep -Eq '^[0-9]+:[0-9]+$' || exit 1
+ [ "$ram" -ge "$1" ] && [ "$free" -ge "$1" ] || { echo 'Not enough free RAM for installation.' >&2; exit 1; }
+}
 fetch() {
  limit=${3:-1048576}
  fifo=$work/download.pipe
@@ -45,50 +58,50 @@ fetch() {
  fi
 }
 
-echo 'Checking release...'
-# GitHub's latest download endpoint selects the stable release without the
-# unauthenticated API quota shared by routers behind the same public IP.
-fetch "$repo/releases/latest/download/release.json" "$work/release.json" 16384
-[ "$(wc -c < "$work/release.json")" -le 16384 ] || { echo 'Invalid release metadata.' >&2; exit 1; }
-[ "$(jsonfilter -i "$work/release.json" -e '@.schema')" = 1 ] || exit 1
-tag=$(jsonfilter -i "$work/release.json" -e '@.tag')
-printf '%s' "$tag" | grep -Eq '^v[0-9][A-Za-z0-9._-]{0,79}$' || { echo 'Invalid release tag.' >&2; exit 1; }
-base=$repo/releases/download/$tag
-# New installed controllers authenticate metadata with their pinned key. First
-# installation and migration from legacy unsigned versions bootstrap over HTTPS.
-fetch "$base/release.json.sig" "$work/release.json.sig" 256
-if apk info -e sb-gateway-openwrt >/dev/null 2>&1; then
- if resproxyd update-key >/dev/null 2>&1; then
-  resproxyd verify-release "$work/release.json" "$work/release.json.sig"
- else
+if [ -n "$local_apk" ]; then
+ size=$(wc -c < "$local_apk")
+ [ "$size" -gt 0 ] && [ "$size" -le 67108864 ] || exit 1
+ check_ram "$(( (size+1023)/1024 + 32768 ))"
+ cp "$local_apk" "$work/package.apk"
+ sha=$(sha256sum "$work/package.apk" | cut -d ' ' -f 1)
+else
+ echo 'Checking release...'
+ fetch "$repo/releases/latest/download/release.json" "$work/release.json" 16384
+ [ "$(jsonfilter -i "$work/release.json" -e '@.schema')" = 1 ] || exit 1
+ tag=$(jsonfilter -i "$work/release.json" -e '@.tag')
+ printf '%s' "$tag" | grep -Eq '^v[0-9][A-Za-z0-9._-]{0,79}$' || exit 1
+ base=$repo/releases/download/$tag
+ fetch "$base/release.json.sig" "$work/release.json.sig" 256
+ if is_installed; then
+  if resproxyd update-key >/dev/null 2>&1; then
+   resproxyd verify-release "$work/release.json" "$work/release.json.sig"
+  else
+   current=$(resproxyd version)
+   [ "$(apk version -t "$current" 0.1.1)" != '>' ] || { echo 'Release verification is unavailable.' >&2; exit 1; }
+  fi
+ fi
+ version=$(jsonfilter -i "$work/release.json" -e '@.version')
+ printf '%s' "$version" | grep -Eq '^[0-9][A-Za-z0-9._+~-]{0,79}$' || exit 1
+ entry=$(jsonfilter -i "$work/release.json" -e "@.assets[@.arch=\"$arch\"]")
+ name=$(jsonfilter -s "$entry" -e '@.name')
+ size=$(jsonfilter -s "$entry" -e '@.size')
+ sha=$(jsonfilter -s "$entry" -e '@.sha256')
+ [ "$name" = "xroute-openwrt-$version-$arch.apk" ] || exit 1
+ printf '%s' "$size" | grep -Eq '^[0-9]{1,9}$' || exit 1
+ [ "$size" -gt 0 ] && [ "$size" -le 67108864 ] || exit 1
+ printf '%s' "$sha" | grep -Eq '^[0-9a-f]{64}$' || exit 1
+ if is_installed; then
   current=$(resproxyd version)
-  [ "$(apk version -t "$current" 0.1.1)" != '>' ] || { echo 'Release verification is unavailable.' >&2; exit 1; }
+  if [ "$(apk version -t "$version" "$current")" != '>' ]; then
+   echo "XRoute $current is already installed."; exit 0
+  fi
  fi
+ check_ram "$(( (size+1023)/1024 + 32768 ))"
+ echo "Downloading XRoute $version ($arch)..."
+ fetch "$base/$name" "$work/package.apk" "$size"
+ [ "$(wc -c < "$work/package.apk")" = "$size" ] || exit 1
+ printf '%s  %s\n' "$sha" "$work/package.apk" | sha256sum -c -
 fi
-version=$(jsonfilter -i "$work/release.json" -e '@.version')
-printf '%s' "$version" | grep -Eq '^[0-9][A-Za-z0-9._+~-]{0,79}$' || exit 1
-entry=$(jsonfilter -i "$work/release.json" -e "@.assets[@.arch=\"$arch\"]")
-name=$(jsonfilter -s "$entry" -e '@.name')
-size=$(jsonfilter -s "$entry" -e '@.size')
-sha=$(jsonfilter -s "$entry" -e '@.sha256')
-[ "$name" = "sb-gateway-openwrt-$version-$arch.apk" ] || exit 1
-printf '%s' "$size" | grep -Eq '^[0-9]{1,9}$' || exit 1
-[ "$size" -gt 0 ] && [ "$size" -le 67108864 ] || exit 1
-printf '%s' "$sha" | grep -Eq '^[0-9a-f]{64}$' || exit 1
-if apk info -e sb-gateway-openwrt >/dev/null 2>&1; then
- current=$(resproxyd version)
- if [ "$(apk version -t "$version" "$current")" != '>' ]; then
-  echo "SB Gateway $current is already installed."; exit 0
- fi
-fi
-ram=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
-free=$(df -Pk /tmp | awk 'NR==2 {print $4}')
-needed=$(( (size + 1023) / 1024 + 32768 ))
-[ "$ram" -ge "$needed" ] && [ "$free" -ge "$needed" ] || { echo 'Not enough free RAM for installation.' >&2; exit 1; }
-echo "Downloading SB Gateway $version ($arch)..."
-fetch "$base/$name" "$work/package.apk" "$size"
-[ "$(wc -c < "$work/package.apk")" = "$size" ] || { echo 'APK download is incomplete.' >&2; exit 1; }
-printf '%s  %s\n' "$sha" "$work/package.apk" | sha256sum -c -
 mkdir "$work/keys"
 cat > "$work/keys/sb-gateway.rsa.pub" <<'SB_GATEWAY_PUBLIC_KEY'
 -----BEGIN PUBLIC KEY-----
@@ -104,13 +117,28 @@ TCwKA7JFV1tR2+GuqvYDuxJOkp9p3H46sBL4b7iNX2IHAgMBAAE=
 -----END PUBLIC KEY-----
 SB_GATEWAY_PUBLIC_KEY
 apk --keys-dir "$work/keys" verify "$work/package.apk" >/dev/null || exit 1
-if apk info -e sb-gateway-openwrt >/dev/null 2>&1; then
- [ -x /usr/libexec/sb-gateway-upgrade ] || { echo 'Update the installed package through LuCI.' >&2; exit 1; }
+metadata=$(apk adbdump "$work/package.apk")
+field() { printf '%s\n' "$metadata" | awk -v key="$1" '$1==key":" {print $2; exit}'; }
+[ "$(field name)" = xroute-openwrt ] || { echo 'This APK is not XRoute.' >&2; exit 1; }
+[ "$(field arch)" = "$arch" ] || { echo 'APK architecture differs from this router.' >&2; exit 1; }
+installed_size=$(field installed-size)
+printf '%s' "$installed_size" | grep -Eq '^[0-9]+$' || exit 1
+if is_installed; then
+ # Old LuCI accepts only the old APK identity. Bootstrap the new updater
+ # exclusively from the APK whose signature we just checked, not the network.
+ # Delete the extracted payload before the worker's compact-RAM preflight.
+ check_ram "$(( (installed_size+1023)/1024 + 32768 ))"
+ mkdir "$work/payload"
+ apk --keys-dir "$work/keys" extract --destination "$work/payload" "$work/package.apk" >/dev/null
+ [ -f "$work/payload/usr/libexec/sb-gateway-upgrade" ] && [ ! -L "$work/payload/usr/libexec/sb-gateway-upgrade" ] || exit 1
+ cp "$work/payload/usr/libexec/sb-gateway-upgrade" "$work/upgrade"
+ chmod 700 "$work/upgrade"
+ rm -rf "$work/payload"
+ [ ! -e /var/run/sb-gateway-upgrade/busy ] || { echo 'Another update is in progress.' >&2; exit 1; }
  mv "$work/package.apk" /tmp/sb-gateway-upgrade.apk
- /usr/libexec/sb-gateway-upgrade start "$sha"
- echo 'Update started. Open SB Gateway > Update in LuCI for its status.'
+ /bin/sh "$work/upgrade" start "$sha"
+ echo 'Update started. Open XRoute > Update in LuCI for its status.'
 else
- project_key=/etc/apk/keys/ati054-sb-gateway.rsa.pub
  mkdir -p /etc/apk/keys
  if [ -e "$project_key" ]; then
   cmp "$project_key" "$work/keys/sb-gateway.rsa.pub" >/dev/null || { echo 'Installed signing key differs.' >&2; exit 1; }
@@ -119,11 +147,10 @@ else
   bootstrap_key_added=1
   chmod 644 "$project_key"
  fi
- installed_size=$(apk adbdump "$work/package.apk" | awk '$1=="installed-size:" {print $2; exit}')
- printf '%s' "$installed_size" | grep -Eq '^[0-9]+$' || exit 1
  overlay=$(df -Pk /overlay | awk 'NR==2 {print $4}')
+ printf '%s' "$overlay" | grep -Eq '^[0-9]+$' || exit 1
  [ "$overlay" -ge "$(( (installed_size+1023)/1024+4096 ))" ] || { echo 'Not enough free flash for installation.' >&2; exit 1; }
  apk --no-cache add --simulate "$work/package.apk"
  apk --no-cache add "$work/package.apk"
- echo 'Installed. Open Services > SB Gateway in LuCI.'
+ echo 'Installed. Open Services > XRoute in LuCI.'
 fi

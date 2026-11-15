@@ -3,7 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
 	"log"
 	"os"
 	"path/filepath"

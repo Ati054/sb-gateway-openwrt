@@ -112,6 +112,19 @@ func (body *drainingBody) Close() error {
 }
 func timeoutError(err error) bool { var n net.Error; return errors.As(err, &n) && n.Timeout() }
 func retryDoH(err error) bool {
+	var goAway http2.GoAwayError
+	if errors.As(err, &goAway) {
+		return retryGoAwayCode(goAway.ErrCode.String())
+	}
+	// net/http keeps its bundled HTTP/2 GOAWAY error type private. Match
+	// only that fixed message prefix, never arbitrary remote debug text.
+	for cause := err; cause != nil; cause = errors.Unwrap(cause) {
+		if rest, ok := strings.CutPrefix(cause.Error(), "http2: server sent GOAWAY and closed the connection; LastStreamID="); ok {
+			metadata, _, _ := strings.Cut(rest, ", debug=")
+			_, code, found := strings.Cut(metadata, ", ErrCode=")
+			return found && retryGoAwayCode(code)
+		}
+	}
 	var stream http2.StreamError
 	if errors.As(err, &stream) {
 		switch stream.Code {
@@ -122,6 +135,15 @@ func retryDoH(err error) bool {
 		}
 	}
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
+}
+
+func retryGoAwayCode(code string) bool {
+	switch code {
+	case "NO_ERROR", "PROTOCOL_ERROR", "INTERNAL_ERROR", "REFUSED_STREAM", "CANCEL":
+		return true
+	default:
+		return false
+	}
 }
 
 // Structured, bounded diagnostics never retain a client's queried domain or
@@ -199,13 +221,31 @@ func exchangeDoH(ctx context.Context, client *http.Client, endpoint string, quer
 		if requestCtx.Err() != nil {
 			return nil, requestCtx.Err()
 		}
-		if attempt != 0 || len(query) < 3 || query[2]&0x78 != 0 || !retryDoH(err) {
+		if attempt != 0 || !repeatableDNSQuery(query) || !retryDoH(err) {
 			return nil, err
 		}
 	}
 }
 
 func matchingQuestion(query, response []byte) bool {
+	return matchingQuestionPrefix(query, response) && validDNSSections(query) && validDNSSections(response)
+}
+
+// A TC reply may end inside a resource record. Match its complete question
+// without requiring sections that the server explicitly marked truncated.
+func matchingTruncatedDNSResponse(query, response []byte) bool {
+	if len(query) < 12 || len(response) < 12 || len(response) > maxDNSMessage || response[2]&0x82 != 0x82 || !validDNSSections(query) {
+		return false
+	}
+	if response[4] == 0 && response[5] == 0 {
+		// A header-only truncation response carries no question to compare.
+		// The per-query connected socket, ID, QR and opcode bind it instead.
+		return query[2]&0x80 == 0 && bytes.Equal(query[:2], response[:2]) && query[2]&0x78 == response[2]&0x78
+	}
+	return matchingQuestionPrefix(query, response)
+}
+
+func matchingQuestionPrefix(query, response []byte) bool {
 	if len(response) < 12 || len(response) > maxDNSMessage || len(query) < 12 ||
 		!bytes.Equal(query[:2], response[:2]) || query[2]&0x80 != 0 || response[2]&0x80 == 0 ||
 		response[2]&0x78 != query[2]&0x78 || query[4] != 0 || query[5] > 1 ||
@@ -213,7 +253,7 @@ func matchingQuestion(query, response []byte) bool {
 		return false
 	}
 	if query[5] == 0 {
-		return validQuestionlessMessage(query) && validQuestionlessMessage(response)
+		return true
 	}
 	var q, a dnsmessage.Parser
 	if _, err := q.Start(query); err != nil {
@@ -230,7 +270,28 @@ func matchingQuestion(query, response []byte) bool {
 	if err != nil {
 		return false
 	}
-	return strings.EqualFold(question.Name.String(), answer.Name.String()) && question.Type == answer.Type && question.Class == answer.Class
+	return equalDNSNames(question.Name, answer.Name) && question.Type == answer.Type && question.Class == answer.Class
+}
+
+// RFC 4343 folds only ASCII letters; all other DNS label octets must match
+// exactly. Unicode folding also conflates distinct invalid UTF-8 byte values.
+func equalDNSNames(a, b dnsmessage.Name) bool {
+	if a.Length != b.Length {
+		return false
+	}
+	for i := 0; i < int(a.Length); i++ {
+		x, y := a.Data[i], b.Data[i]
+		if x >= 'A' && x <= 'Z' {
+			x += 'a' - 'A'
+		}
+		if y >= 'A' && y <= 'Z' {
+			y += 'a' - 'A'
+		}
+		if x != y {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *server) publishGeneration(policies []Policy) error {

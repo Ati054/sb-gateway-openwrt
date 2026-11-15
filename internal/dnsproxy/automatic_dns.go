@@ -1,7 +1,6 @@
 package dnsproxy
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"sync"
@@ -146,7 +145,7 @@ func exchangeAutomaticDNS(ctx context.Context, endpoint Endpoint, query []byte, 
 			selected.Protocol = protocol
 			at := time.Now()
 			answer, err := exchangeWireAttempt(wireCtx, selected, query, true, 0, false)
-			truncated := err == nil && repeatable && protocol == "udp" && len(answer) >= 12 && answer[2]&0x82 == 0x82 && answer[2]&0x78 == query[2]&0x78 && bytes.Equal(answer[:2], query[:2])
+			truncated := err == nil && repeatable && protocol == "udp" && matchingTruncatedDNSResponse(query, answer)
 			if err == nil && !truncated && !matchingQuestion(query, answer) {
 				err = &upstreamExchangeError{cause: errDNSResponseMismatch, protocol: protocol, phase: -1, attempts: 1}
 			}
@@ -209,13 +208,29 @@ func exchangeAutomaticDNS(ctx context.Context, endpoint Endpoint, query []byte, 
 			}
 			if running == 0 {
 				if truncated && tcpFailure != nil {
-					return nil, tcpFailure
+					return nil, dnsAttemptError(tcpFailure, len(started))
 				}
 				if last != nil {
-					return nil, last
+					return nil, dnsAttemptError(last, len(started))
 				}
 				return nil, errDNSResponseMismatch
 			}
 		}
 	}
+}
+
+// Preserve the terminal transport and complete error chain while counting all
+// wire attempts started by the coordinator, including a UDP-to-TCP fallback.
+func dnsAttemptError(err error, attempts int) error {
+	if err == nil {
+		return nil
+	}
+	result := &upstreamExchangeError{cause: err, phase: -1, attempts: attempts}
+	var prior *upstreamExchangeError
+	if errors.As(err, &prior) {
+		result.protocol = prior.protocol
+		result.phase = prior.phase
+		result.reused = prior.reused
+	}
+	return result
 }

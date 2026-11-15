@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/rulesets"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 func TestWithRulesetsCompilesOnlySelectedCountryKinds(t *testing.T) {

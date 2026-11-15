@@ -8,16 +8,33 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+type observedNoiseConn struct {
+	net.PacketConn
+	received *atomic.Uint64
+}
+
+func (c *observedNoiseConn) ReadFrom(p []byte) (int, net.Addr, error) {
+	n, peer, err := c.PacketConn.ReadFrom(p)
+	if err == nil && (n == 1280 || n == 1284) {
+		c.received.Add(1)
+	}
+	return n, peer, err
+}
 
 // Synthetic packets reproduce only the reported numeric header shapes. They
 // are not a replay of customer traffic or an authenticated QUIC connection.
 func TestMalformedBurstCannotStarveValidWANAndProxyDNS(t *testing.T) {
 	for _, burst := range []int{200, 1000} {
 		t.Run(fmt.Sprint(burst), func(t *testing.T) {
-			s, address, _ := listenerFixture(t, 30*time.Millisecond, 8*dnsRequestMemory)
+			var receivedNoise atomic.Uint64
+			s, address, _ := listenerFixtureObserved(t, 30*time.Millisecond, 8*dnsRequestMemory, func(conn net.PacketConn) net.PacketConn {
+				return &observedNoiseConn{PacketConn: conn, received: &receivedNoise}
+			})
 			noise, err := net.Dial("udp4", address)
 			if err != nil {
 				t.Fatal(err)
@@ -109,15 +126,38 @@ func TestMalformedBurstCannotStarveValidWANAndProxyDNS(t *testing.T) {
 			for err := range errors {
 				t.Error(err)
 			}
-			wantInvalid := uint64(burst + 32)
-			deadline := time.Now().Add(5 * time.Second)
-			for s.failureInvalidQuery.Load() < wantInvalid && time.Now().Before(deadline) {
-				time.Sleep(time.Millisecond)
+			// UDP can be dropped by the kernel under pressure. Count independent
+			// successful socket reads rather than equating writes with delivery.
+			// A final query on the same flow fences all retained noise datagrams,
+			// and must itself still succeed through the WAN resolver.
+			noise.SetDeadline(time.Now().Add(5 * time.Second))
+			fence := dnsQuery("after-noise.example.test")
+			if _, err := noise.Write(fence); err != nil {
+				t.Fatal(err)
 			}
-			if s.failureInvalidQuery.Load() != wantInvalid || s.failures.Load() != wantInvalid || s.queries.Load() != wantInvalid+32 {
+			buffer := make([]byte, 4096)
+			for {
+				n, err := noise.Read(buffer)
+				if err != nil {
+					t.Fatalf("valid DNS after burst failed: %v", err)
+				}
+				if matchingQuestion(fence, buffer[:n]) {
+					if n < 12 || buffer[3]&15 != 0 {
+						t.Fatal("post-burst DNS was rejected")
+					}
+					break
+				}
+			}
+			delivered := receivedNoise.Load()
+			if delivered == 0 || delivered > uint64(burst) {
+				t.Fatalf("invalid noise observer: %d/%d", delivered, burst)
+			}
+			wantInvalid := delivered + 32
+			deadline := time.Now().Add(5 * time.Second)
+			if s.failureInvalidQuery.Load() != wantInvalid || s.failures.Load() != wantInvalid || s.queries.Load() != wantInvalid+33 {
 				t.Fatalf("unexpected accounting: queries=%d invalid=%d failures=%d", s.queries.Load(), s.failureInvalidQuery.Load(), s.failures.Load())
 			}
-			if s.upstreamExchanges.Load() != 32 || s.directUse.Load() != 16 || s.proxyUse.Load() != 16 || s.fallbackUse.Load() != 0 {
+			if s.upstreamExchanges.Load() != 33 || s.directUse.Load() != 17 || s.proxyUse.Load() != 16 || s.fallbackUse.Load() != 0 {
 				t.Fatal("malformed traffic reached upstream or changed valid DNS routes")
 			}
 			for {
@@ -133,7 +173,7 @@ func TestMalformedBurstCannotStarveValidWANAndProxyDNS(t *testing.T) {
 				}
 				time.Sleep(time.Millisecond)
 			}
-			t.Logf("%d UDP + 32 TCP malformed inputs rejected; 16 WAN + 16 proxy lookups succeeded; queue errors=0", burst)
+			t.Logf("%d/%d UDP + 32 TCP malformed inputs received and rejected; 17 WAN + 16 proxy lookups succeeded; queue errors=0", delivered, burst)
 		})
 	}
 }

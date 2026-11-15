@@ -45,6 +45,9 @@ func delayedAvailabilityRuntime(t *testing.T, delay time.Duration, check func() 
 				selected = args[len(args)-1]
 				return nil, nil
 			}
+			if len(args) > 1 && args[1] == "bi" && args[len(args)-1] != lane.probeSelector {
+				return selectorInfo("block"), nil
+			}
 			return selectorInfo(selected), nil
 		}
 		lanes = append(lanes, lane)

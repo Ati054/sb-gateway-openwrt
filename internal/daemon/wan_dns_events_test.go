@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/dnsproxy"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 func TestWANDNSEventUsesExistingControlSocketAndCoalesces(t *testing.T) {

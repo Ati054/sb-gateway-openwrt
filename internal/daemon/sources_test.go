@@ -5,9 +5,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 func TestRetainConfiguredSourcesRemovesDeletedProvider(t *testing.T) {

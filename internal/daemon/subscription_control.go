@@ -6,23 +6,30 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/agentport"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/dnsproxy"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 // Control acknowledgements must stay responsive while HTTPS/probes are busy.
 // Monitoring/capture publications are serialized with catalog pool publication;
 // fetching and network probes never hold the control lock.
 type subscriptionControl struct {
-	mu          sync.RWMutex
-	config      settings.Config
-	refresh     chan string
-	wanChanges  chan struct{}
-	readConfig  func(context.Context) (settings.Config, error)
-	applyReload func(context.Context, settings.Config, settings.Config) error
-	preparePool func([]catalog.Node, []settings.Policy) (*agentport.PreparedPool, error)
+	// Serialize UCI reads with their Apply commits, preventing an older slow
+	// read from overwriting a newer acknowledged configuration.
+	applyMu sync.Mutex
+	mu      sync.RWMutex
+	config  settings.Config
+	// Immutable inventory of the published pool, which may precede the store's
+	// durable commit. Never rebuild a live pool from a different generation.
+	poolNodes      []catalog.Node
+	refresh        chan string
+	wanChanges     chan struct{}
+	readConfig     func(context.Context) (settings.Config, error)
+	applyReload    func(context.Context, settings.Config, settings.Config) error
+	restoreCapture func(context.Context, settings.Config) error
+	preparePool    func([]catalog.Node, []settings.Policy) (*agentport.PreparedPool, error)
 }
 
 func newSubscriptionControl(config settings.Config) *subscriptionControl {
@@ -50,6 +57,12 @@ func (c *subscriptionControl) handle(request reloadRequest) (reloadResult, bool)
 		}
 		return reloadResult{Status: "applied"}, true
 	}
+	if request.operation == "capture-restore" {
+		if err := c.restoreAcknowledgedCapture(request.ctx); err != nil {
+			return reloadResult{Status: "error", Error: err.Error()}, true
+		}
+		return reloadResult{Status: "applied"}, true
+	}
 	c.mu.RLock()
 	current := c.config
 	c.mu.RUnlock()
@@ -63,6 +76,11 @@ func (c *subscriptionControl) handle(request reloadRequest) (reloadResult, bool)
 			}
 		}
 		return result, true
+	}
+	c.applyMu.Lock()
+	defer c.applyMu.Unlock()
+	if err := request.ctx.Err(); err != nil {
+		return reloadResult{Status: "error", Error: err.Error()}, true
 	}
 	candidate, err := c.readConfig(request.ctx)
 	if err != nil {
@@ -125,7 +143,7 @@ func classifyControlReload(current, candidate settings.Config) (reloadResult, bo
 	if reflect.DeepEqual(current, candidate) {
 		return reloadResult{Status: "applied"}, true
 	}
-	if !monitoringOnly(current, candidate) && !captureOnly(current, candidate) {
+	if _, allowed := liveReloadBase(current, candidate); !allowed {
 		return reloadResult{Status: "restart"}, true
 	}
 	return reloadResult{}, false

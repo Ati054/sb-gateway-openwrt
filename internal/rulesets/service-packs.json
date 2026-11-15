@@ -525,7 +525,12 @@
       "cn-securities",
       "cn-wiki"
     ],
-    "upstream_name": ""
+    "upstream_name": "",
+    "fallback_domains": [
+      "cn",
+      "xn--fiqs8s",
+      "xn--fiqz9s"
+    ]
   },
   {
     "id": "ir-all",
@@ -549,7 +554,11 @@
       "ir-tech",
       "ir-travel"
     ],
-    "upstream_name": ""
+    "upstream_name": "",
+    "fallback_domains": [
+      "ir",
+      "xn--mgba3a4f16a"
+    ]
   },
   {
     "description": "Website, app, CDNs, REST/WebSocket APIs and AWS WAF challenge.",

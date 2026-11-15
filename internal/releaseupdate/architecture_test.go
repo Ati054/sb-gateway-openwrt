@@ -13,7 +13,7 @@ func TestX86ReleaseVerifiedAndDownloaded(t *testing.T) {
 	body := []byte("x86 APK fixture")
 	s, choice, manifest, releases := fixtureSource(t, body)
 	choice.Asset.Arch = "x86_64"
-	choice.Asset.Name = "sb-gateway-openwrt-" + choice.Version + "-x86_64.apk"
+	choice.Asset.Name = "xroute-openwrt-" + choice.Version + "-x86_64.apk"
 	choice.URL = assetURL(choice.Tag, choice.Asset.Name)
 	manifest.Assets[0] = choice.Asset
 	(*releases)[0].Assets[2] = githubAsset{Name: choice.Asset.Name, URL: choice.URL, Size: choice.Asset.Size, State: "uploaded"}
@@ -23,7 +23,7 @@ func TestX86ReleaseVerifiedAndDownloaded(t *testing.T) {
 	s.Client.Transport = fixtureTransport(func(r *http.Request) (*http.Response, error) {
 		if r.URL.String() == choice.URL {
 			clone := r.Clone(r.Context())
-			u, _ := url.Parse(assetURL(choice.Tag, "sb-gateway-openwrt-"+choice.Version+"-aarch64_generic.apk"))
+			u, _ := url.Parse(assetURL(choice.Tag, "xroute-openwrt-"+choice.Version+"-aarch64_generic.apk"))
 			clone.URL = u
 			return original.RoundTrip(clone)
 		}

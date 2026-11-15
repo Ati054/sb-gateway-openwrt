@@ -394,12 +394,15 @@ func TestIPMatcherFilterIPs(t *testing.T) {
 }
 
 func TestIPMatcher4CN(t *testing.T) {
-	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
+	ipCountryFixture(t, "CN", &CIDR{Ip: net.IP{203, 0, 113, 0}, Prefix: 24})
 
 	matcher := buildIPMatcher("geoip:cn")
 
 	if matcher.Match([]byte{8, 8, 8, 8}) {
 		t.Error("expect CN geoip doesn't contain 8.8.8.8, but actually does")
+	}
+	if !matcher.Match([]byte{203, 0, 113, 1}) {
+		t.Error("fixture prefix did not match")
 	}
 }
 
@@ -408,12 +411,14 @@ func TestIPMatcher4CN(t *testing.T) {
 // asserting that a particular resolver must always belong to the RU dataset.
 func ipv6RUFixture(t testing.TB) {
 	t.Helper()
+	ipCountryFixture(t, "RU", &CIDR{Ip: net.ParseIP("2001:db8:1234::").To16(), Prefix: 48}, &CIDR{Ip: net.IP{203, 0, 113, 0}, Prefix: 24})
+}
+
+func ipCountryFixture(t testing.TB, country string, cidrs ...*CIDR) {
+	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("xray.location.asset", dir)
-	data, err := proto.Marshal(&GeoIPList{Entry: []*GeoIP{{Code: "RU", Cidr: []*CIDR{
-		{Ip: net.ParseIP("2001:db8:1234::").To16(), Prefix: 48},
-		{Ip: net.IP{203, 0, 113, 0}, Prefix: 24},
-	}}}})
+	data, err := proto.Marshal(&GeoIPList{Entry: []*GeoIP{{Code: country, Cidr: cidrs}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +445,7 @@ func TestIPMatcher6RU(t *testing.T) {
 }
 
 func BenchmarkIPMatcher4CN(b *testing.B) {
-	b.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
+	ipCountryFixture(b, "CN", &CIDR{Ip: net.IP{203, 0, 113, 0}, Prefix: 24})
 
 	matcher := buildIPMatcher("geoip:cn")
 	ip := net.IP{8, 8, 8, 8}

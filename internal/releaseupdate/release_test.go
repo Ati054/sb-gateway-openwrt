@@ -27,7 +27,7 @@ func (f fixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { r
 func fixtureSource(t *testing.T, body []byte) (*Source, Choice, *Manifest, *[]githubRelease) {
 	t.Helper()
 	sum := sha256.Sum256(body)
-	choice := Choice{Version: "0.1.2", Tag: "v0.1.2", Available: true, CheckedAt: time.Now().UTC(), Asset: Asset{Arch: "aarch64_generic", Name: "sb-gateway-openwrt-0.1.2-aarch64_generic.apk", Size: int64(len(body)), SHA256: hex.EncodeToString(sum[:])}}
+	choice := Choice{Version: "0.1.2", Tag: "v0.1.2", Available: true, CheckedAt: time.Now().UTC(), Asset: Asset{Arch: "aarch64_generic", Name: "xroute-openwrt-0.1.2-aarch64_generic.apk", Size: int64(len(body)), SHA256: hex.EncodeToString(sum[:])}}
 	choice.URL = assetURL(choice.Tag, choice.Asset.Name)
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -70,6 +70,23 @@ func TestStableReleaseAndCurrentVersion(t *testing.T) {
 		t.Fatalf("current version offered again: %+v %v", got, e)
 	}
 }
+
+func TestCanonicalPackageAndLegacyMigrationUseCanonicalSignedAsset(t *testing.T) {
+	for _, name := range []string{"xroute-openwrt", "sb-gateway-openwrt"} {
+		t.Run(name, func(t *testing.T) {
+			s, choice, _, _ := fixtureSource(t, []byte("signed fixture"))
+			got, err := s.Check(context.Background(), Installed{Name: name, Version: "0.1.0", Arch: "aarch64_generic"})
+			if err != nil || !got.Available || got.Asset != choice.Asset || !strings.HasPrefix(got.Asset.Name, "xroute-openwrt-") {
+				t.Fatalf("canonical update unavailable for %s: %+v %v", name, got, err)
+			}
+		})
+	}
+	s, _, _, _ := fixtureSource(t, []byte("signed fixture"))
+	if _, err := s.Check(context.Background(), Installed{Name: "other-package", Version: "0.1.0", Arch: "aarch64_generic"}); err == nil {
+		t.Fatal("unrelated package accepted as migration source")
+	}
+}
+
 func TestInvalidOrMissingReleaseCannotBeInstalled(t *testing.T) {
 	for _, test := range []string{"draft", "prerelease", "missing-apk", "other-repository", "wrong-size", "path-traversal", "bad-hash", "wrong-schema", "other-tag", "unsupported-arch"} {
 		t.Run(test, func(t *testing.T) {

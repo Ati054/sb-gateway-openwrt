@@ -10,8 +10,9 @@ port="${3:-}"
 dns_port="${4:-0}"
 ready=0
 client_scope=
+restore_config_stdin=0
 for option in "$@"; do
-	case "$option" in --clients=*) client_scope="$option";; esac
+	case "$option" in --clients=*) client_scope="$option";; --restore-config-stdin) restore_config_stdin=1;; esac
 done
 [ "$action" != ready ] || { ready=1; action=apply; }
 mkdir -p /var/run/resproxy
@@ -46,7 +47,11 @@ trap 'rm -f "$temporary" "$backup" "$batch"' EXIT
 cp -p "$rules" "$backup"
 
 if [ "$action" = restore ]; then
-	/usr/bin/resproxyd capture-restore-rules > "$temporary"
+	if [ "$restore_config_stdin" = 1 ]; then
+		/usr/bin/resproxyd capture-restore-rules --config-stdin > "$temporary"
+	else
+		/usr/bin/resproxyd capture-restore-rules > "$temporary"
+	fi
 	read -r hash tag action interface port dns_port extra < "$temporary"
 	[ "$hash" = '#' ] && [ "$tag" = resproxy-restore ] && [ -z "${extra:-}" ] || exit 1
 	case "$action" in
@@ -131,8 +136,19 @@ fi
 # A single nft batch replaces our private tables atomically. Keep the fw4
 # ruleset-post include for later firewall reloads, but do not reload the whole
 # firewall merely because this service starts or stops.
-if nft list table inet fw4 >/dev/null 2>&1; then
-	input_rules="$(nft -a list chain inet fw4 input 2>/dev/null || :)"
+# Listing tables only reads their names, rather than enumerating every set in
+# fw4 just to discover whether the table exists.
+if ! existing_tables="$(nft list tables)"; then
+	mv "$backup" "$rules"
+	rollback_policy_routes
+	exit 1
+fi
+if printf '%s\n' "$existing_tables" | grep -Fxq 'table inet fw4'; then
+	if ! input_rules="$(nft -n -s -t -a list chain inet fw4 input)"; then
+		mv "$backup" "$rules"
+		rollback_policy_routes
+		exit 1
+	fi
 	if [ "$action" != remove ]; then
 		if ! printf '%s\n' "$input_rules" | grep -Fq 'comment "sb-gateway: TProxy delivery"'; then
 			printf '%s\n' 'insert rule inet fw4 input meta mark 0x5253 meta l4proto { tcp, udp } socket transparent 1 counter accept comment "sb-gateway: TProxy delivery"' >> "$batch"
@@ -145,10 +161,10 @@ if nft list table inet fw4 >/dev/null 2>&1; then
 		done
 	fi
 fi
-if nft list table ip resproxy >/dev/null 2>&1; then
+if printf '%s\n' "$existing_tables" | grep -Fxq 'table ip resproxy'; then
 	printf 'delete table ip resproxy\n' >> "$batch"
 fi
-if nft list table ip6 resproxy6 >/dev/null 2>&1; then
+if printf '%s\n' "$existing_tables" | grep -Fxq 'table ip6 resproxy6'; then
 	printf 'delete table ip6 resproxy6\n' >> "$batch"
 fi
 if [ "$action" != remove ]; then

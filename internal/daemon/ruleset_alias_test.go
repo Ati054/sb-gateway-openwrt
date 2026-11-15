@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
-	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/geoipasset"
+	"github.com/Ati054/xroute-openwrt/internal/rulesets"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 type aliasRulesetRuntime struct{ published chan xray.BaseConfig }

@@ -2,10 +2,10 @@ msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: fa\nPlural-Forms: nplurals=2; plural=(n > 1);\n"
 
 msgid "Resilient Proxy"
-msgstr "پراکسی پایدار"
+msgstr "XRoute"
 
-msgid "SB Gateway for OpenWrt"
-msgstr "SB Gateway برای OpenWrt"
+msgid "XRoute"
+msgstr "XRoute"
 
 msgid "Package update"
 msgstr "به‌روزرسانی بسته"
@@ -49,8 +49,8 @@ msgstr "در حال نصب نسخهٔ %s…"
 msgid "Choose APK and update"
 msgstr "انتخاب APK و به‌روزرسانی"
 
-msgid "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
-msgstr "فقط SB Gateway به‌روزرسانی می‌شود. سرویس پراکسی برای مدتی کوتاه راه‌اندازی مجدد می‌شود؛ به‌روزرسانی اشتراک نیازی به راه‌اندازی مجدد ندارد."
+msgid "Only XRoute is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgstr "فقط XRoute به‌روزرسانی می‌شود. سرویس پراکسی برای مدتی کوتاه راه‌اندازی مجدد می‌شود؛ به‌روزرسانی اشتراک نیازی به راه‌اندازی مجدد ندارد."
 
 msgid "New source"
 msgstr "منبع جدید"
@@ -1343,8 +1343,8 @@ msgstr "فهرست"
 msgid "ms"
 msgstr "میلی‌ثانیه"
 
-msgid "Enable SB Gateway"
-msgstr "فعال‌سازی SB Gateway"
+msgid "Enable XRoute"
+msgstr "فعال‌سازی XRoute"
 
 msgid "Device routing"
 msgstr "مسیریابی دستگاه‌ها"
@@ -1385,8 +1385,8 @@ msgstr "فیلدهای اشتراک را بررسی کنید."
 msgid "Could not save subscription settings."
 msgstr "ذخیرهٔ تنظیمات اشتراک ممکن نشد."
 
-msgid "Subscription saved. Enable SB Gateway in Overview."
-msgstr "اشتراک ذخیره شد. SB Gateway را در نمای کلی فعال کنید."
+msgid "Subscription saved. Enable XRoute in Overview."
+msgstr "اشتراک ذخیره شد. XRoute را در نمای کلی فعال کنید."
 
 msgid "Could not apply subscription settings."
 msgstr "اعمال تنظیمات اشتراک ممکن نشد."
@@ -1739,8 +1739,8 @@ msgstr "Xray به سقف فایل‌های باز نزدیک شده است."
 msgid "Xray was stopped by the kernel for lack of memory. See the journal."
 msgstr "هسته به‌دلیل کمبود حافظه Xray را متوقف کرده است. گزارش را ببینید."
 
-msgid "Finish configuring route lists before enabling SB Gateway."
-msgstr "پیش از فعال کردن SB Gateway، تنظیم فهرست‌های مسیریابی را کامل کنید."
+msgid "Finish configuring route lists before enabling XRoute."
+msgstr "پیش از فعال کردن XRoute، تنظیم فهرست‌های مسیریابی را کامل کنید."
 
 msgid "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
 msgstr "آخرین مقایسهٔ جفت‌شدهٔ HTTPS. مقدار منفی یعنی تأخیر کمتر و مقدار مثبت یعنی تأخیر بیشتر."
@@ -2342,8 +2342,8 @@ msgstr "فهرست‌های مسیریابی از پایگاه قواعد قاب
 msgid "Rule database update finished with errors."
 msgstr "به‌روزرسانی پایگاه‌های قواعد با خطا پایان یافت."
 
-msgid "Start SB Gateway to load rule databases."
-msgstr "برای بارگیری پایگاه‌های قواعد، SB Gateway را راه‌اندازی کنید."
+msgid "Start XRoute to load rule databases."
+msgstr "برای بارگیری پایگاه‌های قواعد، XRoute را راه‌اندازی کنید."
 
 msgid "Waiting for automatic rule database loading."
 msgstr "در انتظار بارگیری خودکار پایگاه‌های قواعد."
@@ -2354,8 +2354,8 @@ msgstr "در حافظهٔ نهان"
 msgid "Waiting for download"
 msgstr "در انتظار دریافت"
 
-msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
-msgstr "قواعد را به یک فهرست مسیریابی پیوند دهید و تنظیمات را اعمال کنید. هنگام اجرای SB Gateway، پایگاه‌های موردنیاز به‌طور خودکار بارگیری می‌شوند."
+msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while XRoute is running."
+msgstr "قواعد را به یک فهرست مسیریابی پیوند دهید و تنظیمات را اعمال کنید. هنگام اجرای XRoute، پایگاه‌های موردنیاز به‌طور خودکار بارگیری می‌شوند."
 
 msgid "All supported nodes are imported; data-size and storage limits still apply."
 msgstr "همهٔ گره‌های پشتیبانی‌شده وارد می‌شوند؛ محدودیت حجم داده و فضای ذخیره‌سازی همچنان برقرار است."
@@ -2371,3 +2371,6 @@ msgstr "ردشده در ورودی: %s."
 
 msgid "WAN DNS is unavailable. OpenWrt DNS remains active."
 msgstr "DNS مسیر WAN در دسترس نیست. DNS خود OpenWrt همچنان فعال است."
+
+msgid "Unable to inspect DNS services; OpenWrt DNS remains active."
+msgstr "بررسی سرویس‌های DNS ممکن نیست. DNS خود OpenWrt همچنان فعال است."

@@ -119,6 +119,7 @@ return view.extend({
     'other-dns-service':_('Another DNS service is running; DNS capture is disabled.'),
     'other-dns-redirect':_('Another DNS redirect is present; DNS capture is disabled.'),
     'firewall-inspection-failed':_('Unable to inspect firewall; DNS capture is disabled.'),
+    'dns-service-inspection-failed':_('Unable to inspect DNS services; OpenWrt DNS remains active.'),
     'listener-failed':_('DNS listener failed. See the journal.'),
     'router-dns-handoff-failed':_('DNS takeover failed; previous DNS restored. See the journal.')
    };
@@ -143,7 +144,7 @@ return view.extend({
      unused:_('No downloadable rule databases are used by route lists.'),
      error:_('Rule database update finished with errors.')
     }[phase];
-    var summary=phase==='unused' ? progress : status && !status.running ? _('Start SB Gateway to load rule databases.') : progress;
+    var summary=phase==='unused' ? progress : status && !status.running ? _('Start XRoute to load rule databases.') : progress;
     summary=summary || (!database ? _('Waiting for automatic rule database loading.') :
      _('%d downloaded · %d cached · %d unavailable').format(loaded,stale,unavailable) +
       (database.checked_at ? ' · '+new Date(database.checked_at).toLocaleString((document.documentElement.lang || 'en').replace(/_/g, '-'), {calendar:'gregory'}) : ''));
@@ -187,7 +188,7 @@ return view.extend({
     return widget;
    }
   });
-  var enabled=service.option(OverviewFlag,'enabled',_('Enable SB Gateway'));
+  var enabled=service.option(OverviewFlag,'enabled',_('Enable XRoute'));
   enabled.default='0'; enabled.rmempty=false;
   enabled.validate=function(section,value) {
    if(value!=='1')return true;
@@ -195,7 +196,7 @@ return view.extend({
    return policies.length>0 && policies.every(function(policy) {
     return /^[a-z][a-z0-9-]{0,31}$/.test(policy.id || '') &&
      (Array.isArray(policy.selection_order) ? policy.selection_order.length>0 : !!String(policy.selection_order || '').trim());
-   }) || _('Finish configuring route lists before enabling SB Gateway.');
+   }) || _('Finish configuring route lists before enabling XRoute.');
   };
   // One user action controls both the service and client routing. Keep the old
   // UCI key synchronized for existing firewall/init consumers.
@@ -215,7 +216,10 @@ return view.extend({
     if (!event.persisted) { document.removeEventListener('visibilitychange',resume); poll.remove(autoRefresh); }
    });
    formNode.classList.add('sbg-overview-settings');
-   return sbgTheme.decorate(E('div',{},[E('h2',{},_('SB Gateway for OpenWrt')),formNode,dashboard]));
+   return sbgTheme.decorate(E('div',{},[E('h2',{'class':'xroute-brand'},[
+    E('img',{src:L.resource('view/resproxy/xroute.svg'),alt:'','aria-hidden':'true',width:40,height:40}),
+    E('strong',{dir:'ltr'},_('XRoute'))
+   ]),formNode,dashboard]));
   });
  }
 });

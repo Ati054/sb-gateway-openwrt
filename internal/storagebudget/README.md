@@ -1,5 +1,7 @@
 # Storage admission
 
+> **[Версия для MikroTik RouterOS7 здесь →](https://github.com/Ati054/xroute)**
+
 `Check` compares requested bytes with filesystem space available to the calling
 user. Linux uses `Bavail`, so filesystem reserve is not counted as application
 capacity. Windows uses `GetDiskFreeSpaceEx`. Unsupported or unreadable paths fail

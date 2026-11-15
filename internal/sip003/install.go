@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -78,22 +79,53 @@ type PluginStatus struct {
 }
 
 func Status() PluginStatus {
+	return statusAt(installRoot)
+}
+
+func statusAt(root string) PluginStatus {
 	result := PluginStatus{Installed: map[string]bool{}, Supported: runtime.GOOS == "linux" && (runtime.GOARCH == "arm64" || runtime.GOARCH == "amd64"), Source: "Passwall · 26.10.1-2"}
 	for name := range pins {
 		info, err := os.Stat(Binary(name))
 		result.Installed[name] = err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0111 != 0
 	}
-	if body, err := os.ReadFile(filepath.Join(installRoot, "status.json")); err == nil && len(body) <= 4096 {
-		_ = json.Unmarshal(body, &result.State)
+	statePath := filepath.Join(root, "status.json")
+	if info, err := os.Lstat(statePath); err == nil && info.Mode().IsRegular() && info.Size() <= 4096 {
+		if file, err := os.Open(statePath); err == nil {
+			body, readErr := io.ReadAll(io.LimitReader(file, 4097))
+			_ = file.Close()
+			if readErr == nil && len(body) <= 4096 {
+				_ = json.Unmarshal(body, &result.State)
+			}
+		}
 	}
 	if result.State.Phase != "success" && result.State.Phase != "error" && result.State.Phase != "" && result.State.PID > 0 {
-		if _, err := os.Stat(filepath.Join("/proc", strconv.Itoa(result.State.PID))); err != nil {
+		if !installerAlive(result.State.PID) {
 			result.State.Phase = "error"
 			result.State.Error = "installer stopped"
-			_ = os.Remove(filepath.Join(installRoot, "install.lock"))
 		}
 	}
 	return result
+}
+
+func installerAlive(pid int) bool {
+	if pid <= 1 {
+		return false
+	}
+	file, err := os.Open(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	body, err := io.ReadAll(io.LimitReader(file, 4097))
+	if err != nil || len(body) > 4096 {
+		return false
+	}
+	args := strings.Split(string(body), "\x00")
+	if len(args) < 3 || (args[1] != "plugins-install" && args[1] != "plugins-worker") {
+		return false
+	}
+	_, supported := pins[args[2]]
+	return supported
 }
 func writeInstall(state InstallState) error {
 	body, err := json.Marshal(state)
@@ -131,25 +163,21 @@ func BeginInstall(name string) error {
 	if status.Installed[name] {
 		return nil
 	}
-	if err := os.MkdirAll(installRoot, 0700); err != nil {
-		return err
-	}
-	lock, err := os.OpenFile(filepath.Join(installRoot, "install.lock"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	lock, err := acquireInstallLock(installRoot)
 	if err != nil {
 		return errors.New("plugin installation is already running")
 	}
-	lock.Close()
-	failed := true
-	defer func() {
-		if failed {
-			_ = os.Remove(filepath.Join(installRoot, "install.lock"))
-		}
-	}()
+	defer lock.Close()
+	// An older package's worker may still own APK installation without flock.
+	if state := Status().State; (state.Phase == "queued" || state.Phase == "downloading" || state.Phase == "installing") && installerAlive(state.PID) {
+		return errors.New("plugin installation is already running")
+	}
 	binary, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	child := exec.Command(binary, "plugins-worker", name)
+	child.ExtraFiles = []*os.File{lock}
 	null, err := os.OpenFile(os.DevNull, os.O_RDWR, 0600)
 	if err != nil {
 		return err
@@ -164,12 +192,10 @@ func BeginInstall(name string) error {
 	if err = child.Start(); err != nil {
 		return err
 	}
-	// Worker writes its own PID before downloading. Do not overwrite that state.
-	failed = false
+	// Publish the worker PID before allowing it past its startup handshake.
 	if err = writeInstall(InstallState{Name: name, Phase: "queued", PID: child.Process.Pid}); err != nil {
 		_ = child.Process.Kill()
 		_ = child.Wait()
-		failed = true
 		return err
 	}
 	_ = child.Process.Release()
@@ -178,6 +204,14 @@ func BeginInstall(name string) error {
 func InstallWorker(name string) (result error) {
 	if _, ok := pins[name]; !ok {
 		return errors.New("unknown plugin")
+	}
+	lock := os.NewFile(3, "install.lock")
+	if lock == nil {
+		return errors.New("plugin installation lock unavailable")
+	}
+	defer lock.Close()
+	if err := verifyInstallLock(installRoot, lock); err != nil {
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
@@ -191,7 +225,6 @@ func InstallWorker(name string) (result error) {
 			state.Phase = "success"
 		}
 		_ = writeInstall(state)
-		_ = os.Remove(filepath.Join(installRoot, "install.lock"))
 	}()
 	// Parent publishes our PID before releasing the worker.
 	deadline := time.Now().Add(5 * time.Second)
@@ -211,7 +244,7 @@ func InstallWorker(name string) (result error) {
 	defer file.Close()
 	client := &http.Client{Timeout: 45 * time.Second, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DisableCompression: true}}
 	defer client.CloseIdleConnections()
-	metadata, err := exec.CommandContext(ctx, "apk", "query", "--fields", "arch", "--format", "json", "--installed", "sb-gateway-openwrt").Output()
+	metadata, err := pluginCommand(ctx, "apk", "query", "--fields", "arch", "--format", "json", "--installed", "sb-gateway-openwrt").Output()
 	if err != nil {
 		return errors.New("installed package architecture unavailable")
 	}
@@ -235,7 +268,7 @@ func InstallWorker(name string) (result error) {
 	phase("installing")
 	// Only this exact SHA-pinned APK is untrusted. Configured official feeds
 	// still verify dependencies; no extra repository or system upgrade is added.
-	cmd := exec.CommandContext(ctx, "apk", "add", "--allow-untrusted", path)
+	cmd := pluginCommand(ctx, "apk", "add", "--allow-untrusted", path)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	if cmd.Run() != nil {
@@ -245,6 +278,13 @@ func InstallWorker(name string) (result error) {
 		return errors.New("installed plugin executable not found")
 	}
 	return nil
+}
+
+func pluginCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
+	command := exec.CommandContext(ctx, name, args...)
+	command.WaitDelay = time.Second
+	configurePluginCommandCancellation(command)
+	return command
 }
 func extractPackage(reader io.ReaderAt, size int64, pin packagePin, destination io.Writer) error {
 	archive, err := zip.NewReader(reader, size)

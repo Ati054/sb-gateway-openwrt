@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"encoding/json"
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/health"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/health"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 func reloadFixture() settings.Config {
@@ -54,11 +54,9 @@ func TestStructuralReloadRequiresRestartWithoutPublishing(t *testing.T) {
 	for _, change := range []func(*settings.Config){
 		func(c *settings.Config) { c.DNSMode = "proxy-only" },
 		func(c *settings.Config) { c.Base.TransparentPort++ },
-		func(c *settings.Config) { c.Policies[0].SelectionOrder = []string{"country:NL"} },
 		func(c *settings.Config) { c.RouteEnabled = false },
 		func(c *settings.Config) { c.Capture.IPv6Mode = "direct" },
 		func(c *settings.Config) { c.Capture.DirectIPs = []string{"203.0.113.4/32"} },
-		func(c *settings.Config) { c.Policies[0].NodeFilter.Include = "premium" },
 	} {
 		previous := reloadFixture()
 		next := reloadFixture()

@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
+	"github.com/Ati054/xroute-openwrt/internal/subscription"
 )
 
 func testBinary(t *testing.T) string {

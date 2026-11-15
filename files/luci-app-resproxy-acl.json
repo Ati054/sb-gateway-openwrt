@@ -1,6 +1,6 @@
 {
   "luci-app-resproxy": {
-    "description": "SB Gateway for OpenWrt configuration and status",
+    "description": "XRoute configuration and status",
     "read": {
       "cgi-io": [
         "exec"

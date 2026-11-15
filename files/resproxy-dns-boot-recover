@@ -1,6 +1,6 @@
 #!/bin/sh
 # Kept with the backup so DNS can recover even if the new firmware has no
-# SB Gateway binary. OpenWrt runs uci-defaults before starting dnsmasq.
+# XRoute binary. OpenWrt runs uci-defaults before starting dnsmasq.
 # The published daemon PID marks a completed startup. A live controller
 # retains ownership even while independently restarting Xray. Keep this
 # uci-defaults file pending for recovery after that owner exits.

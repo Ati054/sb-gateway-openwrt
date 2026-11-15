@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 const linkCA = "vless://2f1c08fc-3f43-4e95-8f57-f8bded750a1a@ca.example.test:443?security=tls#CA%20Toronto"

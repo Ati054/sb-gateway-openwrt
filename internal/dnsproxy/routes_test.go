@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
+	"github.com/Ati054/xroute-openwrt/internal/dnsroute"
 )
 
 func managedFixture(t *testing.T, handler http.HandlerFunc) (*server, func(string, string)) {

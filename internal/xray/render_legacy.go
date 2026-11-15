@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 )
 
 // RenderOutbound returns the legacy Xray configuration form required by
@@ -61,6 +61,24 @@ func RenderOutbound(node catalog.Node) (json.RawMessage, error) {
 		}
 		outbound = map[string]any{"protocol": node.Protocol, "settings": settings, "streamSettings": stream}
 	case "hysteria2":
+		finalMask := map[string]any{}
+		quic := map[string]any{}
+		for source, target := range map[string]string{"up_mbps": "brutalUp", "down_mbps": "brutalDown"} {
+			if raw, exists := value[source]; exists {
+				mbps, ok := nonnegativeInteger(raw)
+				// Xray's bandwidth parser uses float64 and binary multipliers
+				// for "mbps". Send exact decimal bits/s, without losing units.
+				if !ok || uint64(mbps) > (1<<53-1)/1_000_000 {
+					return nil, fmt.Errorf("invalid %s setting", source)
+				}
+				if mbps > 0 {
+					quic[target] = fmt.Sprintf("%dbps", uint64(mbps)*1_000_000)
+				}
+			}
+		}
+		if len(quic) > 0 {
+			finalMask["quicParams"] = quic
+		}
 		stream := map[string]any{
 			"network": "hysteria", "security": "tls",
 			"sockopt":          map[string]any{"domainStrategy": "UseIPv4"},
@@ -74,9 +92,12 @@ func RenderOutbound(node catalog.Node) (json.RawMessage, error) {
 			stream["tlsSettings"] = settings
 		}
 		if obfs := object(value["obfs"]); obfs["type"] == "salamander" {
-			stream["finalmask"] = map[string]any{"udp": []any{map[string]any{
+			finalMask["udp"] = []any{map[string]any{
 				"type": "salamander", "settings": map[string]any{"password": node.Credentials["obfs_password"]},
-			}}}
+			}}
+		}
+		if len(finalMask) > 0 {
+			stream["finalmask"] = finalMask
 		}
 		outbound = map[string]any{
 			"protocol": "hysteria", "settings": map[string]any{"version": 2, "address": node.Server, "port": node.Port},

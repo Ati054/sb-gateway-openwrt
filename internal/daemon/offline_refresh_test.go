@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/selection"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/selection"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 func TestOfflineImportPreparesCountriesWithoutStartingService(t *testing.T) {

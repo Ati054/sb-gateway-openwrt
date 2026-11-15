@@ -15,18 +15,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
-	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
-	"github.com/Ati054/sb-gateway-openwrt/internal/daemon"
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/releaseupdate"
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
-	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
-	"github.com/Ati054/sb-gateway-openwrt/internal/selection"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
-	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xraycli"
+	"github.com/Ati054/xroute-openwrt/internal/agentport"
+	"github.com/Ati054/xroute-openwrt/internal/capture"
+	"github.com/Ati054/xroute-openwrt/internal/daemon"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/releaseupdate"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/rulesets"
+	"github.com/Ati054/xroute-openwrt/internal/selection"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/sip003"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/xraycli"
 	clog "github.com/xtls/xray-core/common/log"
 )
 
@@ -260,6 +260,15 @@ func execute(arguments []string) error {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
+		if running(paths) {
+			err := daemon.RequestCaptureRestore(ctx, paths)
+			if err == nil {
+				return nil
+			}
+			if !errors.Is(err, daemon.ErrRestartRequired) || (!protected && !daemon.CrashFallbackActive(paths)) {
+				return err
+			}
+		}
 		readConfig := settings.ReadSystemUCI
 		if protected {
 			// Boot protection precedes rpcd/netifd and the daemon PID file.
@@ -279,13 +288,51 @@ func execute(arguments []string) error {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		readConfig := settings.ReadSystemUCI
-		if protected {
-			readConfig = settings.ReadProtectionSystemUCI
-		}
-		config, err := readConfig(ctx)
-		if err != nil {
-			return err
+		var config settings.Config
+		var scopes []capture.EmergencyPolicy
+		var err error
+		if len(arguments) == 2 && arguments[1] == "--config-stdin" {
+			input, readErr := daemon.DecodeCaptureRestore(os.Stdin)
+			if readErr != nil {
+				return readErr
+			}
+			if !daemon.CaptureRestoreOwnerCurrent(input, paths) {
+				fmt.Println("# resproxy-restore skip")
+				return nil
+			}
+			config, scopes = input.Config(), input.Scopes
+			// Transition guards belong to the current lifecycle, not an older
+			// queued live snapshot. Re-read only this bootstrap/emergency case.
+			if input.OwnerPID == 0 || protected || daemon.CrashFallbackActive(paths) {
+				readConfig := settings.ReadSystemUCI
+				if protected {
+					readConfig = settings.ReadProtectionSystemUCI
+				}
+				config, err = readConfig(ctx)
+				if err != nil {
+					return err
+				}
+				scopes, err = daemon.EmergencyPolicies(config)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			if len(arguments) != 1 {
+				return errors.New("unexpected capture restore arguments")
+			}
+			readConfig := settings.ReadSystemUCI
+			if protected {
+				readConfig = settings.ReadProtectionSystemUCI
+			}
+			config, err = readConfig(ctx)
+			if err != nil {
+				return err
+			}
+			scopes, err = daemon.EmergencyPolicies(config)
+			if err != nil {
+				return err
+			}
 		}
 		mode, dnsPort, err := daemon.RestoredCaptureMode(config, paths)
 		if err != nil {
@@ -302,10 +349,6 @@ func execute(arguments []string) error {
 		} else {
 			if config.DNSMode != "system" {
 				policy.DNSListenerPort = config.DNSPort
-			}
-			scopes, scopeErr := daemon.EmergencyPolicies(config)
-			if scopeErr != nil {
-				return scopeErr
 			}
 			body, err = capture.RenderEmergency(config.LANInterface, config.Base.TransparentPort, policy, scopes)
 		}

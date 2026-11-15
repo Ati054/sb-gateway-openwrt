@@ -2,10 +2,10 @@ msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: zh_Hans\nPlural-Forms: nplurals=1; plural=0;\n"
 
 msgid "Resilient Proxy"
-msgstr "弹性代理"
+msgstr "XRoute"
 
-msgid "SB Gateway for OpenWrt"
-msgstr "适用于 OpenWrt 的 SB Gateway"
+msgid "XRoute"
+msgstr "XRoute"
 
 msgid "Package update"
 msgstr "软件包更新"
@@ -49,8 +49,8 @@ msgstr "正在安装版本 %s…"
 msgid "Choose APK and update"
 msgstr "选择 APK 并更新"
 
-msgid "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
-msgstr "仅更新 SB Gateway。代理服务会短暂重启；订阅更新不会重启服务。"
+msgid "Only XRoute is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgstr "仅更新 XRoute。代理服务会短暂重启；订阅更新不会重启服务。"
 
 msgid "New source"
 msgstr "新来源"
@@ -1343,8 +1343,8 @@ msgstr "列表"
 msgid "ms"
 msgstr "毫秒"
 
-msgid "Enable SB Gateway"
-msgstr "启用 SB Gateway"
+msgid "Enable XRoute"
+msgstr "启用 XRoute"
 
 msgid "Device routing"
 msgstr "设备路由"
@@ -1385,8 +1385,8 @@ msgstr "请检查订阅字段。"
 msgid "Could not save subscription settings."
 msgstr "无法保存订阅设置。"
 
-msgid "Subscription saved. Enable SB Gateway in Overview."
-msgstr "订阅已保存。请在概览中启用 SB Gateway。"
+msgid "Subscription saved. Enable XRoute in Overview."
+msgstr "订阅已保存。请在概览中启用 XRoute。"
 
 msgid "Could not apply subscription settings."
 msgstr "无法应用订阅设置。"
@@ -1739,8 +1739,8 @@ msgstr "Xray 已接近打开文件数上限。"
 msgid "Xray was stopped by the kernel for lack of memory. See the journal."
 msgstr "Xray 因内存不足被内核终止。请查看日志。"
 
-msgid "Finish configuring route lists before enabling SB Gateway."
-msgstr "启用 SB Gateway 前请先完成路由列表配置。"
+msgid "Finish configuring route lists before enabling XRoute."
+msgstr "启用 XRoute 前请先完成路由列表配置。"
 
 msgid "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
 msgstr "最近一次有效的配对 HTTPS 比较。负值表示延迟更低，正值表示更高。"
@@ -2342,8 +2342,8 @@ msgstr "路由列表未使用需要下载的规则数据库。"
 msgid "Rule database update finished with errors."
 msgstr "规则数据库更新已完成，但存在错误。"
 
-msgid "Start SB Gateway to load rule databases."
-msgstr "请启动 SB Gateway 以加载规则数据库。"
+msgid "Start XRoute to load rule databases."
+msgstr "请启动 XRoute 以加载规则数据库。"
 
 msgid "Waiting for automatic rule database loading."
 msgstr "等待自动加载规则数据库。"
@@ -2354,8 +2354,8 @@ msgstr "已缓存"
 msgid "Waiting for download"
 msgstr "等待下载"
 
-msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
-msgstr "将规则关联到路由列表并应用设置。SB Gateway 运行时会自动加载缺失的数据库。"
+msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while XRoute is running."
+msgstr "将规则关联到路由列表并应用设置。XRoute 运行时会自动加载缺失的数据库。"
 
 msgid "All supported nodes are imported; data-size and storage limits still apply."
 msgstr "导入所有受支持的节点；数据大小和存储空间限制仍然适用。"
@@ -2371,3 +2371,6 @@ msgstr "入口拒绝：%s。"
 
 msgid "WAN DNS is unavailable. OpenWrt DNS remains active."
 msgstr "WAN DNS 不可用，继续使用 OpenWrt DNS。"
+
+msgid "Unable to inspect DNS services; OpenWrt DNS remains active."
+msgstr "无法检查 DNS 服务，继续使用 OpenWrt DNS。"

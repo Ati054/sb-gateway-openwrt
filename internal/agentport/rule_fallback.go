@@ -3,7 +3,7 @@ package agentport
 import (
 	"errors"
 	"fmt"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 	"time"
 )
 

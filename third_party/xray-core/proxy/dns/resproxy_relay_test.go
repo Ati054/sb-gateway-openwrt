@@ -50,6 +50,9 @@ func TestManagedDNSWriterTCPRefreshesEveryFrame(t *testing.T) {
 		writeRelay(t, writer, p)
 	}
 	for i, p := range capture.packets {
+		if len(p) < 61 {
+			t.Fatal("missing provenance stamp; run with dnsOriginDefault=1 linker flag")
+		}
 		body := p[61:]
 		tlv := p[28:61]
 		sum := sha256.Sum256(body)
@@ -74,6 +77,9 @@ func TestManagedDNSWriterUDPUsesAcceptedBufferStamp(t *testing.T) {
 		writeRelay(t, writer, delivered)
 	}
 	for i, p := range capture.packets {
+		if len(p) < 61 {
+			t.Fatal("missing UDP provenance stamp; run with dnsOriginDefault=1 linker flag")
+		}
 		original := [][]byte{first, second}[i]
 		sum := sha256.Sum256(original)
 		deliveredSum := sha256.Sum256(p[61:])

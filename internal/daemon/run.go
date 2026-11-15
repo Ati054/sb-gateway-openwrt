@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,19 +16,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/agentport"
-	"github.com/Ati054/sb-gateway-openwrt/internal/capture"
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsproxy"
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/refresh"
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
-	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
-	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
-	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/agentport"
+	"github.com/Ati054/xroute-openwrt/internal/capture"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/dnsproxy"
+	"github.com/Ati054/xroute-openwrt/internal/dnsroute"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/refresh"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/rulesets"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/sip003"
+	"github.com/Ati054/xroute-openwrt/internal/subscription"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 type Paths struct {
@@ -43,6 +44,10 @@ func DefaultPaths() Paths {
 func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	if !config.Enabled {
 		return errors.New("service is disabled in UCI")
+	}
+	planningMode, err := configuredURLTestPlanningMode(config.URLTestPlanningMode)
+	if err != nil {
+		return err
 	}
 	catalogLock, err := acquireCatalog(paths)
 	if err != nil {
@@ -64,11 +69,8 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		return err
 	}
 	// Recover an interrupted takeover before constructing a new DNS path.
-	if err := RestoreDNSMasqHandoff(paths); err != nil {
-		return fmt.Errorf("restore router DNS: %w", err)
-	}
-	if err := RestoreDNSHandoff(paths); err != nil {
-		return fmt.Errorf("restore https-dns-proxy: %w", err)
+	if err := RestoreManagedDNS(paths); err != nil {
+		return fmt.Errorf("restore managed DNS: %w", err)
 	}
 	if err := rejectOtherXray(); err != nil {
 		return err
@@ -237,9 +239,12 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 						preparedDNS, preparationErr = dnsproxy.Prepare(preparedConfig)
 						close(preparationDone)
 					}()
-					handedOff, err = acquireDNSHandoff(dnsHandoffFile(paths), true, httpsDNSProxyOps())
+					handedOff, err = acquireDNSHandoff(dnsHandoffFile(paths), true, httpsDNSProxyOpsWithContext(ctx))
 					if err != nil {
-						log.Printf("resproxy: https-dns-proxy handoff failed; existing DNS retained: %v", err)
+						// A failed status probe may have followed a successful stop.
+						// Never continue startup with uncertain DNS ownership.
+						restoreDNSOnExit = true
+						return fmt.Errorf("acquire DNS ownership: %w", err)
 					}
 				}
 			}
@@ -248,26 +253,12 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			restoreDNSOnExit = true
 		}
 
-		dnsInterop = resolveDNSInterop(ctx, config.DNSMode, currentNFTRules, activeExternalDNSService)
-		if handedOff && dnsInterop.Reason == "other-dns-redirect" {
-			// The other service's firewall reload can lag behind its stop.
-		handoffFirewallWait:
-			for attempts := 0; attempts < 10 && dnsInterop.Reason == "other-dns-redirect"; attempts++ {
-				select {
-				case <-ctx.Done():
-					break handoffFirewallWait
-				case <-time.After(500 * time.Millisecond):
-				}
-				dnsInterop = resolveDNSInterop(ctx, config.DNSMode, currentNFTRules, activeExternalDNSService)
-			}
+		dnsInterop, err = settleDNSInterop(ctx, config.DNSMode, handedOff, currentDNSFirewallConflict, activeExternalDNSServiceWithContext, func() error { return RestoreDNSHandoff(paths) })
+		if err != nil {
+			return err
 		}
 		if directPreflightFailed && dnsInterop.Reason == "https-dns-proxy-running" {
 			dnsInterop.Reason = "wan-dns-preflight-failed"
-		}
-		if handedOff && dnsInterop.EffectiveMode == "system" {
-			if err := RestoreDNSHandoff(paths); err != nil {
-				log.Printf("resproxy: restore https-dns-proxy after DNS conflict: %v", err)
-			}
 		}
 		if dnsInterop.EffectiveMode == "system" && preparationDone != nil {
 			<-preparationDone
@@ -292,9 +283,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			if err != nil {
 				dnsInterop.EffectiveMode = "system"
 				dnsInterop.Reason = "listener-failed"
-				log.Printf("resproxy: LAN DNS listener unavailable; existing DNS preserved: %v", err)
-				if err := RestoreDNSHandoff(paths); err != nil {
-					log.Printf("resproxy: restore https-dns-proxy after DNS failure: %v", err)
+				log.Printf("resproxy: LAN DNS listener unavailable; restoring previous DNS: %v", err)
+				if restoreErr := RestoreDNSHandoff(paths); restoreErr != nil {
+					return fmt.Errorf("restore previous DNS owner after listener failure: %w", errors.Join(err, restoreErr))
 				}
 			} else {
 				defer stopDNS()
@@ -348,14 +339,17 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	}
 	defer os.Remove(dnsInteropPath(paths))
 	control := newSubscriptionControl(config)
+	control.poolNodes = nodes
+	control.restoreCapture = func(ctx context.Context, config settings.Config) error {
+		return RestoreFirewall(ctx, config, paths)
+	}
 	if config.DNSDirectURL == dnsproxy.WANResolverURL && config.DNSMode != "system" {
 		control.wanChanges = wanDNSChanges
 	}
 	control.applyReload = func(requestCtx context.Context, previous, next settings.Config) error {
-		if captureOnly(previous, next) && !reflect.DeepEqual(previous.Capture, next.Capture) {
-			return RestoreFirewall(requestCtx, next, paths)
-		}
-		return agentport.UpdatePoolHealth(requestCtx, poolPath, next.Policies)
+		return control.applyLiveReloadLocked(requestCtx, poolPath, previous, next, func(ctx context.Context, config settings.Config) error {
+			return RestoreFirewall(ctx, config, paths)
+		})
 	}
 	reloadRequests, stopReload, err := startReloadServer(ctx, paths, control.handle)
 	if err != nil {
@@ -380,7 +374,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	supervisor.mu.Unlock()
 	healthOptions := agentport.Options{
 		DNSRoutes:           routes,
-		URLTestPlanningMode: agentport.URLTestPlanningFreshPaired,
+		URLTestPlanningMode: planningMode,
 		OnProgress:          progress.mark,
 		BackgroundBusy:      resources.NewBackgroundBusy(),
 		XrayProcessName:     engine.processName, RunXrayCommand: supervisor.Command,
@@ -389,7 +383,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		PreferredSelectionsFile: preferredSelections,
 		XrayBinary:              paths.Binary, XrayAPIServer: manager.Server,
 		XrayReadyFile: readyPath, HealthInterval: 60 * time.Second,
-		HealthPoolFile: poolPath, DNSGenerationFile: filepath.Join(paths.RunRoot, "dns-generation.json"), HotRuntimeReadyFile: filepath.Join(paths.RunRoot, "hot-ready.json"),
+		HealthPoolFile: poolPath, DNSGenerationFile: filepath.Join(paths.RunRoot, "dns-generation.json"), HotRuntimeReadyFile: hotRuntimeReadyPath(paths, dnsInterop),
 		PassiveSocket: passiveSocket,
 		ProbeURL:      fmt.Sprintf("http://127.0.0.1:%d", config.Base.ProbeBasePort),
 		ProbeBasePort: config.Base.ProbeBasePort,
@@ -554,11 +548,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	go func() {
 		defer background.Done()
 		watchVPNRoutes(ctx, func(ctx context.Context) error {
-			current, err := settings.ReadSystemUCI(ctx)
-			if err != nil {
-				return err
-			}
-			return RestoreFirewall(ctx, current, paths)
+			return control.restoreAcknowledgedCapture(ctx)
 		})
 	}()
 	ticker := time.NewTicker(2 * time.Second)
@@ -751,7 +741,7 @@ func sourceRefreshDue(source settings.Subscription, now, next time.Time, request
 	return source.URL != "" && (requested || (source.UpdateMode == "automatic" && !now.Before(next)))
 }
 
-func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, policy capture.Policy) error {
+func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, policy capture.Policy, restoreInput ...[]byte) error {
 	arguments := []string{action}
 	if action == "apply" || action == "emergency" || action == "guard" || action == "ready" || action == "restore" {
 		arguments = append(arguments, iface, strconv.Itoa(port), strconv.Itoa(dnsPort), policy.IPv6Mode)
@@ -766,7 +756,17 @@ func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, p
 		}
 		arguments = append(arguments, policy.DirectIPs...)
 	}
-	output, err := boundedCommand(ctx, "/usr/libexec/resproxy-firewall", arguments...).CombinedOutput()
+	if len(restoreInput) > 0 {
+		if action != "restore" {
+			return errors.New("capture configuration input requires restore action")
+		}
+		arguments = append(arguments, "--restore-config-stdin")
+	}
+	command := boundedCommand(ctx, "/usr/libexec/resproxy-firewall", arguments...)
+	if len(restoreInput) > 0 {
+		command.Stdin = bytes.NewReader(restoreInput[0])
+	}
+	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -929,7 +929,15 @@ func RestoreFirewall(ctx context.Context, config settings.Config, paths Paths) e
 	if !config.Enabled || !config.RouteEnabled {
 		return nil
 	}
-	return setFirewall(ctx, "restore", config.LANInterface, config.Base.TransparentPort, config.DNSPort, config.Capture)
+	owner := 0
+	if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "daemon.pid")); err == nil && strings.TrimSpace(string(body)) == strconv.Itoa(os.Getpid()) {
+		owner = os.Getpid()
+	}
+	input, err := EncodeCaptureRestore(config, owner)
+	if err != nil {
+		return err
+	}
+	return setFirewall(ctx, "restore", config.LANInterface, config.Base.TransparentPort, config.DNSPort, config.Capture, input)
 }
 
 func watchVPNRoutes(ctx context.Context, restore func(context.Context) error) {

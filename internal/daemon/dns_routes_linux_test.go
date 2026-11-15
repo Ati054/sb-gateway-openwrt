@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
+	"github.com/Ati054/xroute-openwrt/internal/dnsroute"
 )
 
 func TestCoreRecoveryWithdrawsDNSAndRejectsOldObserver(t *testing.T) {

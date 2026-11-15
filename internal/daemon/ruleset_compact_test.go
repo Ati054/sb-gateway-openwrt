@@ -5,10 +5,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
-	"github.com/Ati054/sb-gateway-openwrt/internal/rulesets"
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/geoipasset"
+	"github.com/Ati054/xroute-openwrt/internal/rulesets"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 	"github.com/xtls/xray-core/infra/conf/serial"
 	"maps"
 	"os"
@@ -58,6 +58,65 @@ func TestAllCountriesAndServiceSetsShareCompactAssets(t *testing.T) {
 	again, changed, err := compactRulesetSnapshot(compact, root)
 	if err != nil || changed || again.Packs["youtube"].Reference != compact.Packs["youtube"].Reference {
 		t.Fatal("compact snapshot was recompiled", err, changed)
+	}
+}
+
+func TestNewCountryZonesJoinRetainedBankAssetsWithoutChangingStorage(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XRAY_LOCATION_ASSET", root)
+	snapshot := rulesets.Snapshot{Version: rulesets.SnapshotVersion, Packs: map[string]rulesets.Rules{}}
+	base := xray.DefaultBaseConfig()
+	base.DefaultPolicy = "one"
+	base.Policies = []xray.BasePolicy{{ID: "one"}}
+	for _, country := range []string{"ir", "cn"} {
+		ref, err := geoipasset.PublishDomains(root, "retained-bank-"+country, []string{"domain:bank-" + country + ".example"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot.Packs[country+"-banks"] = rulesets.Rules{Reference: ref, Entries: 1}
+		base.Policies[0].Rules = append(base.Policies[0].Rules, xray.RouteRule{ID: country, Action: "direct", ServicePacks: []string{country + "-all"}})
+	}
+	// Old aggregate cards had no downloaded component of their own. Only
+	// their child assets were retained; keep those real upgrade inputs intact.
+	compiled, err := withRulesets(base, []settings.Policy{{ID: "one"}}, snapshot, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, country := range []string{"ir", "cn"} {
+		card := country + "-all"
+		values, err := rulesets.PackExpressions(card, rulesets.Snapshot{})
+		if err != nil || len(values) < 2 {
+			t.Fatal("country zones missing", country, values, err)
+		}
+		sum := sha256.Sum256([]byte(card))
+		zoneRef, err := geoipasset.PublishDomains(root, fmt.Sprintf("service-%x", sum[:12]), values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := compiled.Policies[0].Rules[i].ServiceDomains
+		bankRef := snapshot.Packs[country+"-banks"].Reference
+		if len(got) != 2 || !strings.Contains(strings.Join(got, " "), zoneRef) || !strings.Contains(strings.Join(got, " "), bankRef) {
+			t.Fatalf("upgrade lost country zones or retained bank list: %s %v", country, got)
+		}
+		if _, exists := snapshot.Packs[card]; exists {
+			t.Fatal("applying a rule mutated its persisted snapshot")
+		}
+	}
+	body, err := xray.RenderBase(compiled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := serial.LoadJSONConfig(bytes.NewReader(body)); err != nil {
+		t.Fatal("core rejected upgraded country assets", err)
+	}
+	policies := dnsPoliciesFromBase(compiled)
+	if len(policies) != 1 || len(policies[0].Rules) != 2 {
+		t.Fatal("DNS lost upgraded country rules")
+	}
+	for i, rule := range policies[0].Rules {
+		if rule.Action != "direct" || !reflect.DeepEqual(rule.Domains, compiled.Policies[0].Rules[i].ServiceDomains) {
+			t.Fatal("DNS and traffic asset routes differ", rule)
+		}
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 )
 
 // renderSourceOutbound builds the intermediate client schema used by SB Gateway

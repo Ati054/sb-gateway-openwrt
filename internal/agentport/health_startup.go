@@ -80,13 +80,13 @@ func (controller *healthController) restoreWarmSelections(now time.Time, pool he
 		actual, err := controller.runtime.Current(id)
 		if err == nil && actual == "block" && restorableWorkingSelection(contract, item) {
 			saved := savedWorkingSelection(item).Selected
-			evidence := controller.runtime.ProbeAvailability(saved)
+			evidence := controller.probeAvailability(id, saved, availabilityProbeRequest{})
 			if interruption := takeProbeInterruption(controller.runtime); interruption != nil {
 				return interruption
 			}
 			if !evidence.OK && !evidence.LocalFailure && evidence.Failure == probeFailureTimeout {
-				if confirmation, ok := controller.runtime.(activeConfirmationRuntime); ok {
-					evidence = confirmation.ProbeAvailabilityConfirmation(saved)
+				if _, ok := controller.runtime.(activeConfirmationRuntime); ok {
+					evidence = controller.probeAvailability(id, saved, availabilityProbeRequest{Confirmation: true})
 					if interruption := takeProbeInterruption(controller.runtime); interruption != nil {
 						return interruption
 					}

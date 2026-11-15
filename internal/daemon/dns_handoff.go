@@ -28,6 +28,7 @@ type dnsHandoffOps struct {
 	action         func(string) error
 	err            func() error
 	ensureRecovery func() error
+	recovery       func() (dnsHandoffOps, context.CancelFunc)
 }
 
 func dnsHandoffFile(paths Paths) string {
@@ -56,6 +57,10 @@ func httpsDNSProxyOpsWithContext(parent context.Context) dnsHandoffOps {
 		return nil
 	}
 	return dnsHandoffOps{
+		recovery: func() (dnsHandoffOps, context.CancelFunc) {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			return httpsDNSProxyOpsWithContext(ctx), cancel
+		},
 		ensureRecovery: ensureDNSBootRecovery,
 		installed: func() bool {
 			_, err := os.Stat(httpsDNSProxyInit)
@@ -73,7 +78,7 @@ func httpsDNSProxyOpsWithContext(parent context.Context) dnsHandoffOps {
 
 // acquireDNSHandoff takes ownership only after explicit LuCI/UCI consent.
 // A persisted marker makes an interrupted takeover recoverable after reboot.
-func acquireDNSHandoff(path string, authorized bool, ops dnsHandoffOps) (bool, error) {
+func acquireDNSHandoff(path string, authorized bool, ops dnsHandoffOps) (acquired bool, resultErr error) {
 	state, exists, err := readDNSHandoff(path)
 	if err != nil {
 		return false, err
@@ -104,23 +109,52 @@ func acquireDNSHandoff(path string, authorized bool, ops dnsHandoffOps) (bool, e
 			return false, err
 		}
 	}
-	if ops.running() {
+	// Once a durable marker exists, every failed acquisition must restore the
+	// original owner. Fresh recovery probes must not inherit a latched status
+	// error or cancellation from the failed acquisition.
+	defer func() {
+		if resultErr == nil {
+			return
+		}
+		recovery := ops
+		if ops.recovery != nil {
+			var cancel context.CancelFunc
+			recovery, cancel = ops.recovery()
+			defer cancel()
+		}
+		if err := restoreDNSHandoff(path, recovery); err != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("restore previous DNS owner: %w", err))
+		}
+	}()
+	running := ops.running()
+	if err := dnsHandoffError(ops); err != nil {
+		return false, err
+	}
+	if running {
 		if err := ops.action("stop"); err != nil {
-			_ = restoreDNSHandoff(path, ops)
 			return false, err
 		}
-		if ops.running() {
-			_ = restoreDNSHandoff(path, ops)
+		running = ops.running()
+		if err := dnsHandoffError(ops); err != nil {
+			return false, err
+		}
+		if running {
 			return false, errors.New("https-dns-proxy is still running after stop")
 		}
 	}
-	if ops.enabled() {
+	enabled := ops.enabled()
+	if err := dnsHandoffError(ops); err != nil {
+		return false, err
+	}
+	if enabled {
 		if err := ops.action("disable"); err != nil {
-			_ = restoreDNSHandoff(path, ops)
 			return false, err
 		}
-		if ops.enabled() {
-			_ = restoreDNSHandoff(path, ops)
+		enabled = ops.enabled()
+		if err := dnsHandoffError(ops); err != nil {
+			return false, err
+		}
+		if enabled {
 			return false, errors.New("https-dns-proxy is still enabled after disable")
 		}
 	}
@@ -137,13 +171,18 @@ func restoreDNSHandoff(path string, ops dnsHandoffOps) error {
 	if err != nil || !exists {
 		return err
 	}
-	if !ops.installed() {
-		if err := dnsHandoffError(ops); err != nil {
-			return err
-		}
+	installed := ops.installed()
+	if err := dnsHandoffError(ops); err != nil {
+		return err
+	}
+	if !installed {
 		return os.Remove(path)
 	}
-	if state.WasEnabled != ops.enabled() {
+	enabled := ops.enabled()
+	if err := dnsHandoffError(ops); err != nil {
+		return err
+	}
+	if state.WasEnabled != enabled {
 		action := "disable"
 		if state.WasEnabled {
 			action = "enable"
@@ -152,7 +191,11 @@ func restoreDNSHandoff(path string, ops dnsHandoffOps) error {
 			return err
 		}
 	}
-	if state.WasRunning != ops.running() {
+	running := ops.running()
+	if err := dnsHandoffError(ops); err != nil {
+		return err
+	}
+	if state.WasRunning != running {
 		action := "stop"
 		if state.WasRunning {
 			action = "start"
@@ -161,11 +204,16 @@ func restoreDNSHandoff(path string, ops dnsHandoffOps) error {
 			return err
 		}
 	}
-	if state.WasEnabled != ops.enabled() || state.WasRunning != ops.running() {
-		return errors.New("https-dns-proxy state could not be restored")
-	}
+	enabled = ops.enabled()
 	if err := dnsHandoffError(ops); err != nil {
 		return err
+	}
+	running = ops.running()
+	if err := dnsHandoffError(ops); err != nil {
+		return err
+	}
+	if state.WasEnabled != enabled || state.WasRunning != running {
+		return errors.New("https-dns-proxy state could not be restored")
 	}
 	return os.Remove(path)
 }
@@ -233,12 +281,16 @@ func RestoreDNSHandoff(paths Paths) error {
 	return restoreDNSHandoff(dnsHandoffFile(paths), httpsDNSProxyOps())
 }
 
-// Cleanup shares one deadline across both owned handoffs. A failure restoring
-// dnsmasq must not prevent attempting to restart the user's previous resolver.
+// Cleanup shares one deadline across both owned handoffs, reserving its final
+// part for the previous owner even when dnsmasq exhausts its own allowance.
 func RestoreManagedDNS(paths Paths) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	return errors.Join(restoreDNSMasqHandoff(dnsmasqHandoffFile(paths), systemDNSMasqOpsWithContext(ctx)), restoreDNSHandoff(dnsHandoffFile(paths), httpsDNSProxyOpsWithContext(ctx)))
+	return restoreDNSWithinBudget(context.Background(), 45*time.Second, 15*time.Second,
+		func(ctx context.Context) error {
+			return restoreDNSMasqHandoff(dnsmasqHandoffFile(paths), systemDNSMasqOpsWithContext(ctx))
+		},
+		func(ctx context.Context) error {
+			return restoreDNSHandoff(dnsHandoffFile(paths), httpsDNSProxyOpsWithContext(ctx))
+		})
 }
 
 func readDNSMarker(path string) ([]byte, error) {

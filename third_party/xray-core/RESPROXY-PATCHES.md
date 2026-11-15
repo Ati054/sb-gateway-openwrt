@@ -1,7 +1,7 @@
 # Embedded Xray source
 
-Pinned upstream: XTLS/Xray-core v26.10.31, commit
-a4a3dff5b20c2faae567b742c172c7b95e75c083. Licensed under MPL-2.0;
+Pinned upstream: XTLS/Xray-core v26.11.9, commit
+676eaf66f8f05d4d558ee7a74b4736623d3feeb9. Licensed under MPL-2.0;
 see LICENSE. The complete source is retained here for reproducible builds.
 
 The source includes the existing gateway patches for passive failure signals,
@@ -52,7 +52,10 @@ remain available until a complete DNS header identifies the protocol.
 Managed DNS carries fixed, local PROXY-v2 provenance metadata. It checks accepted
 UDP-buffer or parsed TCP-frame bytes across relay copying; it does not claim to
 verify raw TCP reassembly or kernel UDP truncation flags. Digests stay transient.
-SB Gateway packages enable provenance by default. The fixed diagnostic ring is
+XRoute packages enable provenance by default. The fixed diagnostic ring is
 bounded, root-only, and published in runtime storage without names or payloads.
 Build-time and environment overrides remain available for controlled comparisons;
 the generic Xray source default keeps the legacy relay envelope without hashing.
+
+The gateway pins klauspost/compress 1.20.2 for its decoder fixes. Module and
+vendor checks retain upstream 26.11.9 TLS fingerprints and gateway patches.

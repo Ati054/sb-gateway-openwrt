@@ -2,8 +2,8 @@
 # feed entry or symlink it into package/resproxy in the matching SDK.
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=sb-gateway-openwrt
-PKG_VERSION:=0.1.21
+PKG_NAME:=xroute-openwrt
+PKG_VERSION:=0.1.22
 PKG_RELEASE:=
 PKG_LICENSE:=AGPL-3.0-only AND MPL-2.0 AND MIT AND Apache-2.0 AND BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE XRAY-LICENSE DOMAIN-LIST-LICENSE
@@ -13,23 +13,31 @@ PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 
 # Bounded local DNS diagnostics are included in release packages.
 # A build-time override of 0 remains available for controlled comparisons.
-SB_GATEWAY_DNS_ORIGIN?=1
+XROUTE_DNS_ORIGIN?=$(if $(SB_GATEWAY_DNS_ORIGIN),$(SB_GATEWAY_DNS_ORIGIN),1)
+# Keep legacy build overrides working for existing build automation.
+XROUTE_URLTEST_DEFAULT?=$(if $(SB_GATEWAY_URLTEST_DEFAULT),$(SB_GATEWAY_URLTEST_DEFAULT),route-paired)
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/sb-gateway-openwrt
+# Go's -s -w already strips debug symbols. SDK sstrip truncates the section
+# table's referenced data and prevents buildinfo/security inspection.
+RSTRIP:=:
+
+define Package/xroute-openwrt
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=SB Gateway for OpenWrt
-  DEPENDS:=+ca-bundle +firewall4 +nftables +ip-full +ubus +kmod-nft-tproxy +kmod-nft-socket +kmod-nf-conntrack-netlink +luci-base
+  TITLE:=XRoute
+  PROVIDES:=sb-gateway-openwrt
+  CONFLICTS:=sb-gateway-openwrt
+  DEPENDS:=+ca-bundle +firewall4 +nftables-json +ip-full +ubus +kmod-nft-tproxy +kmod-nft-socket +kmod-nf-conntrack-netlink +luci-base
 endef
 
-define Package/sb-gateway-openwrt/description
+define Package/xroute-openwrt/description
   Independent OpenWrt client proxy using one Xray core, live subscription
-  generations, and the SB Gateway best/priority health policy controller.
+  generations, and the XRoute best/priority health policy controller.
 endef
 
-define Package/sb-gateway-openwrt/conffiles
+define Package/xroute-openwrt/conffiles
 /etc/config/resproxy
 /etc/resproxy/firewall.nft
 endef
@@ -46,22 +54,22 @@ endef
 
 # Build for the selected OpenWrt ARM64 or x86_64 SDK target. The
 # vendored dependencies allow offline builds without CGO or module downloads.
-# A Linux Go 1.27.3 host toolchain is required by the SDK build host.
+# A Linux Go 1.27.4 host toolchain is required by the SDK build host.
 ifeq ($(ARCH),aarch64)
   RESPROXY_GOARCH:=arm64
 else ifeq ($(ARCH),x86_64)
   RESPROXY_GOARCH:=amd64
 else ifeq ($(DUMP),)
-  $(error Unsupported SB Gateway target architecture: $(ARCH))
+  $(error Unsupported XRoute target architecture: $(ARCH))
 endif
 define Build/Compile
 	python3 $(PKG_BUILD_DIR)/check-xray-vendor.py --root $(PKG_BUILD_DIR)
-	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.3 GOMAXPROCS=2 \
-		GOOS=linux GOARCH=$(RESPROXY_GOARCH) CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -buildid= -X github.com/xtls/xray-core/core.build=a4a3dff5b20c2faae567b742c172c7b95e75c083$(if $(filter 1,$(SB_GATEWAY_DNS_ORIGIN)), -X github.com/xtls/xray-core/common/session.dnsOriginDefault=1)' \
+	cd $(PKG_BUILD_DIR) && GOTOOLCHAIN=go1.27.4 GOMAXPROCS=2 \
+		GOOS=linux GOARCH=$(RESPROXY_GOARCH) CGO_ENABLED=0 go build -p=2 -mod=vendor -trimpath -gcflags=all=-l=4 -buildvcs=false -ldflags='-s -w -X main.version=$(PKG_VERSION)$(if $(PKG_RELEASE),-r$(PKG_RELEASE)) -X github.com/Ati054/xroute-openwrt/internal/daemon.urlTestPlanningDefault=$(XROUTE_URLTEST_DEFAULT) -buildid= -X github.com/xtls/xray-core/core.build=676eaf66f8f05d4d558ee7a74b4736623d3feeb9$(if $(filter 1,$(XROUTE_DNS_ORIGIN)), -X github.com/xtls/xray-core/common/session.dnsOriginDefault=1)' \
 		-o $(PKG_BUILD_DIR)/resproxyd ./cmd/resproxyd
 endef
 
-define Package/sb-gateway-openwrt/install
+define Package/xroute-openwrt/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/resproxyd $(1)/usr/bin/resproxyd
 	$(INSTALL_DIR) $(1)/usr/libexec/resproxy
@@ -80,7 +88,7 @@ define Package/sb-gateway-openwrt/install
 	$(INSTALL_DIR) $(1)/usr/share/resproxy $(1)/etc/uci-defaults
 	$(INSTALL_DATA) ./files/resproxy-dns-boot-recover $(1)/usr/share/resproxy/dns-boot-recover
 	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
-	$(INSTALL_DATA) ./files/resproxy-upgrade-keep $(1)/lib/upgrade/keep.d/sb-gateway-openwrt
+	$(INSTALL_DATA) ./files/resproxy-upgrade-keep $(1)/lib/upgrade/keep.d/xroute-openwrt
 	$(INSTALL_CONF) ./files/resproxy.config $(1)/etc/config/resproxy
 	$(INSTALL_BIN) ./files/resproxy.init $(1)/etc/init.d/resproxy
 	$(INSTALL_BIN) ./files/resproxy-guard.init $(1)/etc/init.d/resproxy-guard
@@ -99,20 +107,23 @@ define Package/sb-gateway-openwrt/install
 	$(INSTALL_BIN) ./files/resproxy-rulesets $(1)/usr/libexec/resproxy-rulesets
 	$(INSTALL_BIN) ./files/resproxy-rulesets-refresh $(1)/usr/libexec/resproxy-rulesets-refresh
 	$(INSTALL_BIN) ./files/sb-gateway-upgrade $(1)/usr/libexec/sb-gateway-upgrade
+	$(INSTALL_BIN) ./files/resproxy-migrate-dns-hotfix $(1)/usr/libexec/resproxy-migrate-dns-hotfix
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_DATA) ./files/luci-app-resproxy.json $(1)/usr/share/luci/menu.d/luci-app-resproxy.json
 	$(INSTALL_DATA) ./files/luci-app-resproxy-acl.json $(1)/usr/share/rpcd/acl.d/luci-app-resproxy.json
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/resproxy
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/resproxy/*.js $(1)/www/luci-static/resources/view/resproxy/
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/resproxy/*.css $(1)/www/luci-static/resources/view/resproxy/
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/resproxy/*.svg $(1)/www/luci-static/resources/view/resproxy/
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
 	$(INSTALL_DATA) ./files/resproxy.*.lmo $(1)/usr/lib/lua/luci/i18n/
 endef
 
-define Package/sb-gateway-openwrt/postinst
+define Package/xroute-openwrt/postinst
 #!/bin/sh
 [ -n "$$IPKG_INSTROOT" ] && exit 0
 /etc/init.d/resproxy-guard enable
+/usr/libexec/resproxy-migrate-dns-hotfix || logger -t resproxy 'private DNS workaround migration failed; init retained'
 # Register bundled LuCI catalogues without replacing existing language names.
 register_language() {
 	uci -q get "luci.languages.$$1" >/dev/null && return 0
@@ -138,4 +149,4 @@ fi
 exit 0
 endef
 
-$(eval $(call BuildPackage,sb-gateway-openwrt))
+$(eval $(call BuildPackage,xroute-openwrt))

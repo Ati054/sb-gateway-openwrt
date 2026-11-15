@@ -22,6 +22,7 @@ type warmPlanningTestRuntime struct {
 	attempts       map[string][]time.Time
 	advanceClock   bool
 	availabilityAt map[string][]time.Time
+	workingProofAt map[string][]time.Time
 }
 
 func (runtime *warmPlanningTestRuntime) ProbeAvailability(node string) probeEvidence {
@@ -43,7 +44,15 @@ func (runtime *warmPlanningTestRuntime) Probe(node string) probeEvidence {
 	return runtime.ProbeWithQualityRequest(node, qualityProbeRequest{Measurement: qualityMeasurementCold})
 }
 
-func (runtime *warmPlanningTestRuntime) ProbeWithQualityRequest(node string, request qualityProbeRequest) probeEvidence {
+func (runtime *warmPlanningTestRuntime) ProbeWithQualityRequest(node string, request qualityProbeRequest) (result probeEvidence) {
+	defer func() {
+		if result.OK {
+			if runtime.workingProofAt == nil {
+				runtime.workingProofAt = map[string][]time.Time{}
+			}
+			runtime.workingProofAt[node] = append(runtime.workingProofAt[node], result.ObservedAt)
+		}
+	}()
 	runtime.probeCalls = append(runtime.probeCalls, node)
 	runtime.measurements = append(runtime.measurements, request.Measurement)
 	runtime.heads++
@@ -76,6 +85,19 @@ func (runtime *warmPlanningTestRuntime) ProbeWithQualityRequest(node string, req
 		evidence.Planning = &planningQualityEvidence{Measurement: qualityMeasurementFreshPaired,
 			StartedAt: evidence.QualityStartedAt, ObservedAt: evidence.ObservedAt, DelayMS: evidence.DelayMS,
 			Failed: !evidence.OK || evidence.PrimaryQualityFailed || evidence.QualityUnmeasured}
+	}
+	if request.Measurement == qualityMeasurementIsolatedPaired || request.Measurement == qualityMeasurementRoutePaired {
+		if !evidence.OK || evidence.PrimaryQualityFailed || evidence.QualityUnmeasured {
+			evidence.Planning = &planningQualityEvidence{Measurement: request.Measurement, Deferred: true}
+			return runtime.finishModelObservation(evidence)
+		}
+		runtime.heads++
+		if evidence.DelayMS != nil {
+			evidence.ObservedAt = runtime.at.Add(time.Duration(*evidence.DelayMS) * time.Millisecond)
+		}
+		delay := runtime.warm[node]
+		evidence.Planning = &planningQualityEvidence{Measurement: request.Measurement, StartedAt: evidence.ObservedAt,
+			ObservedAt: evidence.ObservedAt.Add(time.Duration(delay) * time.Millisecond), DelayMS: &delay, Failed: runtime.warmFailures[node]}
 	}
 	return runtime.finishModelObservation(evidence)
 }
@@ -126,6 +148,15 @@ func (runtime *warmPlanningTestRuntime) ProbeQualityParallelWithMeasurement(node
 		failedPeer = failedPeer || runtime.blocked[node]
 		if evidence.ObservedAt.After(finished) {
 			finished = evidence.ObservedAt
+		}
+	}
+	if (metric == qualityMeasurementIsolatedPaired || metric == qualityMeasurementRoutePaired) && runtime.lanes > 1 {
+		for node, evidence := range result {
+			if evidence.Planning != nil && evidence.Planning.DelayMS != nil {
+				evidence.Planning.StartedAt = finished
+				evidence.Planning.ObservedAt = finished.Add(time.Duration(*evidence.Planning.DelayMS) * time.Millisecond)
+				result[node] = evidence
+			}
 		}
 	}
 	if metric == qualityMeasurementWarm && failedPeer && runtime.lanes > 1 {

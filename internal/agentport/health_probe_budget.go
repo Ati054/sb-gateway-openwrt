@@ -130,7 +130,11 @@ func (controller *healthController) sharedQualityBatch(policyID string, contract
 			controller.probeBudget.QualityAttempted[controller.probeKey(policyID, node, contract)] = true
 		}
 		observations := map[string]probeEvidence{}
-		if warm, ok := controller.runtime.(interface {
+		if scoped, ok := controller.runtime.(interface {
+			ProbeQualityParallelForPolicy(policyProbeScope, []string, qualityMeasurement) map[string]probeEvidence
+		}); ok {
+			observations = scoped.ProbeQualityParallelForPolicy(controller.probeScope(policyID), pending, controller.qualityMeasurementForPolicy(policyID, contract))
+		} else if warm, ok := controller.runtime.(interface {
 			ProbeQualityParallelWithMeasurement([]string, qualityMeasurement) map[string]probeEvidence
 		}); ok {
 			observations = warm.ProbeQualityParallelWithMeasurement(pending, controller.qualityMeasurementForPolicy(policyID, contract))
@@ -207,10 +211,16 @@ func (controller *healthController) beginProbeBudget(pool healthPool, policyIDs 
 
 func (controller *healthController) probeKey(policyID, node string, contract healthPolicyContract) string {
 	if fingerprint := contract.Nodes[node].Fingerprint; fingerprint != "" {
-		return string(controller.qualityMeasurementForPolicy(policyID, contract)) + ":" + controller.qualityContextKey() + ":" + fingerprint
+		scope := ""
+		if _, ok := controller.runtime.(policyScopedProbeRuntime); ok {
+			selected := controller.probeScope(policyID)
+			scope = policyID + ":" + node + ":" + selected.Selected + ":" + selected.Member + ":"
+		}
+		return string(controller.qualityMeasurementForPolicy(policyID, contract)) + ":" + controller.qualityContextKey() + ":" + scope + fingerprint
 	}
 	// An unverified legacy endpoint cannot share evidence across policies.
-	return string(controller.qualityMeasurementForPolicy(policyID, contract)) + ":" + controller.qualityContextKey() + ":" + policyID + ":" + node
+	scope := controller.probeScope(policyID)
+	return string(controller.qualityMeasurementForPolicy(policyID, contract)) + ":" + controller.qualityContextKey() + ":" + policyID + ":" + node + ":" + scope.Selected + ":" + scope.Member
 }
 
 func (controller *healthController) claimProbeTargets(policyID string, contract healthPolicyContract, targets []string, atomicPair bool) (accepted, deferred []string) {
@@ -307,7 +317,7 @@ func (controller *healthController) probeQuality(policyID, node string, contract
 	if r, ok := controller.runtime.(interface {
 		ProbeWithQualityRequest(string, qualityProbeRequest) probeEvidence
 	}); ok {
-		return r.ProbeWithQualityRequest(node, qualityProbeRequest{Measurement: controller.qualityMeasurementForPolicy(policyID, contract)})
+		return r.ProbeWithQualityRequest(node, qualityProbeRequest{policyProbeScope: controller.probeScope(policyID), Measurement: controller.qualityMeasurementForPolicy(policyID, contract)})
 	}
 	return controller.runtime.Probe(node)
 }

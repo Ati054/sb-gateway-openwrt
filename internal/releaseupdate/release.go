@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const Repository = "Ati054/sb-gateway-openwrt"
+const Repository = "Ati054/xroute-openwrt"
 const Root = "/var/run/sb-gateway-upgrade"
 const Candidate = "/tmp/sb-gateway-upgrade.apk"
 const maxAPK int64 = 64 << 20
@@ -158,7 +158,7 @@ func supportedArchitecture(arch string) bool {
 }
 
 func (s *Source) Check(ctx context.Context, installed Installed) (Choice, error) {
-	if installed.Name != "sb-gateway-openwrt" || !versionPattern.MatchString(installed.Version) {
+	if (installed.Name != "xroute-openwrt" && installed.Name != "sb-gateway-openwrt") || !versionPattern.MatchString(installed.Version) {
 		return Choice{}, errors.New("Installed package metadata unavailable")
 	}
 	if !supportedArchitecture(installed.Arch) {
@@ -228,7 +228,7 @@ func (s *Source) Check(ctx context.Context, installed Installed) (Choice, error)
 			if asset.Arch != installed.Arch {
 				continue
 			}
-			expected := "sb-gateway-openwrt-" + manifest.Version + "-" + installed.Arch + ".apk"
+			expected := "xroute-openwrt-" + manifest.Version + "-" + installed.Arch + ".apk"
 			if asset.Name != expected || asset.Size <= 0 || asset.Size > maxAPK || !shaPattern.MatchString(asset.SHA256) {
 				return Choice{}, errors.New("Invalid release APK metadata")
 			}
@@ -249,7 +249,7 @@ func (s *Source) Check(ctx context.Context, installed Installed) (Choice, error)
 }
 func (s *Source) Download(ctx context.Context, choice Choice, destination string) error {
 	a := choice.Asset
-	if !choice.Available || !versionPattern.MatchString(choice.Version) || !tagPattern.MatchString(choice.Tag) || !supportedArchitecture(a.Arch) || a.Name != "sb-gateway-openwrt-"+choice.Version+"-"+a.Arch+".apk" || choice.URL != assetURL(choice.Tag, a.Name) || a.Size <= 0 || a.Size > maxAPK || !shaPattern.MatchString(a.SHA256) {
+	if !choice.Available || !versionPattern.MatchString(choice.Version) || !tagPattern.MatchString(choice.Tag) || !supportedArchitecture(a.Arch) || a.Name != "xroute-openwrt-"+choice.Version+"-"+a.Arch+".apk" || choice.URL != assetURL(choice.Tag, a.Name) || a.Size <= 0 || a.Size > maxAPK || !shaPattern.MatchString(a.SHA256) {
 		return errors.New("Update metadata is invalid; check for updates again")
 	}
 	response, e := s.get(ctx, choice.URL)

@@ -11,9 +11,11 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       GOFLAGS: -buildvcs=false
+      GOMAXPROCS: '2'
+      GOMEMLIMIT: 1GiB
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
@@ -23,14 +25,31 @@ jobs:
       - name: Check pinned Xray vendor
         run: python3 tools/check-xray-vendor.py
       - name: Build native gateway
-        run: |
-          mkdir -p /tmp/sb-gateway
-          go build -mod=vendor -trimpath -buildvcs=false -o /tmp/sb-gateway/resproxyd ./cmd/resproxyd
-          ln -s resproxyd /tmp/sb-gateway/xray
-          echo 'RESPROXY_TEST_XRAY=/tmp/sb-gateway/xray' >> "$GITHUB_ENV"
-          echo 'RESPROXY_RECOVERY_BINARY=/tmp/sb-gateway/xray' >> "$GITHUB_ENV"
+        run: sh tools/ci-build-native.sh
       - name: Unit tests
-        run: sudo -E env "PATH=$PATH" go test -p=1 -mod=vendor ./...
+        run: sudo -E env "PATH=$PATH" go test -p=1 -trimpath -mod=vendor ./... -count=1 -timeout=20m
+      - name: Vet
+        run: go vet -p=1 -mod=vendor ./...
+      - name: ARM64 compile
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: '0'
+        run: go build -p=1 -mod=vendor -trimpath -buildvcs=false -o /tmp/resproxyd ./cmd/resproxyd
+
+  xray-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GOFLAGS: -buildvcs=false
+      GOMAXPROCS: '2'
+      GOMEMLIMIT: 1GiB
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: go.mod
+          cache: true
       - name: Gateway Xray regressions
         run: |
           mkdir -p third_party/xray-core/resources
@@ -42,16 +61,24 @@ jobs:
           cd third_party/xray-core
           go test -p=1 ./common/errors ./common/geodata/... ./common/net ./common/platform/filesystem ./common/lua ./features/dns/localdns ./app/geodata ./app/router ./app/dispatcher ./app/proxyman/inbound ./app/proxyman/outbound ./transport/internet/tls ./transport/internet/reality ./transport/internet/hysteria ./transport/internet/grpc ./transport/internet/splithttp ./transport/internet/websocket ./proxy/vless/outbound ./proxy/http ./proxy/socks ./transport/internet/finalmask/filter ./transport/internet/xdrive ./proxy/tun ./infra/conf
           go test -p=1 ./testing/scenarios -run '^TestHTTPOutboundServerFirst$' -count=1
-      - name: Vet
-        run: go vet -mod=vendor ./...
+
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GOFLAGS: -buildvcs=false
+      GOMAXPROCS: '2'
+      GOMEMLIMIT: 1GiB
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build native gateway
+        run: sh tools/ci-build-native.sh
       - name: Race checks
-        run: sudo -E env "PATH=$PATH" go test -p=1 -race -mod=vendor ./internal/...
-      - name: ARM64 compile
-        env:
-          GOOS: linux
-          GOARCH: arm64
-          CGO_ENABLED: '0'
-        run: go build -mod=vendor -trimpath -buildvcs=false -o /tmp/resproxyd ./cmd/resproxyd
+        run: sudo -E env "PATH=$PATH" go test -p=1 -trimpath -race -mod=vendor ./internal/... -count=1 -timeout=20m
 
   upstream:
     runs-on: ubuntu-latest

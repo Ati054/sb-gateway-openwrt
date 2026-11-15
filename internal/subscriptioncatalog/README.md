@@ -1,5 +1,7 @@
 # Immutable subscription catalogs
 
+> **[Версия для MikroTik RouterOS7 здесь →](https://github.com/Ati054/xroute)**
+
 This package stores the complete normalized node inventory on disk without a
 node-count ceiling. Callers assign runtime-scoped IDs, compute identity keys, and
 validate the opaque Node, Secrets and public Metadata JSON. An explicit caller

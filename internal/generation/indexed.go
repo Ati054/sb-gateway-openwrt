@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/subscriptioncatalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/subscriptioncatalog"
 )
 
 type DefinitionEncoder func(catalog.Node) (json.RawMessage, error)
@@ -62,7 +62,12 @@ func (b *NodeBuilder) Append(ctx context.Context, id string, node catalog.Node) 
 	if err != nil {
 		return err
 	}
-	body, err := json.Marshal(full)
+	// Empty and nil Settings have distinct runtime identities. Node's public
+	// omitempty projection must not collapse them in a private record.
+	body, err := json.Marshal(struct {
+		catalog.Node
+		Settings map[string]any `json:"settings"`
+	}{Node: full, Settings: full.Settings})
 	if err != nil {
 		return err
 	}

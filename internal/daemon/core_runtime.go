@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 // Selected at build time for paired acceptance builds. It is deliberately not

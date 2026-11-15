@@ -18,18 +18,20 @@ const (
 )
 
 type optimizationComparison struct {
-	Measurement       string  `json:"measurement,omitempty"`
-	At                string  `json:"at"`
-	Candidate         string  `json:"candidate"`
-	Result            string  `json:"result"`
-	Reason            string  `json:"reason"`
-	ActiveDelayMS     *int    `json:"active_delay_ms,omitempty"`
-	CandidateDelayMS  *int    `json:"candidate_delay_ms,omitempty"`
-	ActiveAt          float64 `json:"active_at,omitempty"`
-	CandidateAt       float64 `json:"candidate_at,omitempty"`
-	ThresholdMS       int     `json:"threshold_ms"`
-	ActiveMedianMS    *int    `json:"active_median_ms,omitempty"`
-	CandidateMedianMS *int    `json:"candidate_median_ms,omitempty"`
+	ActiveTransport    string  `json:"active_transport,omitempty"`
+	CandidateTransport string  `json:"candidate_transport,omitempty"`
+	Measurement        string  `json:"measurement,omitempty"`
+	At                 string  `json:"at"`
+	Candidate          string  `json:"candidate"`
+	Result             string  `json:"result"`
+	Reason             string  `json:"reason"`
+	ActiveDelayMS      *int    `json:"active_delay_ms,omitempty"`
+	CandidateDelayMS   *int    `json:"candidate_delay_ms,omitempty"`
+	ActiveAt           float64 `json:"active_at,omitempty"`
+	CandidateAt        float64 `json:"candidate_at,omitempty"`
+	ThresholdMS        int     `json:"threshold_ms"`
+	ActiveMedianMS     *int    `json:"active_median_ms,omitempty"`
+	CandidateMedianMS  *int    `json:"candidate_median_ms,omitempty"`
 }
 
 type LatencyComparison struct {

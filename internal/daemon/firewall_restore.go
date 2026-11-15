@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/settings"
+	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
 // Called by the renderer while resproxy-firewall holds its transaction lock.

@@ -3,7 +3,7 @@ package generation
 import (
 	"encoding/json"
 	"errors"
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 	"io"
 	"os"
 	"path/filepath"

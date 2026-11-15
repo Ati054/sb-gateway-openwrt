@@ -6,14 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 	"log"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
+	"github.com/Ati054/xroute-openwrt/internal/healthcontract"
 )
 
 const (

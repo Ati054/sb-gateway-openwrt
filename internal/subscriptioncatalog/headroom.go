@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/storagebudget"
+	"github.com/Ati054/xroute-openwrt/internal/storagebudget"
 )
 
 const catalogStorageHeadroom = 64 << 20

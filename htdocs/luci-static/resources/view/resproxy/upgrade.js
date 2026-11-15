@@ -47,7 +47,7 @@ return view.extend({
    if (offered && offered.tag) {
     var label = offered.available ? _('Available: %s').format(offered.tag) : _('Latest version is installed.');
     releaseLine.appendChild(E('span', {}, label + ' '));
-    releaseLine.appendChild(E('a', { href:'https://github.com/Ati054/sb-gateway-openwrt/releases', target:'_blank', rel:'noopener noreferrer' }, _('Release notes')));
+    releaseLine.appendChild(E('a', { href:'https://github.com/Ati054/xroute-openwrt/releases', target:'_blank', rel:'noopener noreferrer' }, _('Release notes')));
    } else if (info.remote_phase === 'checked') releaseLine.textContent = _('No updates available.');
    var progress = { checking:_('Checking GitHub…'), downloading:_('Downloading APK…') }[info.remote_phase];
    if (!progress && info.busy === 'yes') progress = ({ staged:_('Preparing update'), preparing:_('Preparing update'), installing:_('Installing package'), activating:_('Starting service') })[info.phase] || _('Preparing update');

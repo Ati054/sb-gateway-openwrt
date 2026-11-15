@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/dnsroute"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 )
 
 // Ruleset publication and persistence form one transaction against recovery.

@@ -1,8 +1,8 @@
 package agentport
 
 import (
-	"github.com/Ati054/sb-gateway-openwrt/internal/healthcontract"
-	"github.com/Ati054/sb-gateway-openwrt/internal/resources"
+	"github.com/Ati054/xroute-openwrt/internal/healthcontract"
+	"github.com/Ati054/xroute-openwrt/internal/resources"
 	"path/filepath"
 	"sort"
 	"strings"

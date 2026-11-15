@@ -1,10 +1,75 @@
 package daemon
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
+
+func TestDNSCleanupSlowRouterStillRestoresPreviousOwner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dns-handoff.json")
+	if err := writeDNSHandoff(path, dnsHandoffState{WasEnabled: true, WasRunning: true}); err != nil {
+		t.Fatal(err)
+	}
+	enabled, running := false, false
+	err := restoreDNSWithinBudget(t.Context(), 200*time.Millisecond, 100*time.Millisecond,
+		func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() },
+		func(ctx context.Context) error {
+			return restoreDNSHandoff(path, dnsHandoffOps{
+				installed: func() bool { return true },
+				enabled:   func() bool { return enabled }, running: func() bool { return running },
+				err: ctx.Err,
+				action: func(action string) error {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					if action == "enable" {
+						enabled = true
+					}
+					if action == "start" {
+						running = true
+					}
+					return nil
+				},
+			})
+		})
+	if !errors.Is(err, context.DeadlineExceeded) || !enabled || !running {
+		t.Fatalf("router cleanup exhausted previous-owner recovery: enabled=%v running=%v err=%v", enabled, running, err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("verified owner recovery kept marker", err)
+	}
+}
+
+func TestDNSCleanupUsesOneTotalDeadlineAndPreservesBothFailures(t *testing.T) {
+	routerErr := errors.New("router restore failed")
+	var ownerDeadline time.Time
+	started := time.Now()
+	err := restoreDNSWithinBudget(t.Context(), 100*time.Millisecond, 50*time.Millisecond,
+		func(context.Context) error { return routerErr },
+		func(ctx context.Context) error { ownerDeadline, _ = ctx.Deadline(); <-ctx.Done(); return ctx.Err() })
+	if !errors.Is(err, routerErr) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("cleanup dropped a failure", err)
+	}
+	if ownerDeadline.After(started.Add(150 * time.Millisecond)) {
+		t.Fatal("previous owner received a new overall deadline")
+	}
+}
+
+func TestDNSCleanupReservesOwnerTimeWithShorterParent(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
+	defer cancel()
+	ownerLive := false
+	_ = restoreDNSWithinBudget(ctx, time.Second, 200*time.Millisecond,
+		func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() },
+		func(ctx context.Context) error { ownerLive = ctx.Err() == nil; return ctx.Err() })
+	if !ownerLive {
+		t.Fatal("a shorter caller deadline consumed the previous owner's reserved recovery time")
+	}
+}
 
 func TestRuntimeCleanupOverlapsIndependentClosuresAndJoinsErrors(t *testing.T) {
 	coreStarted, dnsStarted, releaseDNS := make(chan struct{}), make(chan struct{}), make(chan struct{})

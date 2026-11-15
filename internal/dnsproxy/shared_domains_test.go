@@ -1,7 +1,7 @@
 package dnsproxy
 
 import (
-	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
+	"github.com/Ati054/xroute-openwrt/internal/geoipasset"
 	"testing"
 )
 

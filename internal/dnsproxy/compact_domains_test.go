@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/geoipasset"
+	"github.com/Ati054/xroute-openwrt/internal/geoipasset"
 )
 
 func TestCompactDomainsMatchLegacyMaps(t *testing.T) {

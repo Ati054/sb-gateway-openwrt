@@ -1,6 +1,6 @@
 {
   "admin/services/resproxy": {
-    "title": "SB Gateway for OpenWrt",
+    "title": "XRoute",
     "order": 75,
     "action": {
       "type": "firstchild"

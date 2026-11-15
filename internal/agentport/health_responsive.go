@@ -109,11 +109,15 @@ func (runtime *responsiveSelectorRuntime) probeActiveAvailability(candidate stri
 // job. The probe joins its HTTP workers before returning the selector, and a
 // canceled check provides neither failure evidence nor a new liveness time.
 func (runtime *responsiveSelectorRuntime) ProbeBackgroundAvailability(candidate string) probeEvidence {
-	probe, ok := runtime.selectorRuntime.(interface {
+	return runtime.probeBackgroundAvailabilityWithRequest(candidate, availabilityProbeRequest{})
+}
+func (runtime *responsiveSelectorRuntime) probeBackgroundAvailabilityWithRequest(candidate string, request availabilityProbeRequest) probeEvidence {
+	_, ok := runtime.selectorRuntime.(interface {
 		ProbeAvailabilityContext(context.Context, string) probeEvidence
 	})
 	if !ok || runtime.backgroundDone == nil {
-		return runtime.ProbeAvailability(candidate)
+		request.Background = false
+		return runtime.ProbeAvailabilityWithRequest(candidate, request)
 	}
 	return runtime.activeAvailabilityOperation(func() probeEvidence {
 		parent := runtime.ctx
@@ -131,7 +135,8 @@ func (runtime *responsiveSelectorRuntime) ProbeBackgroundAvailability(candidate 
 			case <-ctx.Done():
 			}
 		}()
-		evidence := probe.ProbeAvailabilityContext(ctx, candidate)
+		request.Context, request.Background = ctx, false
+		evidence := callScopedAvailability(runtime.selectorRuntime, candidate, request)
 		close(stop)
 		<-joined
 		deferred := ctx.Err() != nil && parent.Err() == nil && runtime.backgroundJobComplete()
@@ -412,7 +417,16 @@ func (runtime *responsiveSelectorRuntime) probeParallel(candidates []string, onR
 	return runtime.probeParallelWithMeasurement(candidates, onResult, checkOtherPolicies, quality, qualityMeasurementCold)
 }
 
+func (runtime *responsiveSelectorRuntime) ProbeQualityParallelForPolicy(scope policyProbeScope, candidates []string, measurement qualityMeasurement) map[string]probeEvidence {
+	return runtime.probeParallelForPolicy(scope, candidates, nil, true, true, measurement)
+}
+func (runtime *responsiveSelectorRuntime) ProbeAvailabilityParallelForPolicy(scope policyProbeScope, candidates []string, onResult func(string, probeEvidence) bool, emergency bool) map[string]probeEvidence {
+	return runtime.probeParallelForPolicy(scope, candidates, onResult, !emergency, false, qualityMeasurementCold)
+}
 func (runtime *responsiveSelectorRuntime) probeParallelWithMeasurement(candidates []string, onResult func(string, probeEvidence) bool, checkOtherPolicies, quality bool, measurement qualityMeasurement) map[string]probeEvidence {
+	return runtime.probeParallelForPolicy(policyProbeScope{}, candidates, onResult, checkOtherPolicies, quality, measurement)
+}
+func (runtime *responsiveSelectorRuntime) probeParallelForPolicy(scope policyProbeScope, candidates []string, onResult func(string, probeEvidence) bool, checkOtherPolicies, quality bool, measurement qualityMeasurement) map[string]probeEvidence {
 	measured := make(map[string]probeEvidence, len(candidates))
 	lanes := runtime.backgrounds
 	if len(lanes) == 0 && runtime.background != nil {
@@ -431,11 +445,9 @@ func (runtime *responsiveSelectorRuntime) probeParallelWithMeasurement(candidate
 			}
 			var evidence probeEvidence
 			if quality {
-				evidence = runtime.ProbeWithQualityRequest(candidate, qualityProbeRequest{Measurement: measurement})
-			} else if urgent, ok := runtime.selectorRuntime.(emergencyCandidateRuntime); !checkOtherPolicies && ok {
-				evidence = urgent.ProbeEmergencyAvailability(candidate)
+				evidence = runtime.ProbeWithQualityRequest(candidate, qualityProbeRequest{policyProbeScope: scope, Measurement: measurement})
 			} else {
-				evidence = runtime.selectorRuntime.ProbeAvailability(candidate)
+				evidence = callScopedAvailability(runtime.selectorRuntime, candidate, availabilityProbeRequest{policyProbeScope: scope, Emergency: !checkOtherPolicies})
 			}
 			// A single manual lane must reject a replaced runtime before its
 			// emergency callback can select a result from the old contract.
@@ -490,11 +502,9 @@ func (runtime *responsiveSelectorRuntime) probeParallelWithMeasurement(candidate
 				var evidence probeEvidence
 				candidate := job.node
 				if quality {
-					evidence = lane.ProbeWithQualityRequest(candidate, qualityProbeRequest{Measurement: measurement, Start: job.start, WarmStart: job.warmStart})
-				} else if !checkOtherPolicies {
-					evidence = lane.ProbeEmergencyAvailability(candidate)
+					evidence = lane.ProbeWithQualityRequest(candidate, qualityProbeRequest{policyProbeScope: scope, Measurement: measurement, Start: job.start, WarmStart: job.warmStart})
 				} else {
-					evidence = lane.ProbeAvailability(candidate)
+					evidence = lane.ProbeAvailabilityWithRequest(candidate, availabilityProbeRequest{policyProbeScope: scope, Emergency: !checkOtherPolicies})
 				}
 				if evidence.ObservedAt.IsZero() {
 					evidence.ObservedAt = time.Now()

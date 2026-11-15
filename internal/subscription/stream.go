@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 )
 
 // StreamValidated emits one accepted connection at a time. Zero removes the

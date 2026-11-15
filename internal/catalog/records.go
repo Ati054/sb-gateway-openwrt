@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/subscriptioncatalog"
+	"github.com/Ati054/xroute-openwrt/internal/subscriptioncatalog"
 )
 
 // RecordRoot describes an immutable private catalogue, not an active reader.

@@ -2,10 +2,10 @@ msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: ru\nPlural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
 
 msgid "Resilient Proxy"
-msgstr "Устойчивый прокси"
+msgstr "XRoute"
 
-msgid "SB Gateway for OpenWrt"
-msgstr "SB Gateway для OpenWrt"
+msgid "XRoute"
+msgstr "XRoute"
 
 msgid "Package update"
 msgstr "Обновление пакета"
@@ -49,8 +49,8 @@ msgstr "Устанавливается версия %s…"
 msgid "Choose APK and update"
 msgstr "Выбрать APK и обновить"
 
-msgid "Only SB Gateway is updated. The proxy service briefly restarts; subscription updates remain restart-free."
-msgstr "Обновляется только SB Gateway. Служба прокси ненадолго перезапустится; обновление подписок проходит без перезапуска."
+msgid "Only XRoute is updated. The proxy service briefly restarts; subscription updates remain restart-free."
+msgstr "Обновляется только XRoute. Служба прокси ненадолго перезапустится; обновление подписок проходит без перезапуска."
 
 msgid "New source"
 msgstr "Новый источник"
@@ -1343,8 +1343,8 @@ msgstr "Список"
 msgid "ms"
 msgstr "мс"
 
-msgid "Enable SB Gateway"
-msgstr "Включить SB Gateway"
+msgid "Enable XRoute"
+msgstr "Включить XRoute"
 
 msgid "Device routing"
 msgstr "Маршрутизация устройств"
@@ -1385,8 +1385,8 @@ msgstr "Проверьте поля подписки."
 msgid "Could not save subscription settings."
 msgstr "Не удалось сохранить подписку."
 
-msgid "Subscription saved. Enable SB Gateway in Overview."
-msgstr "Подписка сохранена. Включите SB Gateway в «Обзоре»."
+msgid "Subscription saved. Enable XRoute in Overview."
+msgstr "Подписка сохранена. Включите XRoute в «Обзоре»."
 
 msgid "Could not apply subscription settings."
 msgstr "Не удалось применить настройки подписки."
@@ -1739,8 +1739,8 @@ msgstr "Xray приближается к лимиту файловых деск�
 msgid "Xray was stopped by the kernel for lack of memory. See the journal."
 msgstr "Ядро остановило Xray из-за нехватки памяти. Подробности в журнале."
 
-msgid "Finish configuring route lists before enabling SB Gateway."
-msgstr "Завершите настройку маршрутных листов перед включением SB Gateway."
+msgid "Finish configuring route lists before enabling XRoute."
+msgstr "Завершите настройку маршрутных листов перед включением XRoute."
 
 msgid "Last paired HTTPS comparison. Negative means lower latency; positive means higher latency."
 msgstr "Последнее парное сравнение HTTPS. Минус означает меньшую задержку, плюс — большую."
@@ -2342,8 +2342,8 @@ msgstr "Маршрутные листы не используют скачива
 msgid "Rule database update finished with errors."
 msgstr "Обновление баз правил завершилось с ошибками."
 
-msgid "Start SB Gateway to load rule databases."
-msgstr "Включите SB Gateway для загрузки баз правил."
+msgid "Start XRoute to load rule databases."
+msgstr "Включите XRoute для загрузки баз правил."
 
 msgid "Waiting for automatic rule database loading."
 msgstr "Ожидание автоматической загрузки баз правил."
@@ -2354,8 +2354,8 @@ msgstr "Из кэша"
 msgid "Waiting for download"
 msgstr "Ожидание загрузки"
 
-msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while SB Gateway is running."
-msgstr "Подключите правила к маршрутному листу и примените настройки. Если SB Gateway включён, недостающие базы загрузятся автоматически."
+msgid "Attach rules to a route list and apply the settings. Missing databases load automatically while XRoute is running."
+msgstr "Подключите правила к маршрутному листу и примените настройки. Если XRoute включён, недостающие базы загрузятся автоматически."
 
 msgid "All supported nodes are imported; data-size and storage limits still apply."
 msgstr "Импортируются все поддерживаемые узлы. Ограничения размера данных и свободного места сохраняются."
@@ -2371,3 +2371,6 @@ msgstr "Отклонено на входе: %s."
 
 msgid "WAN DNS is unavailable. OpenWrt DNS remains active."
 msgstr "DNS через WAN недоступен. Сохранён DNS OpenWrt."
+
+msgid "Unable to inspect DNS services; OpenWrt DNS remains active."
+msgstr "Не удалось проверить службы DNS. DNS OpenWrt остаётся активным."

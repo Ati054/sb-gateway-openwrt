@@ -2,7 +2,7 @@ package xray
 
 import (
 	"encoding/json"
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
 	"github.com/xtls/xray-core/infra/conf"
 )
 

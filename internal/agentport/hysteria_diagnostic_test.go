@@ -5,9 +5,9 @@ package agentport
 import (
 	"context"
 	"encoding/json"
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
 	"fmt"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 	"net"
 	"os"
 	"os/exec"

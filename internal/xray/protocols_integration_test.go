@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
-	"github.com/Ati054/sb-gateway-openwrt/internal/sip003"
-	"github.com/Ati054/sb-gateway-openwrt/internal/subscription"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/sip003"
+	"github.com/Ati054/xroute-openwrt/internal/subscription"
 )
 
 func TestRealXrayAdditionalProtocolsTCPUDPAndLiveSwitch(t *testing.T) {

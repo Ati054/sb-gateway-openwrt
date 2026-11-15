@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ati054/sb-gateway-openwrt/internal/generation"
+	"github.com/Ati054/xroute-openwrt/internal/generation"
 )
 
 // Compare independent URI fields with persisted values without logging secrets.

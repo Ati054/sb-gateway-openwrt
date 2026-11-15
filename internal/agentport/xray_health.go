@@ -10,10 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Ati054/sb-gateway-openwrt/internal/catalog"
-	"github.com/Ati054/sb-gateway-openwrt/internal/dnsroute"
-	"github.com/Ati054/sb-gateway-openwrt/internal/xray"
+	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/dnsroute"
+	"github.com/Ati054/xroute-openwrt/internal/xray"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,34 +29,40 @@ import (
 )
 
 type xraySelectorRuntime struct {
-	xrayIdentity      dnsroute.Core
-	routeGeneration   uint64
-	routePublisher    func(string, string)
-	catalogRelease    func()
-	opts              Options
-	command           xrayCommandRunner
-	pool              healthPool
-	poolCache         *healthPoolCache
-	poolSignature     string
-	poolFileSignature string
-	poolMTimeUnixNano int64
-	xrayPID           int
-	pendingReset      bool
-	loadedDynamic     map[string]bool
-	verifiedDynamic   map[string]time.Time
-	activeByPolicy    map[string]string
-	activeByNode      map[string]string
-	retiredByPolicy   map[string][]string
-	pendingDynamic    map[string]pendingOutbound
-	unknownDynamic    map[string]bool
-	inventoryLoaded   bool
-	selectorMembers   map[string]string
-	probeRuntimeTag   string
-	probeSelector     string
-	probeContext      context.Context
-	qualityStart      *qualityStartTicket
-	control           *xrayControlClient
+	xrayIdentity        dnsroute.Core
+	routeGeneration     uint64
+	routePublisher      func(string, string)
+	catalogRelease      func()
+	opts                Options
+	command             xrayCommandRunner
+	pool                healthPool
+	poolCache           *healthPoolCache
+	poolSignature       string
+	poolFileSignature   string
+	poolMTimeUnixNano   int64
+	xrayPID             int
+	pendingReset        bool
+	loadedDynamic       map[string]bool
+	verifiedDynamic     map[string]time.Time
+	activeByPolicy      map[string]string
+	policyBindings      map[string]policyNodeBinding
+	activeByNode        map[string]string
+	retiredByPolicy     map[string][]string
+	pendingDynamic      map[string]pendingOutbound
+	unknownDynamic      map[string]bool
+	inventoryLoaded     bool
+	selectorMembers     map[string]string
+	probePolicy         string
+	probePolicyMember   string
+	probePolicySelected string
+	probeRuntimeTag     string
+	probeSelector       string
+	probeContext        context.Context
+	qualityStart        *qualityStartTicket
+	control             *xrayControlClient
 }
+
+type policyNodeBinding struct{ Node, Member string }
 
 type pendingOutbound struct {
 	selector string
@@ -117,6 +124,7 @@ func newXraySelectorRuntime(opts Options) *xraySelectorRuntime {
 		loadedDynamic:   make(map[string]bool),
 		verifiedDynamic: make(map[string]time.Time),
 		activeByPolicy:  make(map[string]string),
+		policyBindings:  make(map[string]policyNodeBinding),
 		activeByNode:    make(map[string]string),
 		retiredByPolicy: make(map[string][]string),
 		pendingDynamic:  make(map[string]pendingOutbound),
@@ -171,6 +179,9 @@ func (runtime *xraySelectorRuntime) Reload() (healthPool, bool, error) {
 		runtime.closeCatalog()
 		runtime.catalogRelease = release
 		runtime.pool = snapshot.pool
+		if runtime.probeSelector == "" {
+			log.Printf("agent: URLTest planning requested=%s effective=%s", runtime.opts.planningMode(), runtime.opts.planningMode())
+		}
 		runtime.poolSignature = signature
 	}
 	runtime.poolFileSignature = fileSignature
@@ -185,6 +196,7 @@ func (runtime *xraySelectorRuntime) Reload() (healthPool, bool, error) {
 		runtime.loadedDynamic = make(map[string]bool)
 		runtime.verifiedDynamic = make(map[string]time.Time)
 		runtime.activeByPolicy = make(map[string]string)
+		runtime.policyBindings = make(map[string]policyNodeBinding)
 		runtime.activeByNode = make(map[string]string)
 		runtime.retiredByPolicy = make(map[string][]string)
 		runtime.pendingDynamic = make(map[string]pendingOutbound)
@@ -203,6 +215,11 @@ func (runtime *xraySelectorRuntime) Reload() (healthPool, bool, error) {
 	if pid > 0 && !runtime.inventoryLoaded {
 		if err := runtime.loadDynamicInventory(); err != nil {
 			return healthPool{}, false, err
+		}
+	}
+	for policy := range runtime.policyBindings {
+		if _, exists := runtime.pool.HealthPolicies[policy]; !exists {
+			delete(runtime.policyBindings, policy)
 		}
 	}
 	// Reconcile additions whose selector acknowledgement was lost before
@@ -261,24 +278,34 @@ func readyProcessPIDAt(root, path, name string) int {
 }
 
 func (runtime *xraySelectorRuntime) Select(selector, member string) (selectionErr error) {
+	return runtime.selectProbeMode(selector, member, false)
+}
+
+func (runtime *xraySelectorRuntime) selectProbeMode(selector, member string, isolated bool) (selectionErr error) {
 	if selector == runtime.probeSelectorName() {
-		xray.MutationMu.RLock()
+		if isolated {
+			if err := lockIsolatedMutation(runtime.requestContext()); err != nil {
+				return err
+			}
+		} else {
+			xray.MutationMu.RLock()
+		}
 		defer xray.MutationMu.RUnlock()
 	} else {
 		xray.MutationMu.Lock()
 		defer xray.MutationMu.Unlock()
 	}
-	return runtime.selectLocked(selector, member)
+	return runtime.selectLocked(selector, member, isolated)
 }
 
-func (runtime *xraySelectorRuntime) selectLocked(selector, member string) (selectionErr error) {
+func (runtime *xraySelectorRuntime) selectLocked(selector, member string, isolated bool) (selectionErr error) {
 	trace := beginHealthStage("select", runtime.stageLane(), selector, member)
 	defer func() { trace.finishError(selectionErr, runtime.requestContext().Err() != nil) }()
 	runtimeMember := member
 	_, policySelector := runtime.pool.Policies[selector]
 	if selector == runtime.probeSelectorName() {
 		var err error
-		runtimeMember, err = runtime.probeTag(member)
+		runtimeMember, err = runtime.probeTagMode(member, isolated)
 		if err != nil {
 			return err
 		}
@@ -378,7 +405,14 @@ func (runtime *xraySelectorRuntime) selectLocked(selector, member string) (selec
 
 func (runtime *xraySelectorRuntime) Current(selector string) (selected string, selectionErr error) {
 	trace := beginHealthStage("current", runtime.stageLane(), selector, "")
-	defer func() { trace.finish(selectionErr == nil) }()
+	defer func() {
+		trace.finish(selectionErr == nil)
+		if selectionErr == nil {
+			if contract, ok := runtime.pool.HealthPolicies[selector]; ok && (selected == "block" || selected == "direct-wan" || contains(contract.Candidates, selected) || runtime.pool.hasOutbound(selected)) {
+				runtime.rememberPolicyBinding(selector, selected, runtime.selectorMembers[selector])
+			}
+		}
+	}()
 	// Probe lanes may continue installing isolated handlers. Only production
 	// mutations must be excluded between this readback and DNS publication.
 	if runtime.routePublisher != nil {
@@ -408,6 +442,23 @@ func (runtime *xraySelectorRuntime) Current(selector string) (selected string, s
 		return member, nil
 	}
 	if contract, exists := runtime.pool.HealthPolicies[selector]; exists {
+		// A definition update changes its deterministic tag. The verified
+		// logical binding belongs to this policy, even if another policy uses
+		// the same endpoint and overwrote the legacy node-only index.
+		if binding, known := runtime.policyBindings[selector]; known && binding.Member == member {
+			node := binding.Node
+			if contains(contract.Candidates, node) && runtime.pool.hasOutbound(node) && !runtime.isBase(node) {
+				if runtime.policyRuntimeTag(selector, node) != member {
+					runtime.activeByPolicy[selector] = member
+					if err := runtime.Select(selector, node); err != nil {
+						return "", fmt.Errorf("refresh selected outbound generation: %w", err)
+					}
+				} else if err := runtime.ensureOutbound(node, member); err != nil {
+					return "", err
+				}
+			}
+			return node, nil
+		}
 		prefix := runtime.pool.PolicyPrefixes[selector]
 		if prefix == "" {
 			prefix = "sb-urltest-" + shortHash(selector, 12) + "-"
@@ -433,6 +484,9 @@ func (runtime *xraySelectorRuntime) Current(selector string) (selected string, s
 				}
 				return candidate, nil
 			}
+		}
+		if !strings.HasPrefix(member, runtime.policyPrefix(selector)) {
+			return member, nil
 		}
 	}
 	for node, runtimeTag := range runtime.activeByNode {
@@ -608,7 +662,13 @@ func (runtime *xraySelectorRuntime) commitPolicySelection(policyID, nodeID, runt
 		prefix = "sb-urltest-" + shortHash(policyID, 12) + "-"
 	}
 	previous := runtime.activeByPolicy[policyID]
+	if binding, known := runtime.policyBindings[policyID]; known && binding.Member != "" {
+		// Current may have adopted a selector changed by the independent
+		// subscription manager. Its verified readback outranks an older index.
+		previous = binding.Member
+	}
 	runtime.activeByPolicy[policyID] = runtimeTag
+	runtime.rememberPolicyBinding(policyID, nodeID, runtimeTag)
 	if nodeID != "" {
 		runtime.activeByNode[nodeID] = runtimeTag
 	}
@@ -710,10 +770,51 @@ func (runtime *xraySelectorRuntime) reconcilePendingOutbounds() {
 }
 
 func (runtime *xraySelectorRuntime) probeTag(nodeID string) (string, error) {
-	if nodeID == "block" || nodeID == "direct-wan" || runtime.isBase(nodeID) {
+	return runtime.probeTagMode(nodeID, false)
+}
+
+func (runtime *xraySelectorRuntime) probeTagMode(nodeID string, isolated bool) (string, error) {
+	if isolated && (nodeID == "block" || nodeID == "direct-wan" || runtime.isReverse(nodeID) || !runtime.pool.hasOutbound(nodeID)) {
+		return "", errIsolatedProbeUnsupported
+	}
+	if isolated {
+		definition, err := runtime.pool.outboundDefinition(runtime.requestContext(), nodeID)
+		if err != nil {
+			return "", err
+		}
+		var outbound map[string]json.RawMessage
+		if err := json.Unmarshal(definition, &outbound); err != nil {
+			return "", err
+		}
+		// SIP003 helpers are shared by endpoint even across fresh Xray tags.
+		// A new handler cannot promise an independent outer lifecycle there.
+		if _, shared := outbound["_resproxy_plugin"]; shared {
+			return "", errIsolatedProbeUnsupported
+		}
+	}
+	if nodeID == "block" || nodeID == "direct-wan" || !isolated && runtime.isBase(nodeID) {
 		return nodeID, nil
 	}
-	if tag := runtime.activeByNode[nodeID]; tag != "" {
+	if !isolated && runtime.probePolicy != "" {
+		member, err := runtime.selectedRuntimeMember(runtime.probePolicy)
+		if err != nil {
+			return "", err
+		}
+		if member != runtime.probePolicyMember {
+			return "", errHealthYield
+		}
+		if nodeID == runtime.probePolicySelected || runtime.probePolicySelected == "" && member == runtime.policyRuntimeTag(runtime.probePolicy, nodeID) {
+			present, err := runtime.outboundPresent(member)
+			if err != nil {
+				return "", err
+			}
+			if !present {
+				return "", errors.New("selected policy outbound is unavailable")
+			}
+			return member, nil
+		}
+	}
+	if tag := runtime.activeByNode[nodeID]; !isolated && runtime.probePolicy == "" && tag != "" {
 		if tag == nodeID {
 			return tag, nil
 		}
@@ -745,7 +846,15 @@ func (runtime *xraySelectorRuntime) probeTag(nodeID string) (string, error) {
 		// which another lane is still probing.
 		tag = "sb-health-" + shortHash(runtime.probeSelector, 8) + "-" + runtime.dynamicDigest(nodeID)
 	}
-	if runtime.probeRuntimeTag != "" && runtime.probeRuntimeTag != tag {
+	if isolated && (runtime.unknownDynamic[tag] || runtime.loadedDynamic[tag]) {
+		// The deterministic lane-owned name can survive a controller restart.
+		// An unverified old transport is not fresh diagnostic evidence.
+		runtime.loadedDynamic[tag] = true
+		if err := runtime.removeOutbound(tag); err != nil {
+			return "", err
+		}
+	}
+	if runtime.probeRuntimeTag != "" && (runtime.probeRuntimeTag != tag || isolated) {
 		if err := runtime.removeOutbound(runtime.probeRuntimeTag); err != nil {
 			return "", err
 		}
@@ -996,6 +1105,9 @@ func (runtime *xraySelectorRuntime) probe(candidate string, mode xrayProbeMode) 
 }
 
 func (runtime *xraySelectorRuntime) probeWithQualityRequest(candidate string, mode xrayProbeMode, request qualityProbeRequest) (evidence probeEvidence) {
+	if mode == xrayQualityProbe && (request.Measurement == qualityMeasurementIsolatedPaired || request.Measurement == qualityMeasurementRoutePaired) {
+		return runtime.probeIsolatedPlanning(candidate, request)
+	}
 	before, known := readProbeCPU("/proc/stat")
 	defer func() {
 		if !known || evidence.OK || evidence.LocalFailure || evidence.Failure != probeFailureTimeout {
@@ -1467,4 +1579,16 @@ func (runtime *xraySelectorRuntime) closeCatalog() {
 		runtime.catalogRelease()
 		runtime.catalogRelease = nil
 	}
+}
+
+// Bind only a confirmed selector readback or a committed selection. Unknown
+// historical tags after a controller restart are never decoded by guessing.
+func (runtime *xraySelectorRuntime) rememberPolicyBinding(policy, node, member string) {
+	if node == "" || member == "" {
+		return
+	}
+	if runtime.policyBindings == nil {
+		runtime.policyBindings = make(map[string]policyNodeBinding)
+	}
+	runtime.policyBindings[policy] = policyNodeBinding{Node: node, Member: member}
 }
