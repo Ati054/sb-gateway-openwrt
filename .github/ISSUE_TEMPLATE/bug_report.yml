@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a problem with XRoute on OpenWrt.
+labels: [bug]
+body:
+  - type: textarea
+    id: device
+    attributes:
+      label: Device and architecture
+      placeholder: Router model or VM, CPU architecture, RAM.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: OpenWrt and XRoute versions
+      placeholder: Exact installed versions of both.
+    validations:
+      required: true
+  - type: input
+    id: wan
+    attributes:
+      label: ISP connection type
+      placeholder: DHCP, PPPoE, static IP, mobile modem, or another type.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log excerpt
+      description: Remove personal links, subscription URLs, tokens and keys.
+      render: text
+    validations:
+      required: true
