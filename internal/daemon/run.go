@@ -295,6 +295,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				if restoreErr := RestoreDNSHandoff(paths); restoreErr != nil {
 					return fmt.Errorf("restore previous DNS owner after listener failure: %w", errors.Join(err, restoreErr))
 				}
+				if retryErr := retryDNSStartupFailure(ctx, "DNS listener timeout", err); retryErr != nil {
+					return retryErr
+				}
 			} else {
 				defer stopDNS()
 				updateDNS = update
@@ -304,6 +307,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 					ops.LANInterface = config.LANInterface
 					ops.rollbackByCaller = true
 					err = acquireDNSMasqHandoff(dnsmasqHandoffFile(paths), dnsPort, ops)
+					localTakeoverFailed := err != nil
 					if err == nil {
 						err = verifyRouterDNS(ctx)
 					}
@@ -311,6 +315,14 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 						log.Printf("resproxy: router DNS takeover failed; restoring previous DNS: %v", err)
 						if restoreErr := restoreManagedDNSWithinBudget(paths, dnsOwnerRecoveryBudget, 10*time.Second); restoreErr != nil {
 							return fmt.Errorf("restore DNS owners after failed takeover: %w", errors.Join(err, restoreErr))
+						}
+						// A local UCI/service command timeout is retryable. A slow
+						// external resolver during verifyRouterDNS must preserve the
+						// working previous resolver and routing instead of core churn.
+						if localTakeoverFailed || ctx.Err() != nil {
+							if retryErr := retryDNSStartupFailure(ctx, "local router DNS handoff timeout", err); retryErr != nil {
+								return retryErr
+							}
 						}
 						dnsInterop.EffectiveMode = "system"
 						dnsInterop.Reason = "router-dns-handoff-failed"

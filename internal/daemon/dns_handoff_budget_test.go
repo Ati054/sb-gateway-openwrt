@@ -3,12 +3,29 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestDNSInteropStartupRetryKeepsCauseAndParentCancellation(t *testing.T) {
+	cause := fmt.Errorf("local startup command: %w", context.DeadlineExceeded)
+	if err := retryDNSStartupFailure(t.Context(), "takeover", cause); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("temporary startup error became a permanent degraded mode: %v", err)
+	}
+	permanent := errors.New("invalid configuration")
+	if err := retryDNSStartupFailure(t.Context(), "takeover", permanent); err != nil {
+		t.Fatalf("permanent configuration failure treated as transient: %v", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := retryDNSStartupFailure(ctx, "takeover", permanent); !errors.Is(err, context.Canceled) || !errors.Is(err, permanent) {
+		t.Fatalf("cancellation or original cause lost: %v", err)
+	}
+}
 
 func TestDNSHandoffLocalCommandTimeoutUsesOneCallerRollback(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "dnsmasq-handoff.json")

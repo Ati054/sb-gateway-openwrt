@@ -124,17 +124,27 @@ handoffFirewallWait:
 			return state, errors.Join(ctx.Err(), inspectionErr, fmt.Errorf("restore previous DNS owner after conflict: %w", err))
 		}
 	}
-	if err := ctx.Err(); err != nil {
-		return state, err
-	}
-	if errors.Is(inspectionErr, context.DeadlineExceeded) {
+	if err := retryDNSStartupFailure(ctx, "transient inspection failure", inspectionErr); err != nil {
 		// Do not turn exhausted transient startup checks into a permanent
 		// system-DNS mode. The previous owner is restored above; returning a
 		// startup error lets procd retry initialization under its existing
 		// supervision, without ever publishing false full readiness.
-		return state, fmt.Errorf("retry DNS initialization after transient inspection failure: %w", inspectionErr)
+		return state, err
 	}
 	return state, nil
+}
+
+// A temporary local startup deadline must not latch a degraded DNS mode until a
+// manual restart. Call after restoring any DNS ownership already acquired.
+// External resolver timeouts are not evidence that the local runtime is broken.
+func retryDNSStartupFailure(ctx context.Context, stage string, cause error) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Join(err, cause)
+	}
+	if errors.Is(cause, context.DeadlineExceeded) {
+		return fmt.Errorf("retry DNS initialization after %s: %w", stage, cause)
+	}
+	return nil
 }
 
 func activeExternalDNSService() string {
