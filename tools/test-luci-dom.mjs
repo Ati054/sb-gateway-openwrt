@@ -11,6 +11,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const directory = path.join(root, 'htdocs/luci-static/resources/view/resproxy');
 const sources = {};
+const appearanceCSS = await readFile(path.join(directory, 'style.css'), 'utf8');
 const nameCases = JSON.parse(await readFile(path.join(root, 'internal/selection/testdata/name_filters.json'), 'utf8'));
 for (const name of await readdir(directory)) {
  if (!name.endsWith('.js')) continue;
@@ -39,12 +40,39 @@ try {
  const errors = [];
  page.on('pageerror', error => errors.push(error.message));
  await page.goto(`http://127.0.0.1:${server.address().port}/`);
- const result = await page.evaluate(async ({ sources, stockDOM, nameCases }) => {
+ const result = await page.evaluate(async ({ sources, stockDOM, nameCases, appearanceCSS }) => {
   document.documentElement.lang = 'ru';
   const baseclass = { extend: value => value };
   const Class = { singleton: value => value };
   const dom = new Function('Class', 'domParser', stockDOM + ';return DOM;')(Class, new DOMParser());
   const safeDOM = new Function('baseclass', 'dom', sources.safe_dom)(baseclass, dom);
+  // Reproduce an existing browser session from before the XRoute rename.
+  // Bootstrap also styles every footer, including footers inside package views.
+  const themeStyle = document.createElement('style');
+  themeStyle.id = 'sbg-ui-style';
+  themeStyle.textContent = 'footer { padding:20px 120px; margin-inline-start:30px; text-align:center; width:60%; }\n' + appearanceCSS;
+  document.head.append(themeStyle);
+  for (const language of ['en', 'ru', 'fa', 'zh-cn', 'zh-tw']) {
+   document.documentElement.lang = language;
+   const values = { 'sbg-menu-version':'r105-i18n:' + language, menu:{ title:'SB Gateway for OpenWrt' } };
+   let flushed = 0, reloaded = 0;
+   const session = { getLocalData:key=>values[key], setLocalData:(key,value)=>{ values[key]=value; return true; } };
+   const ui = { menu:{ flushCache:()=>{ flushed++; values.menu=null; } } };
+   const appearance = new Function('baseclass', 'session', 'ui', 'safeDOM', 'L', 'window', sources.appearance)(
+    baseclass, session, ui, safeDOM, { resource:value=>value }, { location:{ reload:()=>{ reloaded++; } } });
+   const root = document.createElement('div'); root.style.width = '340px';
+   document.body.append(appearance.decorate(root));
+   if (flushed !== 1 || reloaded !== 1 || values.menu !== null) throw Error('Legacy menu survived the package rename');
+   appearance.decorate(root);
+   const footers = root.querySelectorAll('.xroute-contact'), link = root.querySelector('.xroute-contact a');
+   if (flushed !== 1 || reloaded !== 1 || footers.length !== 1) throw Error('Appearance repeats reloads or footers');
+   if (link.href !== 'https://t.me/xroute_dev' || link.target !== '_blank' || link.rel !== 'noopener noreferrer') throw Error('Community link changed');
+   const bounds = root.getBoundingClientRect(), contact = link.getBoundingClientRect();
+   const rtl = language === 'fa';
+   if (Math.abs((rtl ? contact.right : contact.left) - (rtl ? bounds.right : bounds.left)) > 1) throw Error('Theme footer padding displaced the community link');
+   root.remove();
+  }
+  themeStyle.remove(); document.documentElement.lang = 'ru';
   const _ = value => value;
   const nameFilter = new Function('baseclass', '_', sources.name_filter)(baseclass, _);
   String.prototype.format = function(...args) { let i = 0; return this.replace(/%[sd]/g, () => String(args[i++])); };
@@ -287,8 +315,8 @@ try {
 	if(journalOutput.textContent.includes('system-only entry'))throw Error('Search restored lines from a failed old category');
   await new Promise(resolve => setTimeout(resolve, 50));
   if (document.querySelector('svg,script') || Array.from(document.images).some(img=>img!==trustedLogo) || window.__sbgXSS) throw Error('Untrusted HTML entered DOM or executed');
-  return {negativeControl:true, health:true, picker:true, commaAlternatives:true, quotedNames:true, sharedNameCases:nameCases.length, exclusionPrecedence:true, deltaSigns:true, scalarAndCallback:true, overviewMonitoring:true, overviewTransientErrors:true, dnsTakeoverStatus:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
- }, { sources, stockDOM, nameCases });
+  return {negativeControl:true, appearanceCacheMigration:true, footerThemeAlignment:true, health:true, picker:true, commaAlternatives:true, quotedNames:true, sharedNameCases:nameCases.length, exclusionPrecedence:true, deltaSigns:true, scalarAndCallback:true, overviewMonitoring:true, overviewTransientErrors:true, dnsTakeoverStatus:true, clockIndependentStatus:true, visibleDatabaseFailure:true, journalCategories:true, images:0, executed:0};
+ }, { sources, stockDOM, nameCases, appearanceCSS });
  assert.deepEqual(errors, []);
  console.log(JSON.stringify(result));
 } finally {

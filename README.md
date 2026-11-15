@@ -10,7 +10,7 @@ I made XRoute to manage proxies on OpenWrt from LuCI. You can add subscriptions,
 
 You can use the interface in English, Russian, Simplified or Traditional Chinese, and Persian.
 
-![XRoute](docs/images/overview-en.png)
+![XRoute](docs/images/overview-en-live.png)
 
 ## Features
 
@@ -33,6 +33,19 @@ Update subscriptions, switch nodes, and change monitoring intervals without rest
 Choose blocking or WAN access for each rule if its proxy fails. DNS follows the same rule. Strict lists keep traffic blocked during router boot, restarts, and package updates. Direct IP exceptions and VPN routes remain available. Turning XRoute off removes interception.
 
 Keep the router powered during an update. If flash space is low, the installer keeps its package backup in RAM. A power interruption at that point may require reinstalling the APK. Your settings remain on the router. To recover, transfer the APK using the instructions below and run `apk --no-cache add --force-reinstall /tmp/xroute.apk`.
+
+## Rule presets
+
+![Rule presets](docs/images/rules-en-live.png)
+
+<details>
+<summary>Route lists and DNS settings</summary>
+
+![Route lists and DNS settings](docs/images/routes-en-live.png)
+
+![DNS](docs/images/dns-en-live.png)
+
+</details>
 
 ## Installation
 
@@ -110,10 +123,6 @@ Yes. Add a subscription, create a service, domain, or IP rule with the proxy act
 **How does XRoute differ from Podkop and PassWall2?**
 
 [Podkop](https://github.com/itdoginfo/podkop/blob/main/README.md) uses sing-box. [PassWall2](https://github.com/Openwrt-Passwall/openwrt-passwall2/blob/main/README.md) supports several proxy cores and related packages. XRoute includes one Xray core and manages subscriptions, route lists, node selection, and DNS in its LuCI interface. This package targets OpenWrt 25.12 with APK on ARM64 and x86_64.
-
-![Node availability](docs/images/node-availability-ru.png)
-
-![Service presets](docs/images/services-ru.png)
 
 ## Community
 

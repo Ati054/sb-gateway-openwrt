@@ -10,7 +10,7 @@
 
 介面支援英文、俄文、簡體中文、繁體中文與波斯文。
 
-![XRoute 繁體中文介面](docs/images/overview-zh-tw.png)
+![XRoute 繁體中文介面](docs/images/overview-zh-tw-live.png)
 
 ## 功能
 
@@ -33,6 +33,19 @@
 可為每條規則選擇代理故障時封鎖流量或允許使用 WAN，DNS 也會遵循相同規則。嚴格清單會在路由器開機、服務重新啟動及套件更新期間維持封鎖。直接連線 IP 例外與 VPN 路由仍可使用。關閉 XRoute 會移除流量攔截。
 
 更新期間請保持路由器通電。若快閃儲存空間不足，安裝程式會將套件備份保留在 RAM。此時斷電可能需要重新安裝 APK，但設定仍會保留在路由器上。復原時，請依下方說明傳送 APK，再執行 `apk --no-cache add --force-reinstall /tmp/xroute.apk`。
+
+## 規則預設
+
+![規則預設](docs/images/rules-zh-tw-live.png)
+
+<details>
+<summary>路由清單與 DNS 設定</summary>
+
+![路由清單與 DNS 設定](docs/images/routes-zh-tw-live.png)
+
+![DNS](docs/images/dns-zh-tw-live.png)
+
+</details>
 
 ## 安裝
 
@@ -115,10 +128,6 @@ make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s
 [PassWall2](https://github.com/Openwrt-Passwall/openwrt-passwall2/blob/main/README.md) 支援多種代理核心與相關套件。
 XRoute 內含單一 Xray 核心，並透過 LuCI 介面管理訂閱、路由清單、節點選取與 DNS。
 此套件適用於使用 APK 的 OpenWrt 25.12，支援 ARM64 與 x86_64。
-
-![節點可用性](docs/images/node-availability-ru.png)
-
-![服務預設規則](docs/images/services-ru.png)
 
 ## 社群
 

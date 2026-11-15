@@ -10,7 +10,7 @@
 
 界面支持英语、俄语、简体中文、繁体中文和波斯语。
 
-![XRoute](docs/images/overview-zh-cn.png)
+![XRoute](docs/images/overview-zh-cn-live.png)
 
 ## 功能
 
@@ -33,6 +33,19 @@
 可为每条规则设置代理故障时阻断流量或允许 WAN 访问，DNS 遵循相同规则。严格列表在路由器启动、服务重启及软件包更新期间持续阻断流量；直连 IP 例外和 VPN 路由仍然可用。关闭 XRoute 会移除流量截获。
 
 更新期间请保持路由器供电。闪存空间不足时，安装器会将软件包备份放在 RAM 中；此时若断电，可能需要重新安装 APK。设置仍保留在路由器上。如需恢复，请按下文说明传送 APK，然后运行 `apk --no-cache add --force-reinstall /tmp/xroute.apk`。
+
+## 规则预设
+
+![规则预设](docs/images/rules-zh-cn-live.png)
+
+<details>
+<summary>路由列表与 DNS 设置</summary>
+
+![路由列表与 DNS 设置](docs/images/routes-zh-cn-live.png)
+
+![DNS](docs/images/dns-zh-cn-live.png)
+
+</details>
 
 ## 安装
 
@@ -115,10 +128,6 @@ MikroTik RouterOS 7 请使用 [MikroTik 版本及其网页界面配置说明](ht
 [PassWall2](https://github.com/Openwrt-Passwall/openwrt-passwall2/blob/main/README.md) 支持多种代理内核及相关软件包。
 XRoute 包含一个 Xray 内核，通过 LuCI 界面管理订阅、路由列表、节点选择和 DNS。
 此软件包适用于采用 APK 的 OpenWrt 25.12，支持 ARM64 和 x86_64。
-
-![节点可用性](docs/images/node-availability-ru.png)
-
-![服务预设规则](docs/images/services-ru.png)
 
 ## 社区
 
