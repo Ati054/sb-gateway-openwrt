@@ -111,6 +111,10 @@ Yes. Add a subscription, create a service, domain, or IP rule with the proxy act
 
 [Podkop](https://github.com/itdoginfo/podkop/blob/main/README.md) uses sing-box. [PassWall2](https://github.com/Openwrt-Passwall/openwrt-passwall2/blob/main/README.md) supports several proxy cores and related packages. XRoute includes one Xray core and manages subscriptions, route lists, node selection, and DNS in its LuCI interface. This package targets OpenWrt 25.12 with APK on ARM64 and x86_64.
 
+![Node availability](docs/images/node-availability-ru.png)
+
+![Service presets](docs/images/services-ru.png)
+
 ## Community
 
 [Telegram: @xroute_dev](https://t.me/xroute_dev)

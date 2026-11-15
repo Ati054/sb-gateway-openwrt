@@ -116,6 +116,10 @@ make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s
 XRoute 內含單一 Xray 核心，並透過 LuCI 介面管理訂閱、路由清單、節點選取與 DNS。
 此套件適用於使用 APK 的 OpenWrt 25.12，支援 ARM64 與 x86_64。
 
+![節點可用性](docs/images/node-availability-ru.png)
+
+![服務預設規則](docs/images/services-ru.png)
+
 ## 社群
 
 [Telegram: @xroute_dev](https://t.me/xroute_dev)

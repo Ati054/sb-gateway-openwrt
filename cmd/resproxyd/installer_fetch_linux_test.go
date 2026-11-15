@@ -19,17 +19,18 @@ func TestInstallerFetchReportsDownloadFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := string(body)
-	start := strings.Index(source, "fetch() {")
-	if start < 0 {
+	start := strings.Index(source, "check_ram() {")
+	fetchStart := strings.Index(source, "fetch() {")
+	if start < 0 || fetchStart < start {
 		t.Fatal("installer download function not found")
 	}
 	// Test the downloader itself; the following installer action can be an
 	// online release check or a local signed-APK migration.
-	closing := strings.Index(source[start:], "\n}\n")
+	closing := strings.Index(source[fetchStart:], "\n}\n")
 	if closing < 0 {
 		t.Fatal("installer download function is incomplete")
 	}
-	end := start + closing + len("\n}\n")
+	end := fetchStart + closing + len("\n}\n")
 	for _, tc := range []struct {
 		name, payload, diagnostic, want string
 		status, limit                   int
@@ -57,6 +58,9 @@ set -eu
  exit "$MOCK_STATUS"
 `
 			if err := os.WriteFile(filepath.Join(dir, "bin", "uclient-fetch"), []byte(mock), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "bin", "curl"), []byte(mock), 0700); err != nil {
 				t.Fatal(err)
 			}
 			script := `set -eu

@@ -17,9 +17,12 @@ case "$arch" in aarch64_generic|aarch64_cortex-a53|x86_64) ;; *) echo "No APK fo
 work=$(mktemp -d /tmp/xroute-install.XXXXXX)
 bootstrap_key_added=0
 fetch_pid=
+setup_pid=
+setup_watchdog_pid=
 project_key=/etc/apk/keys/ati054-sb-gateway.rsa.pub
 is_installed() { apk info -e xroute-openwrt >/dev/null 2>&1 || apk info -e sb-gateway-openwrt >/dev/null 2>&1; }
 cleanup() {
+ stop_setup
  if [ -n "$fetch_pid" ]; then kill "$fetch_pid" 2>/dev/null || :; wait "$fetch_pid" 2>/dev/null || :; fi
  rm -rf "$work"
  if [ "$bootstrap_key_added" = 1 ] && ! is_installed; then rm -f "$project_key"; fi
@@ -34,28 +37,86 @@ check_ram() {
  printf '%s:%s' "$ram" "$free" | grep -Eq '^[0-9]+:[0-9]+$' || exit 1
  [ "$ram" -ge "$1" ] && [ "$free" -ge "$1" ] || { echo 'Not enough free RAM for installation.' >&2; exit 1; }
 }
+stop_setup_watchdog() {
+ if [ -n "$setup_watchdog_pid" ]; then
+  kill "$setup_watchdog_pid" 2>/dev/null || :; wait "$setup_watchdog_pid" 2>/dev/null || :
+  setup_watchdog_pid=
+ fi
+}
+stop_setup() {
+ stop_setup_watchdog
+ if [ -n "$setup_pid" ]; then
+  kill -KILL "-$setup_pid" 2>/dev/null || :
+  kill -KILL "$setup_pid" 2>/dev/null || :
+  wait "$setup_pid" 2>/dev/null || :
+  setup_pid=
+ fi
+}
+run_bounded() {
+ seconds=$1; shift
+ command -v setsid >/dev/null || { echo 'Install curl with apk add curl, then run the installer again.' >&2; return 1; }
+ setsid "$@" &
+ setup_pid=$!
+ (
+  timer_pid=
+  trap 'if [ -n "$timer_pid" ]; then kill "$timer_pid" 2>/dev/null || :; wait "$timer_pid" 2>/dev/null || :; fi; exit 0' TERM INT HUP
+  sleep "$seconds" & timer_pid=$!; wait "$timer_pid" || exit 0
+  kill -TERM "-$setup_pid" 2>/dev/null || exit 0
+  sleep 2 & timer_pid=$!; wait "$timer_pid" || exit 0
+  kill -KILL "-$setup_pid" 2>/dev/null || :
+ ) &
+ setup_watchdog_pid=$!
+ result=0; wait "$setup_pid" || result=$?
+ stop_setup
+ return "$result"
+}
 fetch() {
  limit=${3:-1048576}
- fifo=$work/download.pipe
- download_log=$work/download.log
- mkfifo "$fifo"
- if command -v uclient-fetch >/dev/null; then uclient-fetch -T 30 -O - "$1" > "$fifo" 2> "$download_log" &
- elif command -v wget >/dev/null; then wget -T 30 -O - "$1" > "$fifo" 2> "$download_log" &
- else rm -f "$fifo"; echo 'wget or uclient-fetch is required.' >&2; return 1; fi
- fetch_pid=$!
- if ! head -c "$((limit+1))" < "$fifo" > "$2"; then
-  kill "$fetch_pid" 2>/dev/null || :; wait "$fetch_pid" 2>/dev/null || :
-  fetch_pid=; rm -f "$fifo"; return 1
- fi
- download_status=0
- wait "$fetch_pid" || download_status=$?
- fetch_pid=; rm -f "$fifo"
- [ "$(wc -c < "$2")" -le "$limit" ] || { echo 'Download exceeds the size limit.' >&2; return 1; }
- if [ "$download_status" != 0 ] || [ ! -s "$2" ]; then
+ curl_setup_attempted=0
+ while :; do
+  fifo=$work/download.pipe
+  download_log=$work/download.log
+  mkfifo "$fifo"
+  if command -v curl >/dev/null; then
+   downloader=curl
+   curl -fLsS --connect-timeout 15 --max-time 180 --max-redirs 5 --proto '=https' --proto-redir '=https' -o - "$1" > "$fifo" 2> "$download_log" &
+  elif command -v uclient-fetch >/dev/null; then
+   downloader=uclient-fetch
+   uclient-fetch -T 30 -O - "$1" > "$fifo" 2> "$download_log" &
+  elif command -v wget >/dev/null; then
+   downloader=wget
+   wget -T 30 -O - "$1" > "$fifo" 2> "$download_log" &
+  else
+   rm -f "$fifo"; echo 'curl, wget or uclient-fetch is required.' >&2; return 1
+  fi
+  fetch_pid=$!
+  if ! head -c "$((limit+1))" < "$fifo" > "$2"; then
+   kill "$fetch_pid" 2>/dev/null || :; wait "$fetch_pid" 2>/dev/null || :
+   fetch_pid=; rm -f "$fifo" "$2"; return 1
+  fi
+  if [ "$(wc -c < "$2")" -gt "$limit" ]; then
+   kill "$fetch_pid" 2>/dev/null || :; wait "$fetch_pid" 2>/dev/null || :
+   fetch_pid=; rm -f "$fifo" "$2"
+   echo 'Download exceeds the size limit.' >&2; return 1
+  fi
+  download_status=0
+  wait "$fetch_pid" || download_status=$?
+  fetch_pid=; rm -f "$fifo"
+  if [ "$download_status" = 0 ] && [ -s "$2" ]; then return 0; fi
+  rm -f "$2"
+  if [ "$downloader" != curl ] && [ "$curl_setup_attempted" = 0 ] && ! command -v curl >/dev/null; then
+   curl_setup_attempted=1
+   echo 'Installing curl from OpenWrt repositories for HTTPS downloads...' >&2
+   check_ram 8192
+   if run_bounded 120 apk update > "$work/curl-setup.log" 2>&1 && run_bounded 120 apk add --no-progress curl >> "$work/curl-setup.log" 2>&1 && command -v curl >/dev/null; then
+    continue
+   fi
+   echo 'Could not install curl from the configured OpenWrt repositories.' >&2
+   cat "$work/curl-setup.log" >&2; return 1
+  fi
   echo "Download failed: $1 (exit $download_status)." >&2
-  cat "$download_log" >&2
-  return 1
- fi
+  cat "$download_log" >&2; return 1
+ done
 }
 
 if [ -n "$local_apk" ]; then

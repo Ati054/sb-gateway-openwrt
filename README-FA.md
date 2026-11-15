@@ -134,6 +134,10 @@ make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s
 
 </div>
 
+![دسترس‌پذیری گره‌ها](docs/images/node-availability-ru.png)
+
+![قوانین آمادهٔ سرویس‌ها](docs/images/services-ru.png)
+
 ## ارتباط با پروژه
 
 [Telegram: @xroute_dev](https://t.me/xroute_dev)

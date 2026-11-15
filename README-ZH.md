@@ -116,6 +116,10 @@ MikroTik RouterOS 7 请使用 [MikroTik 版本及其网页界面配置说明](ht
 XRoute 包含一个 Xray 内核，通过 LuCI 界面管理订阅、路由列表、节点选择和 DNS。
 此软件包适用于采用 APK 的 OpenWrt 25.12，支持 ARM64 和 x86_64。
 
+![节点可用性](docs/images/node-availability-ru.png)
+
+![服务预设规则](docs/images/services-ru.png)
+
 ## 社区
 
 [Telegram: @xroute_dev](https://t.me/xroute_dev)
