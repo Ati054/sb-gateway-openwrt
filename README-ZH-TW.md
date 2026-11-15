@@ -115,3 +115,7 @@ make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s
 [PassWall2](https://github.com/Openwrt-Passwall/openwrt-passwall2/blob/main/README.md) 支援多種代理核心與相關套件。
 XRoute 內含單一 Xray 核心，並透過 LuCI 介面管理訂閱、路由清單、節點選取與 DNS。
 此套件適用於使用 APK 的 OpenWrt 25.12，支援 ARM64 與 x86_64。
+
+## 社群
+
+[Telegram: @xroute_dev](https://t.me/xroute_dev)

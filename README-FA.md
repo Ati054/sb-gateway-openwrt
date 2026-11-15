@@ -133,3 +133,7 @@ make -C SDK/package/resproxy TOPDIR=/absolute/path/to/SDK compile V=s
 می‌کند. این بسته برای OpenWrt 25.12 با APK روی ARM64 و x86_64 طراحی شده است.
 
 </div>
+
+## ارتباط با پروژه
+
+[Telegram: @xroute_dev](https://t.me/xroute_dev)

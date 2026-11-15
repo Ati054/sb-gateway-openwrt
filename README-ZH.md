@@ -115,3 +115,7 @@ MikroTik RouterOS 7 请使用 [MikroTik 版本及其网页界面配置说明](ht
 [PassWall2](https://github.com/Openwrt-Passwall/openwrt-passwall2/blob/main/README.md) 支持多种代理内核及相关软件包。
 XRoute 包含一个 Xray 内核，通过 LuCI 界面管理订阅、路由列表、节点选择和 DNS。
 此软件包适用于采用 APK 的 OpenWrt 25.12，支持 ARM64 和 x86_64。
+
+## 社区
+
+[Telegram: @xroute_dev](https://t.me/xroute_dev)

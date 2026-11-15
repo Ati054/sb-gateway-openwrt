@@ -20,10 +20,17 @@ function decorate(node) {
 		document.head.appendChild(E('link', {
 			'id': 'sbg-ui-style',
 			'rel': 'stylesheet',
-			'href': L.resource('view/resproxy/style.css') + '?v=r105-i18n'
+			'href': L.resource('view/resproxy/style.css') + '?v=r106-contact'
 		}));
 	node.classList.add('sbg-page');
 	node.setAttribute('dir', /^(ar|fa|he|ur)(-|$)/i.test(language) ? 'rtl' : 'ltr');
+	if (!node.querySelector('.xroute-contact'))
+		node.appendChild(E('footer', { 'class': 'xroute-contact' }, [
+			E('a', {
+				href: 'https://t.me/xroute_dev', target: '_blank',
+				rel: 'noopener noreferrer', dir: 'ltr'
+			}, 'Telegram: @xroute_dev')
+		]));
 	return node;
 }
 

@@ -110,3 +110,7 @@ AGPL-3.0 для проекта; лицензии ядра и зависимос�
 **Чем XRoute отличается от Podkop и PassWall2?**
 
 [Podkop](https://github.com/itdoginfo/podkop/blob/main/README.md) использует sing-box. [PassWall2](https://github.com/Openwrt-Passwall/openwrt-passwall2/blob/main/README.md) поддерживает несколько прокси-ядер и связанных пакетов. XRoute включает одно ядро Xray и объединяет подписки, маршрутные листы, выбор узлов и DNS в своём интерфейсе LuCI. Этот пакет рассчитан на OpenWrt 25.12 с APK, ARM64 и x86_64.
+
+## Сообщество
+
+[Telegram: @xroute_dev](https://t.me/xroute_dev)

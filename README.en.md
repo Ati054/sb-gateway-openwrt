@@ -3,3 +3,7 @@
 # XRoute for OpenWrt
 
 [English documentation](README.md).
+
+## Community
+
+[Telegram: @xroute_dev](https://t.me/xroute_dev)
