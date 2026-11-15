@@ -152,7 +152,8 @@ func execute(arguments []string) error {
 	if len(arguments) < 1 || len(arguments) > 2 {
 		return errors.New("usage: resproxyd {run|reload|render-base|refresh [source-id]|status|health|locations|capture-restore|rulesets|rulesets-refresh|dns-restore|version}")
 	}
-	if len(arguments) > 1 && arguments[0] != "refresh" && arguments[0] != "refresh-worker" && arguments[0] != "plugins-install" && arguments[0] != "plugins-worker" {
+	restoreInput := len(arguments) == 2 && arguments[0] == "capture-restore-rules" && arguments[1] == "--config-stdin"
+	if len(arguments) > 1 && !restoreInput && arguments[0] != "refresh" && arguments[0] != "refresh-worker" && arguments[0] != "plugins-install" && arguments[0] != "plugins-worker" {
 		return errors.New("only refresh accepts a source ID")
 	}
 	paths := daemon.DefaultPaths()
