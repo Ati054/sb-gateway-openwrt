@@ -16,6 +16,8 @@ import (
 
 const httpsDNSProxyInit = "/etc/init.d/https-dns-proxy"
 
+const dnsOwnerRecoveryBudget = 30 * time.Second
+
 type dnsHandoffState struct {
 	WasEnabled bool `json:"was_enabled"`
 	WasRunning bool `json:"was_running"`
@@ -58,7 +60,7 @@ func httpsDNSProxyOpsWithContext(parent context.Context) dnsHandoffOps {
 	}
 	return dnsHandoffOps{
 		recovery: func() (dnsHandoffOps, context.CancelFunc) {
-			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), dnsOwnerRecoveryBudget)
 			return httpsDNSProxyOpsWithContext(ctx), cancel
 		},
 		ensureRecovery: ensureDNSBootRecovery,
@@ -281,7 +283,7 @@ func RestoreDNSHandoff(paths Paths) error {
 	// One allowance covers the complete owner restoration, rather than a new
 	// 30-second allowance for every status/action command. Leave time for the
 	// independent 45-second managed-DNS cleanup inside procd's stop grace.
-	return restoreDNSHandoffWithinBudget(dnsHandoffFile(paths), 30*time.Second, httpsDNSProxyOpsWithContext)
+	return restoreDNSHandoffWithinBudget(dnsHandoffFile(paths), dnsOwnerRecoveryBudget, httpsDNSProxyOpsWithContext)
 }
 
 func restoreDNSHandoffWithinBudget(path string, budget time.Duration, operations func(context.Context) dnsHandoffOps) error {
@@ -294,7 +296,11 @@ func restoreDNSHandoffWithinBudget(path string, budget time.Duration, operations
 // Cleanup shares one deadline across both owned handoffs, reserving its final
 // part for the previous owner even when dnsmasq exhausts its own allowance.
 func RestoreManagedDNS(paths Paths) error {
-	return restoreDNSWithinBudget(context.Background(), 45*time.Second, 15*time.Second,
+	return restoreManagedDNSWithinBudget(paths, 45*time.Second, 15*time.Second)
+}
+
+func restoreManagedDNSWithinBudget(paths Paths, budget, ownerReserve time.Duration) error {
+	return restoreDNSWithinBudget(context.Background(), budget, ownerReserve,
 		func(ctx context.Context) error {
 			return restoreDNSMasqHandoff(dnsmasqHandoffFile(paths), systemDNSMasqOpsWithContext(ctx))
 		},

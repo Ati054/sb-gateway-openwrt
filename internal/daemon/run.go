@@ -300,19 +300,17 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 				updateDNS = update
 				dnsPort = config.DNSPort
 				if handedOff {
-					ops := systemDNSMasqOps()
+					ops := systemDNSMasqOpsWithContext(ctx)
 					ops.LANInterface = config.LANInterface
+					ops.rollbackByCaller = true
 					err = acquireDNSMasqHandoff(dnsmasqHandoffFile(paths), dnsPort, ops)
 					if err == nil {
 						err = verifyRouterDNS(ctx)
 					}
 					if err != nil {
 						log.Printf("resproxy: router DNS takeover failed; restoring previous DNS: %v", err)
-						if restoreErr := RestoreDNSMasqHandoff(paths); restoreErr != nil {
-							return fmt.Errorf("restore router DNS after failed takeover: %w", restoreErr)
-						}
-						if restoreErr := RestoreDNSHandoff(paths); restoreErr != nil {
-							return fmt.Errorf("restore https-dns-proxy after failed takeover: %w", restoreErr)
+						if restoreErr := restoreManagedDNSWithinBudget(paths, dnsOwnerRecoveryBudget, 10*time.Second); restoreErr != nil {
+							return fmt.Errorf("restore DNS owners after failed takeover: %w", errors.Join(err, restoreErr))
 						}
 						dnsInterop.EffectiveMode = "system"
 						dnsInterop.Reason = "router-dns-handoff-failed"

@@ -29,14 +29,17 @@ type dnsmasqOwnedState struct {
 	RemovedDefaults []string `json:"removed_defaults,omitempty"`
 }
 type dnsmasqHandoffOps struct {
-	LANInterface   string
-	OwnPort        int
-	ensureRecovery func() error
-	get            func(string) (string, error)
-	action         func(...string) error
-	restart        func() error
-	sections       func() ([]string, error)
-	scoped         func(string) dnsmasqHandoffOps
+	LANInterface string
+	OwnPort      int
+	// The daemon restores dnsmasq and the prior resolver together under one
+	// independent recovery deadline. Do not run a nested unbounded rollback.
+	rollbackByCaller bool
+	ensureRecovery   func() error
+	get              func(string) (string, error)
+	action           func(...string) error
+	restart          func() error
+	sections         func() ([]string, error)
+	scoped           func(string) dnsmasqHandoffOps
 }
 
 var dnsmasqSectionName = regexp.MustCompile(`^(?:[A-Za-z0-9_]{1,64}|@dnsmasq\[[0-9]{1,3}\])$`)
@@ -262,6 +265,9 @@ func acquireDNSMasqHandoff(path string, port int, ops dnsmasqHandoffOps) error {
 		return err
 	}
 	rollback := func(cause error) error {
+		if ops.rollbackByCaller {
+			return cause
+		}
 		if err := restoreDNSMasqHandoff(path, ops); err != nil {
 			return fmt.Errorf("%w; DNS rollback failed: %w", cause, err)
 		}
@@ -445,5 +451,7 @@ func restoreDNSMasqHandoff(path string, ops dnsmasqHandoffOps) error {
 	return os.Remove(path)
 }
 func RestoreDNSMasqHandoff(paths Paths) error {
-	return restoreDNSMasqHandoff(dnsmasqHandoffFile(paths), systemDNSMasqOps())
+	ctx, cancel := context.WithTimeout(context.Background(), dnsOwnerRecoveryBudget)
+	defer cancel()
+	return restoreDNSMasqHandoff(dnsmasqHandoffFile(paths), systemDNSMasqOpsWithContext(ctx))
 }

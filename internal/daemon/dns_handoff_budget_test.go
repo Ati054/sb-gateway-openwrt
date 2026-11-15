@@ -5,9 +5,41 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestDNSHandoffLocalCommandTimeoutUsesOneCallerRollback(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dnsmasq-handoff.json")
+	values := map[string]string{"server": "127.0.0.1#5053 /lan/192.168.1.1"}
+	ops, _ := fakeDNSMasqOps(values, nil)
+	ops.rollbackByCaller = true
+	restarts := 0
+	ops.restart = func() error {
+		restarts++
+		if restarts == 1 {
+			return context.DeadlineExceeded // local command failed; parent is alive
+		}
+		return nil
+	}
+	if err := acquireDNSMasqHandoff(path, 1053, ops); !errors.Is(err, context.DeadlineExceeded) || t.Context().Err() != nil || restarts != 1 {
+		t.Fatalf("local timeout ran a nested rollback: restarts=%d err=%v", restarts, err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("caller recovery lost its ownership marker: %v", err)
+	}
+	ownerRestored := false
+	err := restoreDNSWithinBudget(t.Context(), time.Second, 300*time.Millisecond,
+		func(context.Context) error { return restoreDNSMasqHandoff(path, ops) },
+		func(ctx context.Context) error { ownerRestored = ctx.Err() == nil; return ctx.Err() })
+	if err != nil || restarts != 2 || !ownerRestored || strings.Contains(values["server"], "1053") || !strings.Contains(values["server"], "5053") {
+		t.Fatalf("shared caller recovery failed: restarts=%d owner=%v values=%v err=%v", restarts, ownerRestored, values, err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("verified caller recovery kept marker: %v", err)
+	}
+}
 
 func TestDNSHandoffRecoverySharesDeadlineAndRetainsMarker(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "handoff.json")
