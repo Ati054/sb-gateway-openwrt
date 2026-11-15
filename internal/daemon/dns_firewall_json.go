@@ -47,11 +47,21 @@ func currentDNSFirewallConflict(ctx context.Context) (bool, error) {
 }
 
 func inspectDNSFirewall(ctx context.Context, binary string) (bool, error) {
+	return inspectDNSFirewallAttempts(ctx, binary, dnsInspectionBudgets())
+}
+
+func inspectDNSFirewallAttempts(ctx context.Context, binary string, budgets []time.Duration) (bool, error) {
+	return retryDNSInspection(ctx, "firewall", budgets, func(ctx context.Context, budget time.Duration) (bool, error) {
+		return inspectDNSFirewallSnapshot(ctx, binary, budget)
+	})
+}
+
+func inspectDNSFirewallSnapshot(ctx context.Context, binary string, budget time.Duration) (bool, error) {
 	// One budget covers the structural snapshot and all referenced port sets.
 	// Unrelated IP/domain sets are never enumerated.
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
-	body, err := readNFTInspection(ctx, binary, nil, "-n", "-s", "-t", "-j", "list", "ruleset")
+	body, err := readNFTInspectionWithin(ctx, binary, nil, budget, "-n", "-s", "-t", "-j", "list", "ruleset")
 	if err != nil {
 		return false, err
 	}
@@ -61,7 +71,7 @@ func inspectDNSFirewall(ctx context.Context, binary string) (bool, error) {
 			return nil, err
 		}
 		// JSON input keeps quoted kernel identifiers out of nft command text.
-		raw, err := readNFTInspection(ctx, binary, strings.NewReader(string(request)), "-n", "-s", "-j", "-f", "-")
+		raw, err := readNFTInspectionWithin(ctx, binary, strings.NewReader(string(request)), budget, "-n", "-s", "-j", "-f", "-")
 		if err != nil {
 			return nil, err
 		}

@@ -226,7 +226,15 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		directPreflightFailed := false
 		directBootstrapIP := ""
 		if config.DNSMode != "system" {
-			if config.DNSHandoffConfirmed && httpsDNSProxyOps().running() {
+			var handoffCandidate bool
+			if config.DNSHandoffConfirmed {
+				service, inspectErr := activeExternalDNSServiceWithContext(ctx)
+				if inspectErr != nil {
+					return fmt.Errorf("inspect DNS owner before handoff: %w", inspectErr)
+				}
+				handoffCandidate = service == "https-dns-proxy"
+			}
+			if handoffCandidate {
 				directBootstrap, err = dnsproxy.PreflightDirect(ctx, config.DNSDirectURL)
 				directBootstrapIP = directBootstrap.IP
 				if err != nil {

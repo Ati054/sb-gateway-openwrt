@@ -61,9 +61,14 @@ func hotRuntimeReadyPath(paths Paths, state DNSInterop) string {
 }
 
 func resolveDNSInterop(ctx context.Context, requested string, inspectFirewall func(context.Context) (bool, error), externalDNSService func(context.Context) (string, error)) DNSInterop {
+	state, _ := resolveDNSInteropResult(ctx, requested, inspectFirewall, externalDNSService)
+	return state
+}
+
+func resolveDNSInteropResult(ctx context.Context, requested string, inspectFirewall func(context.Context) (bool, error), externalDNSService func(context.Context) (string, error)) (DNSInterop, error) {
 	state := DNSInterop{RequestedMode: requested, EffectiveMode: requested}
 	if requested == "system" {
-		return state
+		return state, nil
 	}
 	// An external resolver may own dnsmasq's upstream even without a port-53
 	// redirect. Keep DNS ownership exclusive; never change its configuration.
@@ -73,7 +78,7 @@ func resolveDNSInterop(ctx context.Context, requested string, inspectFirewall fu
 		state.ConflictingService = service
 		state.Reason = "dns-service-inspection-failed"
 		log.Printf("resproxy: DNS service inspection failed; existing DNS retained: %v", inspectionErr)
-		return state
+		return state, inspectionErr
 	}
 	if service != "" {
 		state.EffectiveMode = "system"
@@ -83,26 +88,26 @@ func resolveDNSInterop(ctx context.Context, requested string, inspectFirewall fu
 		} else {
 			state.Reason = "other-dns-service"
 		}
-		return state
+		return state, nil
 	}
 	conflict, err := inspectFirewall(ctx)
 	if err != nil {
 		state.EffectiveMode = "system"
 		state.Reason = "firewall-inspection-failed"
 		log.Printf("resproxy: firewall inspection failed; existing DNS retained: %v", err)
-		return state
+		return state, err
 	}
 	if conflict {
 		state.EffectiveMode = "system"
 		state.Reason = "other-dns-redirect"
 	}
-	return state
+	return state, nil
 }
 
 // A stopped external owner must be restored before coexistence is usable.
 // Its firewall reload may lag behind stop, so settle that transition first.
 func settleDNSInterop(ctx context.Context, requested string, handedOff bool, inspectFirewall func(context.Context) (bool, error), externalDNSService func(context.Context) (string, error), restore func() error) (DNSInterop, error) {
-	state := resolveDNSInterop(ctx, requested, inspectFirewall, externalDNSService)
+	state, inspectionErr := resolveDNSInteropResult(ctx, requested, inspectFirewall, externalDNSService)
 handoffFirewallWait:
 	for attempts := 0; handedOff && attempts < 10 && state.Reason == "other-dns-redirect"; attempts++ {
 		timer := time.NewTimer(500 * time.Millisecond)
@@ -112,14 +117,24 @@ handoffFirewallWait:
 			break handoffFirewallWait
 		case <-timer.C:
 		}
-		state = resolveDNSInterop(ctx, requested, inspectFirewall, externalDNSService)
+		state, inspectionErr = resolveDNSInteropResult(ctx, requested, inspectFirewall, externalDNSService)
 	}
 	if handedOff && state.EffectiveMode == "system" {
 		if err := restore(); err != nil {
-			return state, errors.Join(ctx.Err(), fmt.Errorf("restore previous DNS owner after conflict: %w", err))
+			return state, errors.Join(ctx.Err(), inspectionErr, fmt.Errorf("restore previous DNS owner after conflict: %w", err))
 		}
 	}
-	return state, ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return state, err
+	}
+	if errors.Is(inspectionErr, context.DeadlineExceeded) {
+		// Do not turn exhausted transient startup checks into a permanent
+		// system-DNS mode. The previous owner is restored above; returning a
+		// startup error lets procd retry initialization under its existing
+		// supervision, without ever publishing false full readiness.
+		return state, fmt.Errorf("retry DNS initialization after transient inspection failure: %w", inspectionErr)
+	}
+	return state, nil
 }
 
 func activeExternalDNSService() string {
@@ -132,25 +147,68 @@ func activeExternalDNSServiceWithContext(ctx context.Context) (string, error) {
 }
 
 func inspectExternalDNSServiceAt(ctx context.Context, initDir string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-	return externalDNSServiceAt(initDir, func(path string) (bool, error) {
-		err := boundedCommand(ctx, path, "running").Run()
-		if ctx.Err() != nil {
-			return false, ctx.Err()
+	return inspectExternalDNSServiceAttempts(ctx, initDir, dnsInspectionBudgets())
+}
+
+func inspectExternalDNSServiceAttempts(ctx context.Context, initDir string, budgets []time.Duration) (string, error) {
+	return retryDNSInspection(ctx, "DNS service", budgets, func(ctx context.Context, budget time.Duration) (string, error) {
+		ctx, cancel := context.WithTimeout(ctx, budget)
+		defer cancel()
+		if err := ctx.Err(); err != nil {
+			return "", err
 		}
-		if err == nil {
-			return true, nil
-		}
-		var exit *exec.ExitError
-		if errors.As(err, &exit) && exit.ExitCode() == 1 {
-			return false, nil
-		}
-		return false, err
+		return externalDNSServiceAt(initDir, func(path string) (bool, error) {
+			err := boundedCommand(ctx, path, "running").Run()
+			if ctx.Err() != nil {
+				return false, ctx.Err()
+			}
+			if err == nil {
+				return true, nil
+			}
+			var exit *exec.ExitError
+			if errors.As(err, &exit) && exit.ExitCode() == 1 {
+				return false, nil
+			}
+			return false, err
+		})
 	})
+}
+
+func dnsInspectionBudgets() []time.Duration {
+	return []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second}
+}
+
+func retryDNSInspection[T any](ctx context.Context, label string, budgets []time.Duration, inspect func(context.Context, time.Duration) (T, error)) (T, error) {
+	var value T
+	var last error
+	if len(budgets) == 0 {
+		return value, errors.New("DNS inspection requires an attempt budget")
+	}
+	for attempt, budget := range budgets {
+		if err := ctx.Err(); err != nil {
+			return value, err
+		}
+		var err error
+		value, err = inspect(ctx, budget)
+		if err == nil {
+			return value, nil
+		}
+		if err := ctx.Err(); err != nil {
+			return value, err
+		}
+		// Retry only an aborted local inspection. A busy boot is not proof
+		// of a permanent DNS conflict. Each attempt starts from scratch;
+		// failed output and port-set caches must never cross this boundary.
+		// Permission, syntax and structural errors remain final failures.
+		if !errors.Is(err, context.DeadlineExceeded) {
+			return value, err
+		}
+		last = err
+		if attempt+1 < len(budgets) {
+			log.Printf("resproxy: %s inspection timed out; retrying complete inspection (attempt %d/%d)", label, attempt+2, len(budgets))
+		}
+	}
+	return value, fmt.Errorf("%s inspection exhausted %d attempts: %w", label, len(budgets), last)
 }
 
 func ActiveExternalDNSService() string {
@@ -182,7 +240,11 @@ func inspectNFTRules(ctx context.Context, binary string) (string, error) {
 
 // Drain bounded output; callers accept only complete successful snapshots.
 func readNFTInspection(ctx context.Context, binary string, input io.Reader, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	return readNFTInspectionWithin(ctx, binary, input, 2*time.Second, args...)
+}
+
+func readNFTInspectionWithin(ctx context.Context, binary string, input io.Reader, budget time.Duration, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	started := time.Now()
 	output := nftInspectionOutput{limit: 4 << 20}
