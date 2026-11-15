@@ -278,7 +278,17 @@ func writeDurableDNSMarker(path string, body []byte) error {
 }
 
 func RestoreDNSHandoff(paths Paths) error {
-	return restoreDNSHandoff(dnsHandoffFile(paths), httpsDNSProxyOps())
+	// One allowance covers the complete owner restoration, rather than a new
+	// 30-second allowance for every status/action command. Leave time for the
+	// independent 45-second managed-DNS cleanup inside procd's stop grace.
+	return restoreDNSHandoffWithinBudget(dnsHandoffFile(paths), 30*time.Second, httpsDNSProxyOpsWithContext)
+}
+
+func restoreDNSHandoffWithinBudget(path string, budget time.Duration, operations func(context.Context) dnsHandoffOps) error {
+	// Recovery must still run after cancellation of the startup context.
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
+	defer cancel()
+	return restoreDNSHandoff(path, operations(ctx))
 }
 
 // Cleanup shares one deadline across both owned handoffs, reserving its final
