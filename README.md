@@ -32,7 +32,7 @@ Update subscriptions, switch nodes, and change monitoring intervals without rest
 
 Choose blocking or WAN access for each rule if its proxy fails. DNS follows the same rule. Strict lists keep traffic blocked during router boot, restarts, and package updates. Direct IP exceptions and VPN routes remain available. Turning XRoute off removes interception.
 
-Keep the router powered during an update. If flash space is low, the installer keeps its package backup in RAM. A power interruption at that point may require reinstalling the APK. Your settings remain on the router. To recover, transfer the APK using the instructions below and run `apk --no-cache add --force-reinstall /tmp/xroute.apk`.
+Keep the router powered during an update. If flash space is low, the installer keeps its package backup in RAM. A power interruption at that point may require reinstalling the APK. Your settings remain on the router. To recover, transfer the APK using the instructions below and run `apk --no-cache add /tmp/xroute.apk`.
 
 ## Rule presets
 
