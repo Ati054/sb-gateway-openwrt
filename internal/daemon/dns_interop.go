@@ -138,7 +138,8 @@ handoffFirewallWait:
 }
 
 func activeExternalDNSService() string {
-	service, _ := activeExternalDNSServiceWithContext(context.Background())
+	// Status requests must not inherit startup retries: LuCI polls this path.
+	service, _ := inspectExternalDNSServiceAttempts(context.Background(), "/etc/init.d", []time.Duration{2 * time.Second})
 	return service
 }
 

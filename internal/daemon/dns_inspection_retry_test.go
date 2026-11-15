@@ -92,6 +92,26 @@ exit 1
 	}
 }
 
+func TestDNSServiceInspectionStatusDoesNotRetryTimeout(t *testing.T) {
+	dir := t.TempDir()
+	fixture := inspectionFixture(t, `printf 'x' >> "$(dirname "$0")/calls"; exec sleep 10`)
+	body, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "https-dns-proxy"), body, 0700); err != nil {
+		t.Fatal(err)
+	}
+	_, err = inspectExternalDNSServiceAttempts(t.Context(), dir, []time.Duration{100 * time.Millisecond})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("status timeout lost: %v", err)
+	}
+	calls, err := os.ReadFile(filepath.Join(dir, "calls"))
+	if err != nil || string(calls) != "x" {
+		t.Fatalf("status request retried: %q, %v", calls, err)
+	}
+}
+
 func TestExhaustedTransientDNSInspectionDoesNotBecomePermanentSystemMode(t *testing.T) {
 	for _, handedOff := range []bool{false, true} {
 		restored := 0
