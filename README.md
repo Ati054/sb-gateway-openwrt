@@ -67,12 +67,6 @@ The installer detects the architecture, checks available space, downloads the la
 
 `-O` uses SCP with Dropbear. The installer checks the APK against the pinned project key before installation. OpenWrt repositories are still needed for missing dependencies.
 
-### Upgrading from SB Gateway
-
-Run the installer above once. It replaces the old package with XRoute in one APK transaction and preserves settings, subscriptions, rules, and autostart. The old package's LuCI uploader cannot accept the renamed APK. After migration, use **XRoute → Package update** normally.
-
-The package uses the existing `resproxy` service and configuration paths so that current settings and diagnostic commands keep working. Its APK name is `xroute-openwrt`.
-
 ### Setup
 
 The service is disabled after the first installation. Open **Services → XRoute** in LuCI:

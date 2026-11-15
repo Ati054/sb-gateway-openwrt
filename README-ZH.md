@@ -67,12 +67,6 @@ ssh root@192.168.1.1 "wget -O /tmp/xroute-install.sh https://raw.githubuserconte
 
 `-O` 使用与 Dropbear 兼容的 SCP 方式。安装前，安装器会使用固定的项目密钥验证 APK。缺少的依赖项仍需从 OpenWrt 软件仓库获取。
 
-### 从 SB Gateway 升级
-
-运行一次上述安装脚本即可。它会在单次 APK 事务中用 XRoute 替换旧软件包，并保留设置、订阅、规则和开机自启状态。旧软件包的 LuCI 上传器不接受更名后的 APK。迁移后，正常使用 **XRoute → 软件包更新**即可。
-
-软件包沿用现有的 `resproxy` 服务和配置路径，使当前设置及诊断命令继续有效。其 APK 名称为 `xroute-openwrt`。
-
 ### 配置
 
 首次安装后，服务默认关闭。在 LuCI 中打开**服务 → XRoute**：
