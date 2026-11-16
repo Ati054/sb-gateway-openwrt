@@ -49,6 +49,7 @@ return view.extend({
   var health=healthUI.create([]);
   var info=E('dl', { 'class':'sbg-overview-info' }), routes=E('tbody'), dns=E('dl', { 'class':'sbg-overview-counters' });
   var memoryWarning=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
+  var configurationWarning=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
   var dnsWarning=E('p', { 'class':'alert-message warning', hidden:'' });
   var errors=E('p', { 'class':'alert-message warning', hidden:'', role:'status' });
   var checked=E('span', { 'class':'sbg-muted', 'aria-live':'off' });
@@ -67,6 +68,8 @@ return view.extend({
    var routeRows=document.createDocumentFragment();
    var status=values.status, policies=values.health || [];
    addPair(info,_('Service'),status ? status.running ? status.runtime_pending ? _('Starting') : status.runtime_stale ? _('Status data is stale') : _('Running') : _('Stopped') : _('No data'));
+   configurationWarning.textContent=status && status.configuration_recovered ? _('New settings could not be applied. The last working configuration is active. Check the journal.') : '';
+   configurationWarning.hidden=!configurationWarning.textContent;
    addPair(info,_('Active catalog'),status ? _('%d nodes').format(status.nodes) : '—');
    addPair(info,_('DNS mode'),dnsMode(status));
    var resources=status && status.resources;
@@ -180,7 +183,7 @@ return view.extend({
   }
   var dashboard=E('div', { 'class':'sbg-overview' },[
    E('div', { 'class':'sbg-overview-toolbar' },[refresh,checked]),errors,dbError,
-   info,memoryWarning,E('h3',{},_('Route lists')),
+   info,configurationWarning,memoryWarning,E('h3',{},_('Route lists')),
    displayTable([_('Route list'),_('Selected node'),_('Status'),_('Latency'),_('Healthy reserves')],routes),
    health.node,
    E('h3',{},_('DNS requests')),E('small', { 'class':'sbg-muted' },_('Since service start')),dns,dnsWarning,

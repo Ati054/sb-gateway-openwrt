@@ -2,9 +2,11 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"log"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/Ati054/xroute-openwrt/internal/agentport"
 	"github.com/Ati054/xroute-openwrt/internal/catalog"
@@ -30,6 +32,11 @@ type subscriptionControl struct {
 	applyReload    func(context.Context, settings.Config, settings.Config) error
 	restoreCapture func(context.Context, settings.Config) error
 	preparePool    func([]catalog.Node, []settings.Policy) (*agentport.PreparedPool, error)
+	onApplied      func()
+	beforeApply    func(context.Context) error
+	persistApplied func(settings.Config) error
+	onFatal        func(error)
+	recoveryMode   bool
 }
 
 func newSubscriptionControl(config settings.Config) *subscriptionControl {
@@ -44,6 +51,9 @@ func (c *subscriptionControl) update(config settings.Config) {
 	c.mu.Lock()
 	c.config = config
 	c.mu.Unlock()
+	if c.onApplied != nil {
+		c.onApplied()
+	}
 }
 
 func (c *subscriptionControl) handle(request reloadRequest) (reloadResult, bool) {
@@ -77,6 +87,11 @@ func (c *subscriptionControl) handle(request reloadRequest) (reloadResult, bool)
 		}
 		return result, true
 	}
+	if c.beforeApply != nil {
+		if err := c.beforeApply(request.ctx); err != nil {
+			return reloadResult{Status: "error", Error: err.Error()}, true
+		}
+	}
 	c.applyMu.Lock()
 	defer c.applyMu.Unlock()
 	if err := request.ctx.Err(); err != nil {
@@ -86,29 +101,85 @@ func (c *subscriptionControl) handle(request reloadRequest) (reloadResult, bool)
 	if err != nil {
 		return reloadResult{Status: "error", Error: err.Error()}, true
 	}
+	// Recovery runs a pinned, resolved route graph with automatic updates
+	// suspended. Only a normal startup can safely resume desired UCI settings
+	// and all of their workers, even when the edit looks pool-only.
+	if c.recoveryMode {
+		return reloadResult{Status: "restart"}, true
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if subscriptionSettingsOnly(c.config, candidate) {
 		if request.ctx.Err() != nil {
 			return reloadResult{Status: "error", Error: "request expired"}, true
 		}
+		if err := c.persistCommit(request.ctx, c.config, candidate, false); err != nil {
+			return reloadResult{Status: "error", Error: err.Error()}, true
+		}
 		c.config = candidate
+		if c.onApplied != nil {
+			c.onApplied()
+		}
 		log.Printf("resproxy: subscription settings applied without restarting Xray")
 		return reloadResult{Status: "applied"}, true
 	}
 	result, handled := classifyControlReload(c.config, candidate)
 	if handled || c.applyReload == nil {
+		if handled && result.Status == "applied" {
+			if err := c.persistCommit(request.ctx, c.config, candidate, false); err != nil {
+				return reloadResult{Status: "error", Error: err.Error()}, true
+			}
+		}
+		if handled && result.Status == "applied" && c.onApplied != nil {
+			c.onApplied()
+		}
 		return result, handled
 	}
 	if err := request.ctx.Err(); err != nil {
 		return reloadResult{Status: "error", Error: err.Error()}, true
 	}
 	if err := c.applyReload(request.ctx, c.config, candidate); err != nil {
+		var rollback *runtimeRollbackError
+		if errors.As(err, &rollback) && c.onFatal != nil {
+			c.onFatal(err)
+		}
+		return reloadResult{Status: "error", Error: err.Error()}, true
+	}
+	if err := c.persistCommit(request.ctx, c.config, candidate, true); err != nil {
 		return reloadResult{Status: "error", Error: err.Error()}, true
 	}
 	c.config = candidate
+	if c.onApplied != nil {
+		c.onApplied()
+	}
 	log.Printf("resproxy: configuration applied without restarting Xray")
 	return reloadResult{Status: "applied"}, true
+}
+
+func (c *subscriptionControl) persistCommit(ctx context.Context, previous, next settings.Config, runtimeChanged bool) error {
+	if c.persistApplied == nil {
+		return nil
+	}
+	if err := c.persistApplied(next); err != nil {
+		var rollback error
+		if runtimeChanged && c.applyReload != nil {
+			recovery, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			rollback = c.applyReload(recovery, next, previous)
+			cancel()
+		}
+		if rollback != nil {
+			fatal := errors.Join(err, rollback)
+			// The durable snapshot still describes the last acknowledged plan.
+			// An unsuccessful runtime rollback must enter normal supervised
+			// recovery rather than continue serving an uncertain mixture.
+			if c.onFatal != nil {
+				c.onFatal(fatal)
+			}
+			return fatal
+		}
+		return errors.Join(err, c.persistApplied(previous))
+	}
+	return nil
 }
 
 // Endpoint and scheduling edits do not change the active routing contract.

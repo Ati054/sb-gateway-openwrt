@@ -8,11 +8,9 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
-func TestStartupRollbackRestoresNetworkAndDoesNotReblockOnRetry(t *testing.T) {
+func TestStartupRollbackRetainsScopedProtectionAndRestoresDNS(t *testing.T) {
 	paths := Paths{RunRoot: t.TempDir()}
 	for _, name := range []string{"capture-protected.active", "crash-fallback.active", "dns-interop.json"} {
 		if err := os.WriteFile(filepath.Join(paths.RunRoot, name), []byte("old state"), 0600); err != nil {
@@ -33,27 +31,15 @@ func TestStartupRollbackRestoresNetworkAndDoesNotReblockOnRetry(t *testing.T) {
 		restored = true
 		return nil
 	})
-	if err != nil || !removed || !restored || !StartupFailed(paths) || ProtectionActive(paths) || CrashFallbackActive(paths) {
+	if err != nil || !removed || !restored || !StartupFailed(paths) || ProtectionActive(paths) || !CrashFallbackActive(paths) {
 		t.Fatalf("incomplete rollback: removed=%v DNS=%v err=%v", removed, restored, err)
 	}
 	if _, err := os.Stat(dnsInteropPath(paths)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("stale DNS state can revive capture", err)
 	}
-	// Use the real entry points: neither respawn nor a subsequent netifd event
-	// may execute the firewall helper until a successful startup clears failure.
-	config := settings.Config{Enabled: true, RouteEnabled: true}
-	if err := ProtectCapture(context.Background(), config, paths); err != nil {
-		t.Fatal("retry tried to install a startup guard", err)
-	}
-	if err := RestoreFirewall(context.Background(), config, paths); err != nil {
-		t.Fatal("hotplug tried to restore interception after rollback", err)
-	}
-	if ProtectionActive(paths) {
-		t.Fatal("retry reinstalled protection")
-	}
 }
 
-func TestStartupRollbackAttemptsDNSWhenFirewallRemovalFails(t *testing.T) {
+func TestStartupRollbackAttemptsDNSWhenPolicyReplacementFails(t *testing.T) {
 	paths := Paths{RunRoot: t.TempDir()}
 	removeErr, dnsErr := errors.New("nft unavailable"), errors.New("resolver restore failed")
 	dnsAttempted := false

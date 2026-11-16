@@ -249,9 +249,17 @@ func writeDNSHandoff(path string, state dnsHandoffState) error {
 	return writeDurableDNSMarker(path, append(content, '\n'))
 }
 func writeDurableDNSMarker(path string, body []byte) error {
+	_, err := writeSyncedMarker(path, body, syncMarkerDirectory)
+	return err
+}
+
+// renamed is the publication boundary. A later directory sync error affects
+// power-loss durability, but does not undo the replacement already visible to
+// readers. Callers committing runtime state must distinguish these phases.
+func writeSyncedMarker(path string, body []byte, syncDirectory func(string) error) (renamed bool, err error) {
 	file, err := os.CreateTemp(filepath.Dir(path), ".dns-handoff-*")
 	if err != nil {
-		return err
+		return false, err
 	}
 	name := file.Name()
 	defer os.Remove(name)
@@ -263,12 +271,16 @@ func writeDurableDNSMarker(path string, body []byte) error {
 	}
 	err = errors.Join(err, file.Close())
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err = os.Rename(name, path); err != nil {
-		return err
+		return false, err
 	}
-	directory, err := os.Open(filepath.Dir(path))
+	return true, syncDirectory(filepath.Dir(path))
+}
+
+func syncMarkerDirectory(path string) error {
+	directory, err := os.Open(path)
 	if err != nil {
 		return err
 	}

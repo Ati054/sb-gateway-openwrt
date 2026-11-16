@@ -176,7 +176,7 @@ try {
   const runtime={updated_at:stamp(),updated_uptime_seconds:999,policies:{'resproxy-all':{selected:'a',runtime_selected:'a',runtime_confirmed:true},'resproxy-pc':{selected:'block',runtime_selected:'block',runtime_confirmed:true,wan_fallback_active:true}}};
   const ruleStatus={error:'unsupported GeoSite expression',packs:[{id:'cn-all',state:'updated',entries:10}]};
   const files={
-   'health-state/selector-runtime.json':runtime,'rulesets-status.json':ruleStatus,
+   'health-state/selector-runtime.json':runtime,'rulesets-status.json':ruleStatus,'configuration-recovery.json':null,
    'health-state/monitor.json':{updated_at:stamp(),health:[{id:'all',mode:'best',healthy_reserves:1,candidate_count:2,probe_limits:{active_seconds:60},nodes:[sample('a',payload,450),sample('b','Backup',300)]},{id:'pc',mode:'priority',healthy_reserves:0,candidate_count:1,nodes:[sample('b','Backup',300)]}]},
    'catalog-summary.json':{nodes:842,counts:{source:842}},'subscription-status.json':{},'dns-status.json':{queries:42},'dns-interop.json':{effective_mode:'proxy-only'},'resources.json':{updated_at:stamp(),updated_uptime_seconds:998,controller:{rss_kib:49152,anon_kib:20000,fds:20,fd_limit:8192},core:{rss_kib:40960,anon_kib:20000,fds:30,fd_limit:8192},available_kib:90000,tcp_sessions:10,udp_sessions:2}
   };
@@ -207,6 +207,12 @@ try {
   if(!databaseWarning || databaseWarning.hidden || databaseWarning.closest('details') || !databaseWarning.getBoundingClientRect().height)throw Error('Database failure hidden in collapsed details');
   if(dashboard.querySelector('details[open]'))throw Error('Regression fixture must keep database details collapsed');
   const previousCommands=ruleCommands;
+  files['configuration-recovery.json']={active:true};await poller();
+  const recoveryMessage='New settings could not be applied. The last working configuration is active. Check the journal.';
+  const recoveryWarning=()=>Array.from(dashboard.querySelectorAll('.alert-message')).find(node=>node.textContent===recoveryMessage);
+  if(!recoveryWarning() || recoveryWarning().hidden)throw Error('Last-good configuration recovery is invisible');
+  files['configuration-recovery.json']=null;await poller();
+  if(recoveryWarning())throw Error('Recovered configuration warning remained after a valid Apply');
   const dnsValue=label=>Array.from(dashboard.querySelectorAll('.sbg-overview-counters > div')).find(node=>node.querySelector('dt').textContent===label)?.querySelector('dd').textContent;
   const dnsHelp=()=>Array.from(dashboard.querySelectorAll('.sbg-overview-counters dt')).find(node=>node.textContent==='Errors')?.querySelector('[title]');
   files['dns-status.json']={queries:100,failures:14,failure_invalid_query:13,dns_failures:1};

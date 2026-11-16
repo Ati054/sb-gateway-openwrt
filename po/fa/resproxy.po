@@ -7,6 +7,9 @@ msgstr "XRoute"
 msgid "XRoute"
 msgstr "XRoute"
 
+msgid "New settings could not be applied. The last working configuration is active. Check the journal."
+msgstr "تنظیمات جدید اعمال نشد. آخرین پیکربندی سالم فعال است. گزارش رویدادها را بررسی کنید."
+
 msgid "Package update"
 msgstr "به‌روزرسانی بسته"
 

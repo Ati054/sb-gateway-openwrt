@@ -539,7 +539,7 @@ return view.extend({
                         newIDs.push(id);
                         uci.set('resproxy', sid, 'id', id);
                         uci.set('resproxy', sid, 'action', nextAction);
-                        uci.set('resproxy', sid, 'proxy_outage_action', outage === 'keep' ? existing && existing.proxy_outage_action || 'block' : outage);
+                        uci.set('resproxy', sid, 'proxy_outage_action', outage === 'keep' ? existing ? existing.proxy_outage_action || 'block' : 'wan' : outage);
                         uci.unset('resproxy', sid, 'outage_action');
                         uci.set('resproxy', sid, 'preset_key', selected.key);
                         setName(sid, presetName(selected.key, catalog));

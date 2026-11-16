@@ -93,7 +93,7 @@ func removeCaptureState(paths Paths, remove func() error) error {
 		return err
 	}
 	result := restoreBridgeNetfilter(paths, bridgeSysctlRoot)
-	for _, path := range []string{protectionFile(paths), crashFallbackFile(paths), dnsInteropPath(paths)} {
+	for _, path := range []string{protectionFile(paths), crashFallbackFile(paths), dnsInteropPath(paths), configurationRecoveryPath(paths)} {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			result = errors.Join(result, err)
 		}
@@ -106,18 +106,42 @@ func ReleaseCapture(paths Paths) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	return withCaptureLifecycle(ctx, paths, func() error {
-		return removeCaptureState(paths, func() error { return setFirewall(ctx, "remove", "", 0, 0, capture.Policy{}) })
+		if err := removeCaptureState(paths, func() error { return setFirewall(ctx, "remove", "", 0, 0, capture.Policy{}) }); err != nil {
+			return err
+		}
+		result := os.Remove(startupFailureFile(paths))
+		if errors.Is(result, os.ErrNotExist) {
+			result = nil
+		}
+		if paths.DataRoot != "" {
+			for _, path := range []string{captureRecoveryPath(paths)} {
+				if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+					result = errors.Join(result, err)
+				}
+			}
+		}
+		return result
 	})
 }
 
-func rollbackStartup(paths Paths, remove func(context.Context) error, restoreDNS func() error) error {
+func rollbackStartup(paths Paths, replace func(context.Context) error, restoreDNS func() error) error {
 	// Startup's context is already cancelled on a timeout or fatal worker error.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	captureErr := withCaptureLifecycle(ctx, paths, func() error {
-		// Respawn may retry the core, but must not repeatedly cut off WAN.
-		markerErr := writeDurableDNSMarker(startupFailureFile(paths), []byte("service failed; ordinary WAN retained until routes are ready\n"))
-		return errors.Join(markerErr, removeCaptureState(paths, func() error { return remove(ctx) }))
+		if err := writeDurableDNSMarker(startupFailureFile(paths), []byte("service failed; acknowledged source policy retained\n")); err != nil {
+			return err
+		}
+		if err := replace(ctx); err != nil {
+			return err
+		}
+		result := restoreBridgeNetfilter(paths, bridgeSysctlRoot)
+		for _, path := range []string{protectionFile(paths), dnsInteropPath(paths)} {
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				result = errors.Join(result, err)
+			}
+		}
+		return result
 	})
 	return errors.Join(captureErr, restoreDNS())
 }
@@ -125,16 +149,20 @@ func rollbackStartup(paths Paths, remove func(context.Context) error, restoreDNS
 func rollbackStartupNetwork(paths Paths, stage string) error {
 	removed, restored := false, false
 	err := rollbackStartup(paths, func(ctx context.Context) error {
-		err := setFirewall(ctx, "remove", "", 0, 0, capture.Policy{})
-		removed = err == nil
-		return err
+		if err := applyCaptureRecovery(ctx, paths); err != nil {
+			// Unreadable policy is not permission to open strict traffic. Keep
+			// the kernel rules and report the recovery error instead.
+			return err
+		}
+		removed = true // Dead TProxy delivery has been replaced, not all policy.
+		return nil
 	}, func() error { err := RestoreManagedDNS(paths); restored = err == nil; return err })
 	bridgeState, bridgeErr := readBridgeState(paths)
 	if recordErr := recordServiceFailure(paths, stage, removed, restored, bridgeErr == nil && len(bridgeState) == 0); recordErr != nil {
 		log.Printf("resproxy: could not save incident recovery status: %v", recordErr)
 	}
 	if err == nil {
-		log.Printf("resproxy: service failed; LAN capture removed and previous DNS restored; retrying without startup blocking")
+		log.Printf("resproxy: service failed; acknowledged WAN/strict source policy retained and previous DNS restored")
 	}
 	return err
 }

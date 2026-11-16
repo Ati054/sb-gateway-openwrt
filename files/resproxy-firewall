@@ -22,7 +22,7 @@ exec 9>/var/run/resproxy-firewall.lock
 flock -x 9
 
 case "$action" in
-	apply|emergency|guard|restore)
+	apply|emergency|guard|restore|recovery|bootstrap)
 		case "$interface" in
 			''|*[!A-Za-z0-9_.:-]*) echo 'invalid LAN interface' >&2; exit 1 ;;
 		esac
@@ -46,9 +46,12 @@ batch="$(mktemp /var/run/resproxy/.firewall-batch.XXXXXX)"
 trap 'rm -f "$temporary" "$backup" "$batch"' EXIT
 cp -p "$rules" "$backup"
 
-if [ "$action" = restore ]; then
+if [ "$action" = restore ] || [ "$action" = recovery ] || [ "$action" = bootstrap ]; then
+	renderer=capture-restore-rules
+	[ "$action" != recovery ] || renderer=capture-recovery-rules
+	[ "$action" != bootstrap ] || renderer=capture-bootstrap-rules
 	if [ "$restore_config_stdin" = 1 ]; then
-		/usr/bin/resproxyd capture-restore-rules --config-stdin > "$temporary"
+		/usr/bin/resproxyd "$renderer" --config-stdin > "$temporary"
 	else
 		/usr/bin/resproxyd capture-restore-rules > "$temporary"
 	fi
@@ -84,7 +87,7 @@ exec 8>/var/run/fw4.lock
 flock -x 8
 
 mv "$temporary" "$rules"
-if [ "$action" != remove ] && [ "$action" != guard ] && ! fw4 check; then
+if [ "$action" = apply ] && ! fw4 check; then
 	mv "$backup" "$rules"
 	exit 1
 fi
@@ -154,7 +157,7 @@ if printf '%s\n' "$existing_tables" | grep -Fxq 'table inet fw4'; then
 		rollback_policy_routes
 		exit 1
 	fi
-	if [ "$action" != remove ]; then
+	if [ "$action" = apply ]; then
 		if ! printf '%s\n' "$input_rules" | grep -Fq 'comment "sb-gateway: TProxy delivery"'; then
 			printf '%s\n' 'insert rule inet fw4 input meta mark 0x5253 meta l4proto { tcp, udp } socket transparent 1 counter accept comment "sb-gateway: TProxy delivery"' >> "$batch"
 		fi
@@ -208,7 +211,7 @@ elif [ "$ready" = 1 ] || [ "$action" = remove ]; then
 	rm -f /var/run/resproxy/capture-protected.active /var/run/resproxy/crash-fallback.active
 fi
 
-if [ "$action" = remove ]; then
+if [ "$action" != apply ]; then
 	for family in -4 -6; do
 		for priority in 10552 10553; do
 			while ip "$family" rule del fwmark 0x5253/0xffffffff table 20253 priority "$priority" 2>/dev/null; do :; done

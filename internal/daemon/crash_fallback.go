@@ -50,7 +50,7 @@ func parseCrashStamp(uptime, boot string) (crashStamp, error) {
 func markCrashReadyNow(paths Paths) error {
 	now, err := crashNow()
 	if err != nil {
-		return RecoverStartupFailure(paths, err)
+		return err
 	}
 	return markCrashReady(paths, now)
 }
@@ -152,12 +152,23 @@ func applyCrashFallback(config settings.Config, paths Paths) error {
 	if !config.Enabled || !config.RouteEnabled {
 		return nil
 	}
-	if _, err := EmergencyPolicies(config); err != nil {
+	lock, err := acquireController(paths)
+	if err != nil {
 		return err
 	}
+	defer lock.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := setFirewall(ctx, "emergency", config.LANInterface, config.Base.TransparentPort, 0, config.Capture); err != nil {
+	if err := withCaptureLifecycle(ctx, paths, func() error {
+		if _, err := ReadCaptureRecovery(paths); errors.Is(err, os.ErrNotExist) {
+			if err := saveCaptureRecovery(paths, config); err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+		return applyCaptureRecovery(ctx, paths)
+	}); err != nil {
 		return err
 	}
 	// The script commits the marker with the rules before DNS is restored.
@@ -188,7 +199,10 @@ func RunSupervised(ctx context.Context, config settings.Config, paths Paths) err
 		}
 	}
 	err = Run(ctx, config, paths)
-	if ctx.Err() != nil {
+	if err != nil && ctx.Err() == nil && !plannedStop(paths) {
+		err = ResumeAppliedNetwork(ctx, paths, err)
+	}
+	if ctx.Err() != nil && plannedStop(paths) {
 		_ = os.Remove(crashFile(paths))
 		_ = os.Remove(crashFallbackFile(paths))
 	} else if attempts >= crashFailureLimit && !StartupFailed(paths) {

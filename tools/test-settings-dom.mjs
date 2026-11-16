@@ -47,8 +47,8 @@ try {
   Drafts.attach=function(map,page){if(page==='rulesets')ruleMap=map;if(page==='routes')routeMap=map;return attachDraft.apply(this,arguments);};
   const IntervalValue=new (new Function('baseclass','form','safeDOM','_',sources.interval)(baseclass,form,safeDOM,_))();
   const rulesets=new (new Function('sbgTheme','view','Drafts','form','IntervalValue','uci','fs','ui','validation','poll','safeDOM','_','unicodeText',sources.rulesets)({decorate:n=>n},baseclass,Drafts,form,IntervalValue,uci,fs,ui,validation,poll,safeDOM,_,unicodeText))();
-  // New presets and custom rules default to WAN; an explicitly saved strict
-  // choice must survive opening and saving the same form.
+  // Custom rules show outage behavior for proxy actions. Its stored default
+  // is WAN even when a new direct rule initially hides the dropdown.
   const existingRules=Object.fromEntries(Object.entries(config).filter(([,v])=>v['.type']==='rule'));
   for(const key of Object.keys(existingRules))delete config[key];
   let defaultsView=await rulesets.render(await rulesets.load());document.body.append(defaultsView);
@@ -56,9 +56,10 @@ try {
   const groups=ruleMap.children.find(s=>s.sectiontype==='rule');
   const outageOption=groups.children.find(o=>o.option==='proxy_outage_action');
   if(outageOption.default!=='wan')throw Error('New custom rule did not default to WAN');
+  if(!outageOption.deps?.some(dependency=>dependency.action==='proxy'))throw Error('Custom outage dropdown lost its proxy-action dependency');
   uci.add=(_package,type)=>{config.new_default={'.name':'new_default','.type':type};return 'new_default';};
   await groups.handleAdd();
-  if(config.new_default.proxy_outage_action!=='wan')throw Error('Creating a custom rule did not persist its hidden WAN default');
+  if(config.new_default.proxy_outage_action!=='wan')throw Error('Creating a custom rule did not persist its WAN default');
   delete config.new_default;delete uci.add;
   defaultsView.remove();
   Object.assign(config,existingRules);
@@ -66,6 +67,12 @@ try {
   defaultsView=await rulesets.render(await rulesets.load());document.body.append(defaultsView);
   const strictChoice=defaultsView.querySelector('select[id$=".strict.proxy_outage_action"]');
   if(!strictChoice || strictChoice.value!=='block')throw Error('Saved explicit block replaced with WAN');
+  const actionChoice=defaultsView.querySelector('select[id$=".strict.action"]');
+  const strictOutage=ruleMap.children.find(s=>s.sectiontype==='rule').children.find(o=>o.option==='proxy_outage_action');
+  actionChoice.value='direct';ruleMap.checkDepends();
+  if(strictOutage.isActive('strict'))throw Error('Direct custom rule displays proxy outage behavior');
+  actionChoice.value='proxy';ruleMap.checkDepends();
+  if(!strictOutage.isActive('strict') || strictChoice.value!=='block')throw Error('Returning to proxy lost the custom outage choice');
   await ruleMap.save();
   if(config.strict.proxy_outage_action!=='block')throw Error('Saving the form changed explicit block');
   defaultsView.remove();delete config.strict;

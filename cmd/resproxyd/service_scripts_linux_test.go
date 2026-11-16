@@ -47,17 +47,22 @@ extra_command() { :; }
 	}
 }
 
-func TestBootCompatibilityEntryDoesNotInstallAnOrphanGuard(t *testing.T) {
+func TestBootRestoresScopedSourcePolicyWithoutAbortingBoot(t *testing.T) {
 	body, err := os.ReadFile("../../files/resproxy-guard.init")
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(t.TempDir(), "boot.sh")
-	if err := os.WriteFile(path, append(body, []byte("\nstart\n")...), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if out, err := exec.Command("sh", path).CombinedOutput(); err != nil || len(out) != 0 {
-		t.Fatalf("early boot still invokes unowned service commands: %v %s", err, out)
+	for _, result := range []string{"0", "1"} {
+		path := filepath.Join(t.TempDir(), "boot.sh")
+		harness := "mock_daemon() { echo daemon:$*; return " + result + "; }\nlogger() { echo logged; }\n"
+		script := strings.ReplaceAll(string(body), "/usr/bin/resproxyd", "mock_daemon")
+		if err := os.WriteFile(path, []byte(harness+script+"\nstart\necho BOOT_CONTINUED\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		out, err := exec.Command("sh", path).CombinedOutput()
+		if err != nil || !strings.Contains(string(out), "daemon:capture-bootstrap") || !strings.Contains(string(out), "BOOT_CONTINUED") || strings.Contains(string(out), "daemon:capture-protect") {
+			t.Fatalf("boot did not use nonblocking scoped recovery: %v %s", err, out)
+		}
 	}
 }
 

@@ -80,7 +80,7 @@ return baseclass.extend({
  snapshot:function() {
   return Promise.all([read('health-state/monitor.json',true),read('health-state/selector-runtime.json'),
    read('catalog-summary.json'),read('subscription-status.json'),read('resources.json'),
-   read('dns-status.json'),read('dns-interop.json'),services('resproxy'),uptime(),read('rulesets-status.json')]).then(function(data) {
+   read('dns-status.json'),read('dns-interop.json'),services('resproxy'),uptime(),read('rulesets-status.json'),read('configuration-recovery.json')]).then(function(data) {
    return catalog(data[2]).then(function(summary) {data[2]=summary;return data;});
   }).then(function(data) {
    var view=data[0],runtime=data[1],running=serviceRunning(data[7]),now=Date.now();
@@ -100,7 +100,7 @@ return baseclass.extend({
     var state=valid && runtime.policies['resproxy-'+policy.id];
     policy.nodes.forEach(function(node) {node.selected=!!(state && state.runtime_confirmed && state.runtime_selected===node.id);});
    });
-   return {status:{running:running,nodes:data[2] ? data[2].nodes : 0,
+   return {status:{running:running,configuration_recovered:running && !!(data[10] && data[10].active),nodes:data[2] ? data[2].nodes : 0,
     policies:valid ? runtime.policies : {},subscriptions:sources(data[2],data[3]),
     resources:data[4],resources_fresh:resourceFresh,now:clock,
     runtime_pending:!runtime || !Object.keys(runtime.policies || {}).length,

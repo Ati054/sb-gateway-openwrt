@@ -32,9 +32,10 @@ import (
 )
 
 type Paths struct {
-	DataRoot string
-	RunRoot  string
-	Binary   string
+	DataRoot                string
+	RunRoot                 string
+	Binary                  string
+	recoveringConfiguration bool
 }
 
 func DefaultPaths() Paths {
@@ -79,7 +80,24 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 	if err := config.Base.Validate(); err != nil {
 		return err
 	}
+	if config.RouteEnabled && !captureIntent(config) {
+		if info, err := os.Stat(filepath.Join(paths.RunRoot, "firewall.nft")); err == nil && info.Size() > 0 || ProtectionActive(paths) || CrashFallbackActive(paths) {
+			if err := ReleaseCapture(paths); err != nil {
+				return err
+			}
+		}
+		return errors.New("add a subscription and a route list before enabling LAN routing")
+	}
 	if config.RouteEnabled {
+		// The first valid setup needs a recovery contract before capture. Keep
+		// an existing acknowledged contract until this attempt is fully ready.
+		if _, err := ReadCaptureRecovery(paths); errors.Is(err, os.ErrNotExist) {
+			if err := saveCaptureRecovery(paths, config); err != nil {
+				return fmt.Errorf("save initial recovery policy: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("read recovery policy: %w", err)
+		}
 		if err := requireCaptureCompatibility(ctx); err != nil {
 			return err
 		}
@@ -107,15 +125,18 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 	if err := rejectOtherXray(); err != nil {
 		return err
 	}
-	rulesetSnapshot, compactedSnapshot, err := compactRulesetSnapshot(loadRulesetSnapshot(paths), filepath.Join(paths.DataRoot, "geoip-assets"))
-	if err != nil {
-		return fmt.Errorf("prepare shared domain assets: %w", err)
+	rulesetSnapshot, compactedSnapshot := loadRulesetSnapshot(paths), false
+	if !paths.recoveringConfiguration {
+		rulesetSnapshot, compactedSnapshot, err = compactRulesetSnapshot(rulesetSnapshot, filepath.Join(paths.DataRoot, "geoip-assets"))
+		if err != nil {
+			return fmt.Errorf("prepare shared domain assets: %w", err)
+		}
 	}
 	// Reset a stale request before publishing daemon.pid, so a request accepted
 	// during startup cannot be erased by the background worker starting later.
 	_ = os.Remove(filepath.Join(paths.RunRoot, "rulesets-refresh.request"))
 	publishRulesetProgress(paths, initialRulesetProgress(config, rulesetSnapshot))
-	routingBase, err := withRulesets(config.Base, config.Policies, rulesetSnapshot, filepath.Join(paths.DataRoot, "geoip-assets"))
+	routingBase, err := runtimeRoutingBase(config, rulesetSnapshot, filepath.Join(paths.DataRoot, "geoip-assets"), paths.recoveringConfiguration)
 	if err != nil {
 		return err
 	}
@@ -203,10 +224,10 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("current subscription generation is invalid: %w", err)
 	}
-	nodes, err = retainConfiguredSources(store, nodes, config.Subscriptions)
-	if err != nil {
-		return fmt.Errorf("remove unconfigured subscription sources: %w", err)
-	}
+	// A new startup may still fail. Filter its pool without destroying the
+	// durable catalog required to recover the last working configuration.
+	originalNodes := nodes
+	nodes = configuredSourceNodes(nodes, config.Subscriptions)
 	publishCatalogSummary(paths.RunRoot, nodes)
 	if err := agentport.WritePool(poolPath, nodes, config.Policies); err != nil {
 		return err
@@ -378,7 +399,26 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 		}
 	}
 	defer os.Remove(dnsInteropPath(paths))
+	updatesReady := make(chan struct{})
 	control := newSubscriptionControl(config)
+	control.recoveryMode = paths.recoveringConfiguration
+	control.onFatal = cancelCause
+	control.onApplied = func() { acknowledgeConfiguration(paths) }
+	control.beforeApply = func(requestCtx context.Context) error {
+		select {
+		case <-updatesReady:
+			return nil
+		case <-requestCtx.Done():
+			return requestCtx.Err()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	control.persistApplied = func(next settings.Config) error {
+		recovery, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		return withCaptureLifecycle(recovery, paths, func() error { return saveAppliedNetwork(paths, next) })
+	}
 	control.poolNodes = nodes
 	control.restoreCapture = func(ctx context.Context, config settings.Config) error {
 		return RestoreFirewall(ctx, config, paths)
@@ -436,7 +476,6 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 			return agentport.RunHealth(ctx, healthOptions)
 		})
 	}()
-	updatesReady := make(chan struct{})
 	var background sync.WaitGroup
 	background.Add(3)
 	go func() { defer background.Done(); monitorResources(ctx, paths, supervisor) }()
@@ -450,6 +489,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 		case <-ctx.Done():
 			return
 		case <-updatesReady:
+		}
+		if paths.recoveringConfiguration {
+			return
 		}
 
 		runRulesetUpdates(ctx, initial, paths, manager, rulesetSnapshot, routingBase, updateDNS)
@@ -472,7 +514,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 				coreLifecycleMu.Lock()
 				defer coreLifecycleMu.Unlock()
 				current := control.snapshot()
-				recoveredBase, err := withRulesets(current.Base, current.Policies, loadRulesetSnapshot(paths), filepath.Join(paths.DataRoot, "geoip-assets"))
+				recoveredBase, err := runtimeRoutingBase(current, loadRulesetSnapshot(paths), filepath.Join(paths.DataRoot, "geoip-assets"), paths.recoveringConfiguration)
 				if err != nil {
 					return nil, err
 				}
@@ -542,7 +584,10 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 				if err := os.Remove(startupFailureFile(paths)); err != nil && !errors.Is(err, os.ErrNotExist) {
 					return err
 				}
-				return nil
+				if paths.recoveringConfiguration {
+					return nil
+				}
+				return saveAppliedNetwork(paths, config, routingBase)
 			})
 		}, 2*time.Second); err != nil {
 			return fmt.Errorf("restore recovered LAN capture: %w", err)
@@ -559,8 +604,27 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 		return errors.Join(errors.New("service startup did not finish within its lease"), context.Cause(ctx))
 	}
 	phase = "runtime"
-	if err := markServiceRecovered(paths); err != nil {
-		log.Printf("resproxy: could not save recovered incident status: %v", err)
+	if err := refreshResolvedNetwork(ctx, paths, config.Base); err != nil {
+		log.Printf("resproxy: could not refresh applied routing recovery snapshot: %v", err)
+	}
+	if len(originalNodes) != len(nodes) {
+		if _, err := retainConfiguredSources(store, originalNodes, config.Subscriptions); err != nil {
+			// The confirmed live pool is already filtered. Deferred storage
+			// cleanup must not take a working network back down.
+			log.Printf("resproxy: deferred removed-source catalog cleanup: %v", err)
+		}
+	}
+	if paths.recoveringConfiguration {
+		if err := writeDurableDNSMarker(configurationRecoveryPath(paths), []byte("{\"active\":true}\n")); err != nil {
+			return err
+		}
+	} else {
+		if err := os.Remove(configurationRecoveryPath(paths)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err := markServiceRecovered(paths); err != nil {
+			log.Printf("resproxy: could not save recovered incident status: %v", err)
+		}
 	}
 	if compactedSnapshot {
 		if err := rulesets.Save(rulesetSnapshotPath(paths), rulesetSnapshot); err != nil {
@@ -758,16 +822,7 @@ func retainConfiguredSources(store generation.Store, nodes []catalog.Node, sourc
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
-	allowed := make(map[string]bool, len(sources))
-	for _, source := range sources {
-		allowed[source.ID] = true
-	}
-	retained := make([]catalog.Node, 0, len(nodes))
-	for _, node := range nodes {
-		if allowed[node.ProviderID] {
-			retained = append(retained, node)
-		}
-	}
+	retained := configuredSourceNodes(nodes, sources)
 	if len(retained) == len(nodes) {
 		return nodes, nil
 	}
@@ -788,6 +843,20 @@ func retainConfiguredSources(store generation.Store, nodes []catalog.Node, sourc
 	return retained, nil
 }
 
+func configuredSourceNodes(nodes []catalog.Node, sources []settings.Subscription) []catalog.Node {
+	allowed := make(map[string]bool, len(sources))
+	for _, source := range sources {
+		allowed[source.ID] = true
+	}
+	retained := make([]catalog.Node, 0, len(nodes))
+	for _, node := range nodes {
+		if allowed[node.ProviderID] {
+			retained = append(retained, node)
+		}
+	}
+	return retained
+}
+
 func refreshDue(config settings.Config, now, next time.Time, requested bool) bool {
 	return sourceRefreshDue(settings.Subscription{URL: config.SubscriptionURL, UpdateMode: config.UpdateMode}, now, next, requested)
 }
@@ -798,7 +867,7 @@ func sourceRefreshDue(source settings.Subscription, now, next time.Time, request
 
 func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, policy capture.Policy, restoreInput ...[]byte) error {
 	arguments := []string{action}
-	if action == "apply" || action == "emergency" || action == "guard" || action == "ready" || action == "restore" {
+	if action == "apply" || action == "emergency" || action == "guard" || action == "ready" || action == "restore" || action == "recovery" || action == "bootstrap" {
 		arguments = append(arguments, iface, strconv.Itoa(port), strconv.Itoa(dnsPort), policy.IPv6Mode)
 		if policy.BlockPing {
 			arguments = append(arguments, "--block-ping")
@@ -812,7 +881,7 @@ func setFirewall(ctx context.Context, action, iface string, port, dnsPort int, p
 		arguments = append(arguments, policy.DirectIPs...)
 	}
 	if len(restoreInput) > 0 {
-		if action != "restore" {
+		if action != "restore" && action != "recovery" && action != "bootstrap" {
 			return errors.New("capture configuration input requires restore action")
 		}
 		arguments = append(arguments, "--restore-config-stdin")
@@ -989,7 +1058,7 @@ func RestoreFirewall(ctx context.Context, config settings.Config, paths Paths) e
 
 func restoreFirewall(ctx context.Context, config settings.Config, paths Paths) error {
 	if StartupFailed(paths) {
-		return nil
+		return applyCaptureRecovery(ctx, paths)
 	}
 	owner := 0
 	if body, err := os.ReadFile(filepath.Join(paths.RunRoot, "daemon.pid")); err == nil && strings.TrimSpace(string(body)) == strconv.Itoa(os.Getpid()) {
@@ -999,7 +1068,10 @@ func restoreFirewall(ctx context.Context, config settings.Config, paths Paths) e
 	if err != nil {
 		return err
 	}
-	return setFirewall(ctx, "restore", config.LANInterface, config.Base.TransparentPort, config.DNSPort, config.Capture, input)
+	if err := setFirewall(ctx, "restore", config.LANInterface, config.Base.TransparentPort, config.DNSPort, config.Capture, input); err != nil {
+		return err
+	}
+	return nil
 }
 
 func watchVPNRoutes(ctx context.Context, restore func(context.Context) error) {

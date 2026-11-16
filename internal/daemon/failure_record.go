@@ -13,6 +13,7 @@ type ServiceFailure struct {
 	At             string `json:"at"`
 	Stage          string `json:"stage"`
 	CaptureRemoved bool   `json:"capture_removed"`
+	PolicyRetained bool   `json:"source_policy_retained"`
 	DNSRestored    bool   `json:"dns_restored"`
 	BridgeRestored bool   `json:"bridge_netfilter_restored"`
 	RecoveredAt    string `json:"recovered_at,omitempty"`
@@ -38,12 +39,14 @@ func LastServiceFailure(paths Paths) *ServiceFailure {
 }
 
 func recordServiceFailure(paths Paths, stage string, captureRemoved, dnsRestored, bridgeRestored bool) error {
-	record := ServiceFailure{At: time.Now().UTC().Format(time.RFC3339Nano), Stage: stage}
+	record := ServiceFailure{At: time.Now().UTC().Format(time.RFC3339Nano), Stage: stage, PolicyRetained: CrashFallbackActive(paths)}
 	if previous := LastServiceFailure(paths); previous != nil && previous.RecoveredAt == "" {
-		if previous.CaptureRemoved == captureRemoved && previous.DNSRestored == dnsRestored && previous.BridgeRestored == bridgeRestored {
+		if previous.CaptureRemoved == captureRemoved && previous.DNSRestored == dnsRestored && previous.BridgeRestored == bridgeRestored && previous.PolicyRetained == record.PolicyRetained {
 			return nil // A respawn loop must not write flash on every attempt.
 		}
+		retained := record.PolicyRetained
 		record = *previous // Preserve the original incident time and stage.
+		record.PolicyRetained = retained
 	}
 	record.CaptureRemoved, record.DNSRestored, record.BridgeRestored = captureRemoved, dnsRestored, bridgeRestored
 	if err := os.MkdirAll(paths.DataRoot, 0700); err != nil {

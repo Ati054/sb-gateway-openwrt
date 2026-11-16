@@ -152,7 +152,7 @@ func execute(arguments []string) error {
 	if len(arguments) < 1 || len(arguments) > 2 {
 		return errors.New("usage: resproxyd {run|reload|render-base|refresh [source-id]|status|health|locations|capture-restore|rulesets|rulesets-refresh|dns-restore|version}")
 	}
-	restoreInput := len(arguments) == 2 && arguments[0] == "capture-restore-rules" && arguments[1] == "--config-stdin"
+	restoreInput := len(arguments) == 2 && (arguments[0] == "capture-restore-rules" || arguments[0] == "capture-recovery-rules" || arguments[0] == "capture-bootstrap-rules") && arguments[1] == "--config-stdin"
 	if len(arguments) > 1 && !restoreInput && arguments[0] != "refresh" && arguments[0] != "refresh-worker" && arguments[0] != "plugins-install" && arguments[0] != "plugins-worker" {
 		return errors.New("only refresh accepts a source ID")
 	}
@@ -265,6 +265,15 @@ func execute(arguments []string) error {
 	case "health":
 		return printHealth(paths)
 	case "capture-restore":
+		if daemon.StartupFailed(paths) {
+			input, err := daemon.ReadCaptureRecovery(paths)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			return daemon.RestoreFirewall(ctx, input.Config(), paths)
+		}
 		protected := daemon.ProtectionActive(paths)
 		if !protected && !daemon.CrashFallbackActive(paths) && !running(paths) {
 			return nil
@@ -290,7 +299,64 @@ func execute(arguments []string) error {
 			return err
 		}
 		return daemon.RestoreFirewall(ctx, config, paths)
+	case "capture-bootstrap":
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		config, err := settings.ReadProtectionSystemUCI(ctx)
+		if err != nil {
+			enabled, enableErr := settings.UCIGet(ctx, "resproxy.main.enabled")
+			routing, routeErr := settings.UCIGet(ctx, "resproxy.main.route_enabled")
+			if enableErr == nil && enabled == "0" || routeErr == nil && routing == "0" {
+				return nil
+			}
+			input, cacheErr := daemon.ReadCaptureRecovery(paths)
+			if cacheErr != nil {
+				return errors.Join(err, cacheErr)
+			}
+			config = input.Config()
+		}
+		return daemon.BootstrapCapture(ctx, config, paths)
+	case "capture-recovery-rules", "capture-bootstrap-rules":
+		if len(arguments) != 2 || arguments[1] != "--config-stdin" {
+			return errors.New("capture recovery requires validated configuration input")
+		}
+		input, err := daemon.DecodeCaptureRestore(os.Stdin)
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		var body string
+		if arguments[0] == "capture-bootstrap-rules" {
+			body, err = daemon.RenderBootstrapCapture(input)
+		} else {
+			body, err = daemon.RenderCaptureRecovery(ctx, input)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Print(body)
+		return err
 	case "capture-restore-rules":
+		if daemon.StartupFailed(paths) || daemon.ProtectionActive(paths) || daemon.CrashFallbackActive(paths) {
+			input, err := daemon.ReadCaptureRecovery(paths)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			var body string
+			if daemon.ProtectionActive(paths) && !daemon.StartupFailed(paths) {
+				body, err = daemon.RenderCaptureProtection(ctx, input)
+			} else {
+				body, err = daemon.RenderCaptureRecovery(ctx, input)
+			}
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Print(body)
+			return err
+		}
 		// resproxy-firewall invokes this after taking its transaction lock.
 		protected := daemon.ProtectionActive(paths)
 		if !protected && !daemon.CrashFallbackActive(paths) && !running(paths) {
@@ -383,7 +449,7 @@ func execute(arguments []string) error {
 		cancel()
 		if err != nil {
 			if arguments[0] == "run" {
-				return daemon.RecoverStartupFailure(paths, err)
+				return daemon.ResumeAppliedNetwork(runCtx, paths, daemon.RecoverStartupFailure(paths, err))
 			}
 			return err
 		}
@@ -453,7 +519,7 @@ func printStatus(paths daemon.Paths) error {
 		_ = json.Unmarshal(body, &resourceStatus)
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
-		"resources": resourceStatus, "running": running(paths), "nodes": len(nodes), "policies": states,
+		"resources": resourceStatus, "running": running(paths), "configuration_recovered": daemon.ConfigurationRecovered(paths), "nodes": len(nodes), "policies": states,
 		"dns": dnsStatus, "dns_interop": dnsInterop,
 		"emergency_mode":       daemon.CrashFallbackActive(paths),
 		"subscriptions":        daemon.SubscriptionUpdates(paths, nodes),

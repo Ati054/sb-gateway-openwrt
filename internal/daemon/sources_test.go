@@ -39,3 +39,22 @@ func TestRetainConfiguredSourcesRemovesDeletedProvider(t *testing.T) {
 		t.Fatalf("empty configuration retained a current catalog: %v", err)
 	}
 }
+
+func TestStartupSourceFilteringDoesNotCommitBeforeReadiness(t *testing.T) {
+	store := generation.Store{Root: t.TempDir()}
+	nodes := []catalog.Node{{ID: "old", ProviderID: "old-source", Server: "old.test", Port: 443}}
+	id, err := store.Stage(nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Publish(id); err != nil {
+		t.Fatal(err)
+	}
+	if filtered := configuredSourceNodes(nodes, []settings.Subscription{{ID: "new-source"}}); len(filtered) != 0 {
+		t.Fatal(filtered)
+	}
+	current, durable, err := store.Current()
+	if err != nil || current != id || len(durable) != 1 || durable[0].ProviderID != "old-source" {
+		t.Fatal("a failed new startup cannot recover the previous catalog", current, durable, err)
+	}
+}

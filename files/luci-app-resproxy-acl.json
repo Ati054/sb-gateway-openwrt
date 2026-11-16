@@ -58,6 +58,9 @@
         "/var/run/resproxy/rulesets-status.json": [
           "read"
         ],
+        "/var/run/resproxy/configuration-recovery.json": [
+          "read"
+        ],
         "/tmp/run/resproxy/health-state/monitor.json": [
           "read"
         ],
@@ -74,6 +77,9 @@
           "read"
         ],
         "/tmp/run/resproxy/dns-status.json": [
+          "read"
+        ],
+        "/tmp/run/resproxy/configuration-recovery.json": [
           "read"
         ],
         "/tmp/run/resproxy/dns-interop.json": [

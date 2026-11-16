@@ -147,6 +147,13 @@ func withRulesets(base xray.BaseConfig, policies []settings.Policy, snapshot rul
 	return base, base.Validate()
 }
 
+func runtimeRoutingBase(config settings.Config, snapshot rulesets.Snapshot, assetRoot string, recovering bool) (xray.BaseConfig, error) {
+	if recovering {
+		return config.Base, nil
+	}
+	return withRulesets(config.Base, config.Policies, snapshot, assetRoot)
+}
+
 type rulesetRoutingRuntime interface {
 	PublishRouting(context.Context, xray.BaseConfig, xray.BaseConfig) error
 }
@@ -281,6 +288,11 @@ func runRulesetUpdatesUsing(ctx context.Context, config settings.Config, paths P
 			}
 		}
 		coreLifecycleMu.RUnlock()
+		if err == nil {
+			if recoveryErr := refreshResolvedNetwork(ctx, paths, config.Base); recoveryErr != nil {
+				log.Printf("resproxy: could not save updated routing recovery snapshot: %v", recoveryErr)
+			}
+		}
 		if err != nil {
 			status.Phase = "error"
 			status.Error = err.Error()
@@ -364,7 +376,7 @@ func runGeoIPCleanup(ctx context.Context, paths Paths) {
 			return
 		case <-ticker.C:
 		}
-		_, err := geoipasset.Prune(filepath.Join(paths.DataRoot, "geoip-assets"), []string{filepath.Join(paths.RunRoot, "xray.json"), filepath.Join(paths.RunRoot, "geoip-retention.json")}, []string{filepath.Join(paths.DataRoot, "generations")}, nil, time.Now())
+		_, err := geoipasset.Prune(filepath.Join(paths.DataRoot, "geoip-assets"), []string{filepath.Join(paths.RunRoot, "xray.json"), filepath.Join(paths.RunRoot, "geoip-retention.json"), captureRecoveryPath(paths)}, []string{filepath.Join(paths.DataRoot, "generations")}, nil, time.Now())
 		if err != nil {
 			log.Printf("resproxy: GeoIP cleanup deferred: %v", err)
 		}

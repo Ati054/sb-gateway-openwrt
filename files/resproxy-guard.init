@@ -1,10 +1,9 @@
 #!/bin/sh /etc/rc.common
-# Compatibility entry for older installations. Startup protection belongs to
-# the supervised daemon; an independent early-boot guard has no rollback owner
-# if boot never reaches the main service.
+# Restore only the scoped policy: WAN-authorized clients and router OUTPUT
+# keep ordinary networking even if boot never reaches the controller.
 START=18
 STOP=89
 start() {
- :
+ /usr/bin/resproxyd capture-bootstrap || logger -t resproxy 'could not restore configured startup source policy'
 }
 stop() { :; }

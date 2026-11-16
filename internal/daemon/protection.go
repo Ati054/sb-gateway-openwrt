@@ -24,7 +24,7 @@ func protectCapture(ctx context.Context, config settings.Config, paths Paths, pr
 	}
 	return withCaptureLifecycle(ctx, paths, func() error {
 		if StartupFailed(paths) {
-			return nil
+			return applyCaptureRecovery(ctx, paths)
 		}
 		if preflight {
 			if err := requireCaptureCompatibility(ctx); err != nil {
@@ -32,7 +32,7 @@ func protectCapture(ctx context.Context, config settings.Config, paths Paths, pr
 			}
 		}
 		// The script publishes the marker before releasing the firewall lock.
-		return setFirewall(ctx, "guard", config.LANInterface, config.Base.TransparentPort, 0, config.Capture)
+		return bootstrapCapture(ctx, config, paths)
 	})
 }
 func ClearProtection(paths Paths) error {

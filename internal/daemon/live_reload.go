@@ -10,6 +10,11 @@ import (
 	"github.com/Ati054/xroute-openwrt/internal/settings"
 )
 
+type runtimeRollbackError struct{ apply, rollback error }
+
+func (e *runtimeRollbackError) Error() string   { return errors.Join(e.apply, e.rollback).Error() }
+func (e *runtimeRollbackError) Unwrap() []error { return []error{e.apply, e.rollback} }
+
 // Normalize only settings owned by the live control loop. Source identity,
 // listeners, routing rules and the startup graph must still match exactly.
 // Independent live edits may arrive together in LuCI's single Apply request.
@@ -77,7 +82,10 @@ func commitLiveCapture(ctx context.Context, previous, next settings.Config, capt
 		// capture rules. Restoration is local, atomic and separately bounded.
 		recovery, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		return errors.Join(err, capture(recovery, previous))
+		if rollback := capture(recovery, previous); rollback != nil {
+			return &runtimeRollbackError{apply: err, rollback: rollback}
+		}
+		return err
 	}
 	return nil
 }
