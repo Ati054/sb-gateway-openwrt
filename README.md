@@ -30,7 +30,7 @@ You can use the interface in English, Russian, Simplified or Traditional Chinese
 
 Update subscriptions, switch nodes, and change monitoring intervals without restarting the service. XRoute keeps history and the selected node when you apply settings, provided the node still matches the route list.
 
-Choose blocking or WAN access for each rule if its proxy fails. DNS follows the same rule while the service runs. Direct IP exceptions and VPN routes remain available. Turning XRoute off, a failed startup or an unplanned service exit removes interception and restores ordinary WAN access.
+Choose blocking or WAN access for each rule if its proxy fails. DNS follows the same rule while the service runs. Direct IP exceptions and VPN routes remain available. Turning XRoute off restores ordinary WAN access. A failed startup or an unplanned service exit preserves WAN permissions and explicitly configured strict blocking while XRoute attempts to restore the last working configuration.
 
 Keep the router powered during an update. If flash space is low, the installer keeps its package backup in RAM. A power interruption at that point may require reinstalling the APK. Your settings remain on the router. To recover, transfer the APK using the instructions below and run `apk --no-cache add /tmp/xroute.apk`.
 
@@ -94,7 +94,7 @@ Databases are downloaded for rules attached to route lists. Attach a rule later 
 
 When switching from PassWall2, stop it and disable its autostart in **System → Startup** before enabling XRoute. Subscriptions and rules can be prepared while XRoute is disabled. Without an all-device list, other addresses continue to use WAN.
 
-During a controlled startup or restart, the temporary guard follows the configured WAN permissions. A fatal error, startup timeout or unplanned exit removes interception and restores the previous DNS configuration. All LAN clients then use ordinary WAN, including strict lists, until the service becomes ready again. A proxy-node outage while the service runs still follows each rule's block/WAN action.
+During startup, restart and failure recovery, protection follows the configured WAN permissions and strict blocking. If new settings cannot start, XRoute attempts to restore the last working configuration. If the proxy core remains unavailable, dead proxy interception is removed and the previous DNS configuration is restored; ordinary WAN and local router access remain available, while explicitly configured strict policies stay blocked. A proxy-node outage while the service runs follows each rule's block/WAN action.
 
 To update, open **Package update → Check for updates → Update from GitHub**. Checking only fetches version information; download and installation start after a separate click on **Update from GitHub**. You can skip intermediate versions. Settings and the service's enabled or disabled state are preserved; a running service restarts during the update.
 
