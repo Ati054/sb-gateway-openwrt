@@ -218,12 +218,12 @@ return view.extend({
 		settings.addremove = false;
         var creatorOpen = !uci.sections('resproxy', 'rule').some(function(rule) { return !!rule.preset_key; });
         var creating = false, editingVariant = null, settingsNode = null, drafts = (Drafts.read('preset-editor') || {}).drafts || Object.create(null);
-        var draftName = '', draftCountry = 'ru', draftAction = 'direct', draftOutage = 'block', retainedPresets = [];
+        var draftName = '', draftCountry = 'ru', draftAction = 'direct', draftOutage = 'wan', retainedPresets = [];
         function persistDrafts() {
             Drafts.write('preset-editor', { drafts:drafts, active:editingVariant && editingVariant.key || '_new', open:creatorOpen });
         }
         function resetDraft() {
-            editingVariant = null; draftName = ''; draftCountry = 'ru'; draftAction = 'direct'; draftOutage = 'block'; retainedPresets = [];
+            editingVariant = null; draftName = ''; draftCountry = 'ru'; draftAction = 'direct'; draftOutage = 'wan'; retainedPresets = [];
             Object.keys(presetSelections).forEach(function(code) { presetSelections[code].geoip = false; presetSelections[code].packs = {}; });
             torrentSelected = false; creatorOpen = false;
             presetOutage.keylist = ['block', 'wan'];
@@ -247,7 +247,7 @@ return view.extend({
         function restoreDraft(key) {
             var draft = drafts[key];
             if (!draft) return false;
-            draftName = draft.name; draftCountry = draft.country; draftAction = draft.action; draftOutage = draft.outage || 'block';
+            draftName = draft.name; draftCountry = draft.country; draftAction = draft.action; draftOutage = draft.outage || 'wan';
             Object.keys(presetSelections).forEach(function(code) {
                 presetSelections[code] = JSON.parse(JSON.stringify(draft.selections[code]));
             });
@@ -665,6 +665,7 @@ return view.extend({
 				section = uci.add('resproxy', 'rule');
 				uci.set('resproxy', section, 'id', ('rule-' + section).slice(0, 32));
 				uci.set('resproxy', section, 'name', '');
+				uci.set('resproxy', section, 'proxy_outage_action', 'wan');
 				customOpenStates[section] = true;
 			}).then(function() {
 				var input = map.findElement('id', name.cbid(uci.resolveSID('resproxy', section)));
@@ -690,7 +691,7 @@ return view.extend({
         outage.depends('action', 'proxy');
         outage.value('block', _('Block'));
         outage.value('wan', _('Through WAN'));
-        outage.default = 'block';
+        outage.default = 'wan';
         outage.rmempty = false;
         outage.retain = true;
         outage.write = function(section, value) { uci.set('resproxy', section, 'proxy_outage_action', value); uci.unset('resproxy', section, 'outage_action'); };

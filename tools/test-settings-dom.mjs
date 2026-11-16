@@ -47,6 +47,28 @@ try {
   Drafts.attach=function(map,page){if(page==='rulesets')ruleMap=map;if(page==='routes')routeMap=map;return attachDraft.apply(this,arguments);};
   const IntervalValue=new (new Function('baseclass','form','safeDOM','_',sources.interval)(baseclass,form,safeDOM,_))();
   const rulesets=new (new Function('sbgTheme','view','Drafts','form','IntervalValue','uci','fs','ui','validation','poll','safeDOM','_','unicodeText',sources.rulesets)({decorate:n=>n},baseclass,Drafts,form,IntervalValue,uci,fs,ui,validation,poll,safeDOM,_,unicodeText))();
+  // New presets and custom rules default to WAN; an explicitly saved strict
+  // choice must survive opening and saving the same form.
+  const existingRules=Object.fromEntries(Object.entries(config).filter(([,v])=>v['.type']==='rule'));
+  for(const key of Object.keys(existingRules))delete config[key];
+  let defaultsView=await rulesets.render(await rulesets.load());document.body.append(defaultsView);
+  if(defaultsView.querySelector('select[id$="._preset_outage_action"]').value!=='wan')throw Error('New preset did not default to WAN');
+  const groups=ruleMap.children.find(s=>s.sectiontype==='rule');
+  const outageOption=groups.children.find(o=>o.option==='proxy_outage_action');
+  if(outageOption.default!=='wan')throw Error('New custom rule did not default to WAN');
+  uci.add=(_package,type)=>{config.new_default={'.name':'new_default','.type':type};return 'new_default';};
+  await groups.handleAdd();
+  if(config.new_default.proxy_outage_action!=='wan')throw Error('Creating a custom rule did not persist its hidden WAN default');
+  delete config.new_default;delete uci.add;
+  defaultsView.remove();
+  Object.assign(config,existingRules);
+  config.strict={'.name':'strict','.type':'rule',id:'strict',name:'Strict',action:'proxy',domains:'strict.test',proxy_outage_action:'block'};
+  defaultsView=await rulesets.render(await rulesets.load());document.body.append(defaultsView);
+  const strictChoice=defaultsView.querySelector('select[id$=".strict.proxy_outage_action"]');
+  if(!strictChoice || strictChoice.value!=='block')throw Error('Saved explicit block replaced with WAN');
+  await ruleMap.save();
+  if(config.strict.proxy_outage_action!=='block')throw Error('Saving the form changed explicit block');
+  defaultsView.remove();delete config.strict;
   const view=await rulesets.render(await rulesets.load());document.body.append(view);
   const turn=()=>new Promise(r=>setTimeout(r,30));
   const read=()=>({geo:view.querySelector('input[value="geoip:ru"]').checked,torrent:view.querySelector('[data-name="_preset_traffic"] input')?.checked,outage:view.querySelector('select[id$="._preset_outage_action"]')?.value,storage:JSON.parse(sessionStorage.getItem('resproxy.draft.fixture.preset-editor'))});
