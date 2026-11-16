@@ -29,6 +29,7 @@ These files contain counters, error causes, client addresses, and numeric header
 | Field | Meaning |
 |---|---|
 | `dns_failures` | Client queries with DNS or routing failures |
+| `failure_endpoint` | Invalid resolver endpoint or no usable dynamically discovered WAN DNS; not a count of unavailable proxy nodes |
 | `failure_invalid_query` | Rejected input packets |
 | `failed_exchanges` | Failed requests to a resolver |
 | `recent_samples` in `dns-upstream-errors.json` | The last eight failed exchanges for each path |
@@ -38,3 +39,7 @@ These files contain counters, error causes, client addresses, and numeric header
 Several identical client queries can share one resolver exchange, so client failure counts can differ from `failed_exchanges`. A local `NOTIMP` response to the obsolete IQUERY operation counts toward `unsupported_opcode`.
 
 If XRoute cannot read WAN status, it retries with increasing delays. Retries stop after a successful read. A confirmed WAN disconnection prevents use of the old resolver.
+
+Counters cover the current DNS process lifetime. Compare two snapshots to distinguish historical errors from an ongoing failure. An endpoint failure can happen before any upstream exchange, so it need not appear in `dns-upstream-errors.json`. These aggregate counters do not retain the timestamps of endpoint failures.
+
+When reporting a startup or network recovery failure, also run `resproxyd doctor`. Its saved incident record contains only time, stage and cleanup results, without subscription URLs or credentials.

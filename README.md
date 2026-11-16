@@ -30,7 +30,7 @@ You can use the interface in English, Russian, Simplified or Traditional Chinese
 
 Update subscriptions, switch nodes, and change monitoring intervals without restarting the service. XRoute keeps history and the selected node when you apply settings, provided the node still matches the route list.
 
-Choose blocking or WAN access for each rule if its proxy fails. DNS follows the same rule. Strict lists keep traffic blocked during router boot, restarts, and package updates. Direct IP exceptions and VPN routes remain available. Turning XRoute off removes interception.
+Choose blocking or WAN access for each rule if its proxy fails. DNS follows the same rule while the service runs. Direct IP exceptions and VPN routes remain available. Turning XRoute off, a failed startup or an unplanned service exit removes interception and restores ordinary WAN access.
 
 Keep the router powered during an update. If flash space is low, the installer keeps its package backup in RAM. A power interruption at that point may require reinstalling the APK. Your settings remain on the router. To recover, transfer the APK using the instructions below and run `apk --no-cache add /tmp/xroute.apk`.
 
@@ -94,11 +94,13 @@ Databases are downloaded for rules attached to route lists. Attach a rule later 
 
 When switching from PassWall2, stop it and disable its autostart in **System → Startup** before enabling XRoute. Subscriptions and rules can be prepared while XRoute is disabled. Without an all-device list, other addresses continue to use WAN.
 
-During service startup and recovery, temporary WAN access with the OpenWrt DNS resolver is available only to lists that permit WAN for all proxy traffic. Strict lists and their DNS remain blocked. If settings cannot be read or validated, proxy traffic remains blocked. Domain-based rules require a working core; service recovery continues automatically.
+During a controlled startup or restart, the temporary guard follows the configured WAN permissions. A fatal error, startup timeout or unplanned exit removes interception and restores the previous DNS configuration. All LAN clients then use ordinary WAN, including strict lists, until the service becomes ready again. A proxy-node outage while the service runs still follows each rule's block/WAN action.
 
 To update, open **Package update → Check for updates → Update from GitHub**. Checking only fetches version information; download and installation start after a separate click on **Update from GitHub**. You can skip intermediate versions. Settings and the service's enabled or disabled state are preserved; a running service restarts during the update.
 
 See [DNS diagnostics](docs/DNS-DIAGNOSTICS.en.md) for counters and commands to include in a problem report.
+
+`resproxyd doctor` checks firewall capabilities without changing the network and reports the last saved service incident. See [firmware compatibility and recovery](docs/FIRMWARE-COMPATIBILITY.md) for the tested scope.
 
 ## Building
 

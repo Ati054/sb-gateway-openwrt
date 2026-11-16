@@ -2,6 +2,7 @@
 'require baseclass';
 'require view.resproxy.safe_dom as safeDOM';
 'require view.resproxy.name_filter as nameFilter';
+'require view.resproxy.entity_names as entityNames';
 
 var E = safeDOM.create;
 
@@ -41,7 +42,7 @@ return baseclass.extend({
   ]);
   function fill(keep) {
    picker.replaceChildren();
-   policies.forEach(function(p) { picker.appendChild(E('option', { value: p.id }, p.id)); });
+   policies.forEach(function(p) { picker.appendChild(E('option', { value: p.id, dir:'auto' }, entityNames.title('policy',p.id))); });
    if (policies.some(function(p) { return p.id === keep; })) picker.value = keep;
   }
   function rows() {
@@ -109,10 +110,12 @@ return baseclass.extend({
   }
   root.addEventListener('toggle', remember);
   fill(typeof saved.policy === 'string' ? saved.policy : ''); rows();
+  var previousNames=JSON.stringify(policies.map(function(p) {return [p.id,entityNames.title('policy',p.id)];}));
   return { node: root, update: function(data) {
-   var keep=picker.value || saved.policy, ids=policies.map(function(p) { return p.id; }).join('\n');
+   var keep=picker.value || saved.policy;
    policies=data || [];
-   if (ids !== policies.map(function(p) { return p.id; }).join('\n')) fill(keep);
+   var nextNames=JSON.stringify(policies.map(function(p) {return [p.id,entityNames.title('policy',p.id)];}));
+   if (previousNames !== nextNames) { fill(keep); previousNames=nextNames; }
    rows();
   } };
  }

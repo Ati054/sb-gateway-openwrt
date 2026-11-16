@@ -204,6 +204,16 @@ func execute(arguments []string) error {
 		return daemon.ProtectCapture(ctx, config, paths)
 	case "dns-restore":
 		return daemon.RestoreManagedDNS(paths)
+	case "capture-release":
+		return daemon.ReleaseCapture(paths)
+	case "doctor":
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		return json.NewEncoder(os.Stdout).Encode(struct {
+			Version     string                 `json:"version"`
+			LastFailure *daemon.ServiceFailure `json:"last_failure,omitempty"`
+			daemon.CaptureCompatibility
+		}{Version: version, LastFailure: daemon.LastServiceFailure(paths), CaptureCompatibility: daemon.InspectCaptureCompatibility(ctx)})
 	case "refresh":
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
@@ -361,13 +371,20 @@ func execute(arguments []string) error {
 	case "locations":
 		return printLocations(paths)
 	case "run", "render-base":
+		runCtx := context.Background()
 		if arguments[0] == "run" {
 			resources.ConfigureDaemon()
+			var stop context.CancelFunc
+			runCtx, stop = signal.NotifyContext(runCtx, os.Interrupt, syscall.SIGTERM)
+			defer stop()
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(runCtx, 10*time.Second)
 		config, err := settings.ReadSystemUCI(ctx)
 		cancel()
 		if err != nil {
+			if arguments[0] == "run" {
+				return daemon.RecoverStartupFailure(paths, err)
+			}
 			return err
 		}
 		if arguments[0] == "render-base" {
@@ -378,8 +395,6 @@ func execute(arguments []string) error {
 			_, err = os.Stdout.Write(append(body, '\n'))
 			return err
 		}
-		runCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
 		return daemon.RunSupervised(runCtx, config, paths)
 	default:
 		return errors.New("unknown subcommand")

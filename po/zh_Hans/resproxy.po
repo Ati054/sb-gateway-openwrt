@@ -2374,3 +2374,27 @@ msgstr "WAN DNS 不可用，继续使用 OpenWrt DNS。"
 
 msgid "Unable to inspect DNS services; OpenWrt DNS remains active."
 msgstr "无法检查 DNS 服务，继续使用 OpenWrt DNS。"
+
+msgid "First add a subscription, a rule and a route list."
+msgstr "请先添加订阅、规则和路由列表。"
+
+msgid "Route list name"
+msgstr "路由列表名称"
+
+msgid "For example: My subscription"
+msgstr "例如：我的订阅"
+
+msgid "For example: Home devices"
+msgstr "例如：家庭设备"
+
+msgid "Use any language and letter case. You can rename it later."
+msgstr "支持任意语言和大小写，之后可以重命名。"
+
+msgid "This name is already used."
+msgstr "此名称已被使用。"
+
+msgid "Domains may use any language and letter case. International names are converted automatically."
+msgstr "域名支持任意语言和大小写，国际化域名会自动转换。"
+
+msgid "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
+msgstr "仅在上方未配置来源时使用此旧来源。在上方添加相同地址会自动保留节点标识。"

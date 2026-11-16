@@ -15,11 +15,25 @@ func protectionFile(paths Paths) string {
 func ProtectionActive(paths Paths) bool { _, err := os.Stat(protectionFile(paths)); return err == nil }
 
 func ProtectCapture(ctx context.Context, config settings.Config, paths Paths) error {
+	return protectCapture(ctx, config, paths, true)
+}
+
+func protectCapture(ctx context.Context, config settings.Config, paths Paths, preflight bool) error {
 	if !config.Enabled || !config.RouteEnabled {
 		return nil
 	}
-	// The script publishes the marker before releasing the firewall lock.
-	return setFirewall(ctx, "guard", config.LANInterface, config.Base.TransparentPort, 0, config.Capture)
+	return withCaptureLifecycle(ctx, paths, func() error {
+		if StartupFailed(paths) {
+			return nil
+		}
+		if preflight {
+			if err := requireCaptureCompatibility(ctx); err != nil {
+				return err
+			}
+		}
+		// The script publishes the marker before releasing the firewall lock.
+		return setFirewall(ctx, "guard", config.LANInterface, config.Base.TransparentPort, 0, config.Capture)
+	})
 }
 func ClearProtection(paths Paths) error {
 	err := os.Remove(protectionFile(paths))

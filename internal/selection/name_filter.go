@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 type nameTerm struct {
@@ -14,7 +15,7 @@ type nameTerm struct {
 // Quotes select a full name; separators outside quotes select alternatives.
 // Doubled quotes represent a literal quote inside a quoted name.
 func parseNameFilter(raw string) ([]nameTerm, error) {
-	if len(raw) > 512 {
+	if !utf8.ValidString(raw) || utf8.RuneCountInString(raw) > 512 {
 		return nil, errors.New("node filter is too large")
 	}
 	if strings.IndexFunc(raw, unicode.IsControl) >= 0 {
@@ -26,12 +27,13 @@ func parseNameFilter(raw string) ([]nameTerm, error) {
 		if raw == "" {
 			break
 		}
-		if raw[0] == ',' || raw[0] == '|' {
-			raw = raw[1:]
+		first, width := utf8.DecodeRuneInString(raw)
+		if strings.ContainsRune(",|，、،", first) {
+			raw = raw[width:]
 			continue
 		}
 		if raw[0] != '"' {
-			end := strings.IndexAny(raw, ",|")
+			end := strings.IndexAny(raw, ",|，、،")
 			if end < 0 {
 				end = len(raw)
 			}
@@ -64,7 +66,8 @@ func parseNameFilter(raw string) ([]nameTerm, error) {
 		if text == "" {
 			return nil, errors.New("quoted node name cannot be empty")
 		}
-		if raw != "" && raw[0] != ',' && raw[0] != '|' {
+		first, _ = utf8.DecodeRuneInString(raw)
+		if raw != "" && !strings.ContainsRune(",|，、،", first) {
 			return nil, errors.New("separate node names with a comma or | after a closing quote")
 		}
 		terms = append(terms, nameTerm{text: text, exact: true})

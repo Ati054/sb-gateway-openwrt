@@ -2374,3 +2374,27 @@ msgstr "DNS مسیر WAN در دسترس نیست. DNS خود OpenWrt همچنا
 
 msgid "Unable to inspect DNS services; OpenWrt DNS remains active."
 msgstr "بررسی سرویس‌های DNS ممکن نیست. DNS خود OpenWrt همچنان فعال است."
+
+msgid "First add a subscription, a rule and a route list."
+msgstr "ابتدا اشتراک، قانون و فهرست مسیر اضافه کنید."
+
+msgid "Route list name"
+msgstr "نام فهرست مسیر"
+
+msgid "For example: My subscription"
+msgstr "برای مثال: اشتراک من"
+
+msgid "For example: Home devices"
+msgstr "برای مثال: دستگاه‌های خانه"
+
+msgid "Use any language and letter case. You can rename it later."
+msgstr "از هر زبان و حروف بزرگ یا کوچک استفاده کنید. نام را بعداً می‌توانید تغییر دهید."
+
+msgid "This name is already used."
+msgstr "این نام قبلاً استفاده شده است."
+
+msgid "Domains may use any language and letter case. International names are converted automatically."
+msgstr "دامنه‌ها می‌توانند به هر زبان و با حروف بزرگ یا کوچک باشند. نام‌های بین‌المللی خودکار تبدیل می‌شوند."
+
+msgid "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
+msgstr "این منبع قدیمی فقط زمانی استفاده می‌شود که منبع دیگری تنظیم نشده باشد. افزودن همان نشانی، شناسه گره‌ها را خودکار حفظ می‌کند."

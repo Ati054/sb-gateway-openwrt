@@ -11,6 +11,7 @@
 'require poll';
 'require view.resproxy.runtime_status as monitor';
 'require view.resproxy.safe_dom as safeDOM';
+'require view.resproxy.entity_names as entityNames';
 
 var E = safeDOM.create;
 
@@ -32,7 +33,8 @@ function groupActions(section, decorateRow) {
 		var action = actions[index];
 		if (!action)
 			return;
-		var name = uci.get('resproxy', row.getAttribute('data-section-id'), 'id') || _('New source');
+		var sid=row.getAttribute('data-section-id');
+		var name = uci.get('resproxy', sid, 'name') || uci.get('resproxy', sid, 'id') || _('New source');
 		action.classList.remove('right');
 		action.style.cssText = 'float:none;margin:0';
 		section.insertBefore(E('div', {
@@ -65,20 +67,9 @@ return view.extend({
 		sources.renderContents = function() {
 			return groupActions(renderContents.apply(this, arguments), decorateSource);
 		};
-		var id = sources.option(form.Value, 'id', _('Source name'));
-		id.rmempty = false;
-		id.description = _('Keep this name after the first import.');
-		id.validate = function(section, value) {
-			var name = sourceName(value);
-			if (!/^[A-Za-z][A-Za-z0-9 _-]{0,31}$/.test(name))
-				return _('Use 1–32 Latin letters, digits, spaces, underscores or hyphens; start with a letter.');
-			return !sources.cfgsections().some(function(other) {
-				return other !== section && sourceName(id.formvalue(other)).toLowerCase() === name.toLowerCase();
-			}) || _('This source name is already used.');
-		};
-		id.write = function(section, value) {
-			return uci.set('resproxy', section, 'id', sourceName(value));
-		};
+		var name = entityNames.bind(sources.option(form.Value, 'name', _('Source name')), sources, 'subscription');
+		name.placeholder = _('For example: My subscription');
+		name.description = _('Use any language and letter case. You can rename it later.');
 		var url = sources.option(form.Value, 'url', _('Subscription URL'));
 		url.datatype = 'string';
 		url.placeholder = 'https://';
@@ -91,6 +82,7 @@ return view.extend({
 			} catch (error) {}
 			return _('Enter an HTTPS subscription address.');
 		};
+		url.write = function(section, value) { uci.set('resproxy', section, 'url', new URL(value.trim()).href); };
 		var mode = sources.option(form.ListValue, 'update_mode', _('Update method'));
 		mode.value('automatic', _('Automatic and on request'));
 		mode.value('daily', _('On schedule'));
@@ -132,7 +124,7 @@ return view.extend({
 		sources.description = _('All supported nodes are imported; data-size and storage limits still apply.');
 		var refresh = sources.option(form.Button, '_refresh', _('Subscription update'));
 		refresh.inputtitle = function(section) {
-			var name = sourceName(id.formvalue(section) || uci.get('resproxy', section, 'id'));
+			var name = sourceName(uci.get('resproxy', section, 'id'));
 			return loading && name === activeID ? _('Loading…') : _('Refresh');
 		};
 		refresh.inputstyle = 'action';
@@ -145,7 +137,7 @@ return view.extend({
 
 		var save = sources.option(form.Button, '_save_load', '');
 		save.inputtitle = function(section) {
-			var name = sourceName(id.formvalue(section) || uci.get('resproxy', section, 'id'));
+			var name = sourceName(uci.get('resproxy', section, 'id'));
 			return loading && name === activeID ? _('Loading…') : _('Save and load');
 		};
 		save.inputstyle = 'action';
@@ -226,14 +218,14 @@ return view.extend({
 			map.root.querySelectorAll('.cbi-value[data-name="_refresh"] button, .cbi-value[data-name="_save_load"] button').forEach(function(button) {
 				var row = button.closest('.cbi-section-node');
 				button.disabled = loading || map.readonly;
-				button.classList.toggle('spinning', loading && sourceName(id.formvalue(row.dataset.sectionId) || uci.get('resproxy', row.dataset.sectionId, 'id')) === activeID);
+				button.classList.toggle('spinning', loading && sourceName(uci.get('resproxy', row.dataset.sectionId, 'id')) === activeID);
 				var action = button.closest('.cbi-value').dataset.name === '_save_load' ? save : refresh;
 				button.textContent = action.inputtitle(row.dataset.sectionId);
 			});
 		}
 		refresh.onclick = function(event, section) {
 			if (loading || map.readonly) return;
-			activeID = sourceName(id.formvalue(section));
+			activeID = entityNames.ensureID(section, 'subscription', url.formvalue(section));
 			loading = true;
 			updateButtons();
 			var failure = _('Check the subscription fields.');
@@ -271,11 +263,11 @@ return view.extend({
 		if (uci.get('resproxy', 'main', 'subscription_url')) {
 			var legacy = map.section(form.NamedSection, 'main', 'main', _('Existing single source'));
 			legacy.addremove = false;
-			legacy.description = _('This older source is used only while no sources are configured above. When migrating, reuse its Provider ID to preserve node identity, then clear the older URL.');
+			legacy.description = _('This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically.');
 			var legacyURL = legacy.option(form.Value, 'subscription_url', _('Subscription URL'));
 			legacyURL.datatype = 'url';
-			var legacyID = legacy.option(form.Value, 'provider_id', _('Provider ID'));
-			legacyID.rmempty = false;
+			var legacyName = entityNames.bind(legacy.option(form.Value, 'provider_name', _('Source name')), legacy, 'legacy');
+			legacyName.description = _('Use any language and letter case. You can rename it later.');
 		}
 		return map.render().then(function(node) { updateButtons(); poll.add(updateStatus, 3); return sbgTheme.decorate(E('div', {}, [node, plugins.render()])); });
 	}

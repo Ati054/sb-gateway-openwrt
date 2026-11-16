@@ -290,6 +290,13 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 			Protocols: strings.Fields(readRule("protocols")), Inbounds: strings.Fields(readRule("inbounds")),
 			Ports:   readRule("ports"),
 			Country: readRule("country"), ServicePacks: strings.Fields(readRule("service_packs"))}
+		for i, raw := range rule.Domains {
+			value, err := xray.NormalizeRuleDomain(raw)
+			if err != nil {
+				return Config{}, fmt.Errorf("rule group %d domain: %w", index+1, err)
+			}
+			rule.Domains[i] = value
+		}
 		geoMode := readRule("geo_mode")
 		if rule.Country == "" {
 			geoMode = "off" // A hidden LuCI default must not activate Geo rules.
@@ -394,6 +401,9 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 		})
 	}
 	if len(config.Policies) == 0 {
+		if config.Enabled && config.RouteEnabled {
+			return Config{}, errors.New("configure a route list before enabling LAN routing")
+		}
 		fallback := Policy{ID: "main", Mode: "best", Health: health.Policy{HistoryLimitKiB: sharedHistoryLimit, ActiveLivenessSeconds: 3, ActiveCheckSeconds: 60, ProbeBatchSize: 10, SwitchImprovementMS: 50, LatencyMeasurement: "https-head-v1"}}
 		for _, field := range []struct {
 			key      string

@@ -32,7 +32,7 @@ func TestFilterPreservesSubscriptionOrderAndUpdatesMembership(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(selected, []string{"one", "new"}) {
 		t.Fatalf("source selection=%v err=%v", selected, err)
 	}
-	for _, invalid := range []Filter{{Countries: []string{"ca"}}, {Protocols: []string{"unknown"}}, {Exclude: "bad\ninput"}, {Include: "bad\ninput"}, {Include: strings.Repeat("x", 513)}, {Exclude: strings.Repeat("я", 257)}} {
+	for _, invalid := range []Filter{{Countries: []string{"ca"}}, {Protocols: []string{"unknown"}}, {Exclude: "bad\ninput"}, {Include: "bad\ninput"}, {Include: strings.Repeat("x", 513)}, {Exclude: strings.Repeat("я", 513)}} {
 		if _, _, err = Candidates(nodes, []string{"all:*"}, invalid); err == nil {
 			t.Fatalf("invalid filter accepted: %+v", invalid)
 		}

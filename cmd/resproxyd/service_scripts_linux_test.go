@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestStartRegistersProcdWhenEarlyProtectionFails(t *testing.T) {
+func TestStartRegistersProcdWithoutAnUnsupervisedGuard(t *testing.T) {
 	dir := t.TempDir()
 	body, err := os.ReadFile("../../files/resproxy.init")
 	if err != nil {
@@ -37,10 +37,27 @@ extra_command() { :; }
 	if err != nil {
 		t.Fatalf("%v: %s", err, out)
 	}
-	for _, want := range []string{"daemon:capture-protect", "early LAN protection failed", "open:gateway", "param:command mock_daemon run", "param:respawn 3600 15 0", "close"} {
+	for _, want := range []string{"open:gateway", "param:command mock_daemon run", "param:respawn 3600 15 0", "close"} {
 		if !strings.Contains(string(out), want) {
 			t.Fatalf("missing %q: %s", want, out)
 		}
+	}
+	if strings.Contains(string(out), "daemon:capture-protect") {
+		t.Fatalf("init installed a guard without a running rollback owner: %s", out)
+	}
+}
+
+func TestBootCompatibilityEntryDoesNotInstallAnOrphanGuard(t *testing.T) {
+	body, err := os.ReadFile("../../files/resproxy-guard.init")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "boot.sh")
+	if err := os.WriteFile(path, append(body, []byte("\nstart\n")...), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("sh", path).CombinedOutput(); err != nil || len(out) != 0 {
+		t.Fatalf("early boot still invokes unowned service commands: %v %s", err, out)
 	}
 }
 

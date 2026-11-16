@@ -4,6 +4,7 @@
 'require fs';
 'require ui';
 'require view.resproxy.safe_dom as safeDOM';
+'require view.resproxy.unicode_text as unicodeText';
 
 var E = safeDOM.create;
 
@@ -43,9 +44,9 @@ return view.extend({
 		var request = 0, loading = false;
 		function filter() {
 			if (loading) return;
-			var query = search.value.toLocaleLowerCase();
+			var query = unicodeText.fold(search.value);
 			output.textContent = query ? loaded.split('\n').filter(function(line) {
-				return line.toLocaleLowerCase().indexOf(query) >= 0;
+				return unicodeText.fold(line).indexOf(query) >= 0;
 			}).join('\n') : loaded;
 		}
 		function refresh() {

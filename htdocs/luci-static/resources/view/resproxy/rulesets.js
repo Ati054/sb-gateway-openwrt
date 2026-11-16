@@ -10,6 +10,7 @@
 'require validation';
 'require poll';
 'require view.resproxy.safe_dom as safeDOM';
+'require view.resproxy.unicode_text as unicodeText';
 
 var E = safeDOM.create;
 
@@ -132,7 +133,7 @@ function groupHeaders(section, map, openStates) {
 		var rule = uci.get('resproxy', sectionID) || {};
 		var linked = uci.sections('resproxy', 'policy').filter(function(policy) { return values(policy.rule_refs).indexOf(rule.id) >= 0; });
 		var metadata = rule.name ? [rule.action === 'proxy' ? _('Proxy through this route list') : _('Direct WAN'),
-			linked.length ? linked.map(function(policy) { return policy.id; }).join(', ') : _('Not used')] : [];
+			linked.length ? linked.map(function(policy) { return policy.name || policy.id; }).join(', ') : _('Not used')] : [];
 		row.appendChild(E('div', { 'class':'sbg-custom-rule-save' }, E('button', {
 			type:'button', 'class':'cbi-button cbi-button-save', disabled:map.readonly ? '' : null,
 			click:ui.createHandlerFn(map, function() {
@@ -344,7 +345,7 @@ return view.extend({
         variantName.placeholder = _('Enter a name');
         variantName.cfgvalue = function() { return draftName; };
         variantName.write = variantName.remove = function() {};
-        variantName.validate = function(section, value) { value = String(value || ''); return value.length <= 40 && !/[\x00-\x1f\x7f]/.test(value) || _('Enter a name of up to 40 characters.'); };
+        variantName.validate = function(section, value) { value = unicodeText.normalize(value); return Array.from(value).length <= 40 && !/[\x00-\x1f\x7f-\x9f]/.test(value) || _('Enter a name of up to 40 characters.'); };
 		var presetCountry = settings.option(form.ListValue, '_preset_country', _('Preset section'));
 		Object.keys(countries).forEach(function(code) { presetCountry.value(code, countries[code]); });
 		presetCountry.value('other', _('Other country — custom rules'));
@@ -514,17 +515,17 @@ return view.extend({
             if (uci.sections('resproxy', 'rule').length - oldRules.length + resultingCount > 128) {
                 ui.addNotification(null, E('p', {}, _('The limit of 128 rules has been reached.'))); return;
             }
-            var requestedName = String(variantName.formvalue('main') || '').trim(), usedNames = Object.create(null);
-            uci.sections('resproxy', 'rule').forEach(function(rule) { if (!oldRules.some(function(existing) { return existing['.name'] === rule['.name']; })) usedNames[String(rule.preset_variant_name || '').toLocaleLowerCase()] = true; });
+            var requestedName = unicodeText.normalize(variantName.formvalue('main')), usedNames = Object.create(null);
+            uci.sections('resproxy', 'rule').forEach(function(rule) { if (!oldRules.some(function(existing) { return existing['.name'] === rule['.name']; })) usedNames[unicodeText.fold(rule.preset_variant_name)] = true; });
             var title = requestedName, n = 1;
-            if (!title) { do { title = _('Variant %d').format(n++); } while (usedNames[title.toLocaleLowerCase()]); }
-            else { var base = title; n = 2; while (usedNames[title.toLocaleLowerCase()]) { var suffix = ' (' + n++ + ')'; title = base.slice(0, 40 - suffix.length).replace(/[\uD800-\uDBFF]$/, '') + suffix; } }
+            if (!title) { do { title = _('Variant %d').format(n++); } while (usedNames[unicodeText.fold(title)]); }
+            else { var base = title; n = 2; while (usedNames[unicodeText.fold(title)]) { var suffix = ' (' + n++ + ')'; title = unicodeText.cut(base,40 - suffix.length) + suffix; } }
             var variantID = editingVariant && editingVariant.key !== 'legacy' ? editingVariant.key : 'variant-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8);
             creating = true;
             return map.save(function() {
                 var newIDs = [], addedIDs = [];
                 function setName(sid, label) {
-                    uci.set('resproxy', sid, 'name', (title + ' · ' + label).slice(0,120));
+                    uci.set('resproxy', sid, 'name', unicodeText.cut(title + ' · ' + label,120));
                     uci.set('resproxy', sid, 'preset_variant', variantID);
                     uci.set('resproxy', sid, 'preset_variant_name', title);
                 }
@@ -596,7 +597,7 @@ return view.extend({
                 var linked = uci.sections('resproxy', 'policy').filter(function(policy) { return values(policy.rule_refs).some(function(id) { return ids.indexOf(id) >= 0; }); });
                 var metadata = [_('%d rules').format(variant.rules.length)];
                 if (actions.length === 1) metadata.push(actions[0] === 'direct' ? _('Direct WAN') : _('Proxy through this route list'));
-                metadata.push(linked.length ? linked.map(function(policy) { return policy.id; }).join(', ') : _('Not used'));
+                metadata.push(linked.length ? linked.map(function(policy) { return policy.name || policy.id; }).join(', ') : _('Not used'));
                 var details = E('details', {'class':'sbg-ready-variant'}, [E('summary', {}, [E('strong', {}, variant.name), E('small', {}, metadata.join(' · '))]),
                         E('ul', {'class':'sbg-ready-variant-rules'}, variant.rules.map(function(rule) {
                             var prefix = (rule.preset_variant_name || '') + ' · ', label = rule.name || presetName(rule.preset_key, catalog);
@@ -673,11 +674,11 @@ return view.extend({
 		var name = groups.option(form.Value, 'name', _('Rule name'));
 		name.rmempty = false;
 		name.placeholder = _('For example: Work services through WAN');
-		name.write = function(section, value) { uci.set('resproxy', section, 'name', value.trim()); };
+		name.write = function(section, value) { uci.set('resproxy', section, 'name', unicodeText.normalize(value)); };
 		name.cfgvalue = function(section) { var current = uci.get('resproxy', section, 'name'); return current || ''; };
 		name.validate = function(section, value) {
-			if (!value.trim() || value.length > 120 || /[\x00-\x1f\x7f]/.test(value)) return _('Enter a name of up to 120 characters.');
-			if (uci.sections('resproxy', 'rule').some(function(rule) { return rule['.name'] !== section && String(rule.name || rule.id).toLocaleLowerCase() === value.trim().toLocaleLowerCase(); })) return _('This rule name already exists.');
+			if (!unicodeText.normalize(value) || Array.from(unicodeText.normalize(value)).length > 120 || /[\x00-\x1f\x7f-\x9f]/.test(value)) return _('Enter a name of up to 120 characters.');
+			if (groups.cfgsections().some(function(other) { return other !== section && unicodeText.fold(name.formvalue(other)) === unicodeText.fold(value); })) return _('This rule name already exists.');
 			return true;
 		};
 		var action = groups.option(form.ListValue, 'action', _('Action'));
@@ -726,6 +727,7 @@ return view.extend({
 		domains.rows = 6;
 		domains.placeholder = 'example.com\nfull:login.example.com';
 		domains.rmempty = true;
+		domains.description = _('Domains may use any language and letter case. International names are converted automatically.');
 		var cidrs = groups.option(form.TextValue, 'cidrs', _('IP networks — one per line'));
 		cidrs.rows = 6;
 		cidrs.placeholder = '203.0.113.0/24';

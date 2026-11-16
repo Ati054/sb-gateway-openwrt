@@ -94,9 +94,9 @@ rule_added=0
 route6_added=0
 rule6_added=0
 rollback_policy_routes() {
-	[ "$rule6_added" = 0 ] || ip -6 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
+	[ "$rule6_added" = 0 ] || ip -6 rule del iif "$interface" fwmark 0x5253/0xffffffff table 20253 priority 10552 2>/dev/null || :
 	[ "$route6_added" = 0 ] || ip -6 route del local ::/0 dev lo table 20253 2>/dev/null || :
-	[ "$rule_added" = 0 ] || ip -4 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
+	[ "$rule_added" = 0 ] || ip -4 rule del iif "$interface" fwmark 0x5253/0xffffffff table 20253 priority 10552 2>/dev/null || :
 	[ "$route_added" = 0 ] || ip -4 route del local 0.0.0.0/0 dev lo table 20253 2>/dev/null || :
 }
 if [ "$action" = apply ]; then
@@ -107,8 +107,13 @@ if [ "$action" = apply ]; then
 		fi
 		route_added=1
 	fi
-	if ! ip -4 rule show | grep -q 'fwmark 0x5253.*lookup 20253'; then
-		if ! ip -4 rule add fwmark 0x5253/0xffffffff table 20253 priority 10553; then
+	# Source validation performs its reverse lookup with loopback as the input
+	# interface. Keep that lookup outside our local-default table even when a
+	# VPN enables src_valid_mark and rp_filter. Do not disable either sysctl.
+	# A separate priority also lets us migrate the old unscoped rule only after
+	# the replacement has been installed, without a gap in marked delivery.
+	if ! ip -4 rule show | grep -F "iif $interface lookup 20253" | grep -q '^10552:.*fwmark 0x5253 '; then
+		if ! ip -4 rule add iif "$interface" fwmark 0x5253/0xffffffff table 20253 priority 10552; then
 			mv "$backup" "$rules"
 			rollback_policy_routes
 			exit 1
@@ -123,8 +128,8 @@ if [ "$action" = apply ]; then
 		fi
 		route6_added=1
 	fi
-	if ! ip -6 rule show | grep -q 'fwmark 0x5253.*lookup 20253'; then
-		if ! ip -6 rule add fwmark 0x5253/0xffffffff table 20253 priority 10553; then
+	if ! ip -6 rule show | grep -F "iif $interface lookup 20253" | grep -q '^10552:.*fwmark 0x5253 '; then
+		if ! ip -6 rule add iif "$interface" fwmark 0x5253/0xffffffff table 20253 priority 10552; then
 			mv "$backup" "$rules"
 			rollback_policy_routes
 			exit 1
@@ -176,6 +181,13 @@ if ! nft -c -f "$batch" || ! nft -f "$batch"; then
 	exit 1
 fi
 
+if [ "$action" = apply ]; then
+	# Retire legacy rules only after the scoped replacement and nft commit.
+	for family in -4 -6; do
+		while ip "$family" rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null; do :; done
+	done
+fi
+
 # Phase markers and their kernel rules commit under the same lock. A queued
 # restore therefore cannot reinstall a guard after startup has completed.
 if [ "$action" = apply ] && [ "$dns_port" -ne 0 ] && grep -Fq 'th dport 53 tproxy to 127.0.0.2:' "$rules"; then
@@ -197,8 +209,11 @@ elif [ "$ready" = 1 ] || [ "$action" = remove ]; then
 fi
 
 if [ "$action" = remove ]; then
-	ip -6 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
+	for family in -4 -6; do
+		for priority in 10552 10553; do
+			while ip "$family" rule del fwmark 0x5253/0xffffffff table 20253 priority "$priority" 2>/dev/null; do :; done
+		done
+	done
 	ip -6 route del local ::/0 dev lo table 20253 2>/dev/null || :
-	ip -4 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553 2>/dev/null || :
 	ip -4 route del local 0.0.0.0/0 dev lo table 20253 2>/dev/null || :
 fi

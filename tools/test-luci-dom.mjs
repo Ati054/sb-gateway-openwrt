@@ -74,7 +74,9 @@ try {
   }
   themeStyle.remove(); document.documentElement.lang = 'ru';
   const _ = value => value;
-  const nameFilter = new Function('baseclass', '_', sources.name_filter)(baseclass, _);
+  const unicodeText=new Function('baseclass',sources.unicode_text)(baseclass);
+  const entityNames=new Function('baseclass','uci','unicodeText','_',sources.entity_names)(baseclass,{sections:()=>[],get:()=>null},unicodeText,_);
+  const nameFilter = new Function('baseclass', '_','unicodeText', sources.name_filter)(baseclass, _,unicodeText);
   String.prototype.format = function(...args) { let i = 0; return this.replace(/%[sd]/g, () => String(args[i++])); };
   const payload = '<img src="data:," onerror="window.__sbgXSS=(window.__sbgXSS||0)+1">';
   const negative = dom.create('div', {}, payload);
@@ -83,7 +85,7 @@ try {
   window.__sbgXSS = 0;
   const node = { id:'n', value:'location:fr:test', label:payload, subscription:payload, protocol:'vless', country:'fr', city:'Test', selected:true, available:true, last_probe_at:1,
    period_stats:{today:{samples:1, median_ms:20, availability_percent:100}} };
-  const health = new Function('baseclass', 'safeDOM', 'nameFilter', '_', sources.node_health)(baseclass, safeDOM, nameFilter, _);
+  const health = new Function('baseclass', 'safeDOM', 'nameFilter', '_','entityNames', sources.node_health)(baseclass, safeDOM, nameFilter, _,entityNames);
   const healthView = health.create([{id:payload, nodes:[node], candidate_count:1, healthy_reserves:0}]);
   document.body.append(healthView.node);
   if (!healthView.node.textContent.includes(payload)) throw Error('Health did not preserve literal label');
@@ -120,7 +122,7 @@ try {
   // Exercise the picker body directly; form/UCI persistence is outside this DOM test.
   const pickerSource = sources.location_picker.replace('return baseclass.extend({ Option: Option });', 'return picker;');
   if (pickerSource === sources.location_picker) throw Error('Picker test boundary changed');
-  const picker = new Function('baseclass', 'form', 'uci', 'safeDOM', 'nameFilter', '_', pickerSource)(baseclass, {Value:{extend:value=>value}}, {get:()=> 'best', sections:()=>[]}, safeDOM, nameFilter, _);
+  const picker = new Function('baseclass', 'form', 'uci', 'safeDOM', 'nameFilter', '_','entityNames', pickerSource)(baseclass, {Value:{extend:value=>value}}, {get:()=> 'best', sections:()=>[]}, safeDOM, nameFilter, _,entityNames);
   const state = {kind:'filter', order:[], view:'countries', source:'*', countries:[], protocols:[], include:'', exclude:''};
   const option = {map:{readonly:false}, formvalue:()=>JSON.stringify(state), cbid:()=> 'fixture',getUIElement:()=>null};
   const pickerView = picker(option, 'fixture', document.createElement('input'), state, {nodes:filterNodes, regions:{europe:{fr:true}}, locations:[]});
@@ -141,8 +143,8 @@ try {
   if(preview()!=='Matching nodes: 3')throw Error('Full-name mode treated a fragment as full name');
   const nameModule=sources.location_picker.replace('return baseclass.extend({ Option: Option });','return {Option:Option,eligible:eligible};');
   const savedUCI={};
-  const pickerModule=new Function('baseclass','form','uci','safeDOM','nameFilter','_',nameModule)(baseclass,{Value:{extend:value=>value}},
-   {get:(_c,_s,key)=>savedUCI[key],set:(_c,_s,key,value)=>{savedUCI[key]=value;},unset:(_c,_s,key)=>{delete savedUCI[key];}},safeDOM,nameFilter,_);
+  const pickerModule=new Function('baseclass','form','uci','safeDOM','nameFilter','_','entityNames',nameModule)(baseclass,{Value:{extend:value=>value}},
+   {get:(_c,_s,key)=>savedUCI[key],set:(_c,_s,key,value)=>{savedUCI[key]=value;},unset:(_c,_s,key)=>{delete savedUCI[key];}},safeDOM,nameFilter,_,entityNames);
   pickerModule.Option.write('fixture',JSON.stringify(state));
   const restoredFilter=JSON.parse(pickerModule.Option.cfgvalue('fixture'));
   if(restoredFilter.include!==state.include.trim() || restoredFilter.exclude!==state.exclude.trim())throw Error('Quoted filters lost on UCI save/reload');
@@ -158,7 +160,8 @@ try {
    if(pickerModule.eligible({...base,include:c.pattern},{label:c.label})!==c.match ||
     pickerModule.eligible({...base,exclude:c.pattern},{label:c.label})===c.match)throw Error('Picker matching differs from backend: '+JSON.stringify(c));
   }
-  for(const tooLong of ['x'.repeat(513),'я'.repeat(257)])if(!nameFilter.parse(tooLong).error)throw Error('Oversized UTF-8 filter accepted');
+  for(const tooLong of ['x'.repeat(513),'я'.repeat(513)])if(!nameFilter.parse(tooLong).error)throw Error('Oversized Unicode filter accepted');
+  for(const supported of ['я'.repeat(512),'中'.repeat(512),'🔒'.repeat(512)])if(nameFilter.parse(supported).error)throw Error('Valid Unicode filter has a smaller character limit');
   for (const field of ['runtime_error','error.message','failure','version','rule.name','variant.name']) {
    const element = safeDOM.create('p', {}, payload); element.dataset.fixture=field; document.body.append(element);
   }
@@ -188,9 +191,9 @@ try {
   let configured=[{id:'all',mode:'best',selection_order:['all:*']},{id:'pc',mode:'priority',selection_order:['country:FR']}],enabledOption;
   const uci={load:async()=>{},sections:()=>configured};
   function Map() {this.section=()=>({option:(_type,name)=>{const option={};if(name==='enabled')enabledOption=option;return option;}});this.render=async()=>document.createElement('div');}
-  const overview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_','L',sources.overview)(
+  const overview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_','L','entityNames',sources.overview)(
    {decorate:node=>node},health,{extend:value=>value},{Map,NamedSection:{},Flag:{extend:value=>value}},fs,uci,
-   {add:fn=>{poller=fn;},remove:()=>{}},safeDOM,monitor,_,{resource:path=>'/luci-static/resources/'+path});
+   {add:fn=>{poller=fn;},remove:()=>{}},safeDOM,monitor,_,{resource:path=>'/luci-static/resources/'+path},entityNames);
   const dashboard=await overview.render(await overview.load());document.body.append(dashboard);
   if(enabledOption.validate('main','1')!==true)throw Error('Configured routes could not be enabled');
   const savedPolicies=configured;configured=[];
@@ -266,9 +269,9 @@ try {
     if(unavailable && rulesUnavailable)throw Error('temporary rules RPC failure');
     return fs.exec(command);
    }};
-   const recoveringOverview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_','L',sources.overview)(
+   const recoveringOverview=new Function('sbgTheme','healthUI','view','form','fs','uci','poll','safeDOM','monitor','_','L','entityNames',sources.overview)(
     {decorate:node=>node},health,{extend:value=>value},{Map,NamedSection:{},Flag:{extend:value=>value}},transientFS,uci,
-    {add:fn=>{recoveryPoll=fn;},remove:()=>{}},safeDOM,transientMonitor,_,{resource:path=>'/luci-static/resources/'+path});
+    {add:fn=>{recoveryPoll=fn;},remove:()=>{}},safeDOM,transientMonitor,_,{resource:path=>'/luci-static/resources/'+path},entityNames);
    const recoveringDashboard=await recoveringOverview.render(await recoveringOverview.load());
    document.body.append(recoveringDashboard);
    const warning=Array.from(recoveringDashboard.querySelectorAll('.alert-message')).find(node=>node.textContent.startsWith('No fresh data:'));
@@ -283,8 +286,8 @@ try {
 	 if(command!=='/usr/libexec/resproxy-log')throw Error('Unexpected journal command');
 	 return new Promise((resolve,reject)=>journalRequests.push({args,resolve,reject}));
 	}};
-	const journal=new Function('sbgTheme','view','fs','ui','safeDOM','_',sources.log)(
-	 {decorate:node=>node},{extend:value=>value},journalFS,{addNotification:()=>{}},safeDOM,_);
+	const journal=new Function('sbgTheme','view','fs','ui','safeDOM','_','unicodeText',sources.log)(
+	 {decorate:node=>node},{extend:value=>value},journalFS,{addNotification:()=>{}},safeDOM,_,unicodeText);
 	const journalView=journal.render('initial events');document.body.append(journalView);
 	const category=journalView.querySelector('select[aria-label="Journal category"]');
 	const lineCount=journalView.querySelector('select[aria-label="Maximum lines"]');

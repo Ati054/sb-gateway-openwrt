@@ -39,11 +39,29 @@ func newFirewallHarness(t *testing.T) firewallHarness {
 	script = strings.ReplaceAll(script, "/usr/bin/resproxyd", filepath.Join(h.root, "bin/resproxyd"))
 	script = strings.Replace(script, "flock -x 9", "printf waiting > \"$TEST_STATE/waiting\"\nflock -x 9", 1)
 	write(h.script, script)
+	write(filepath.Join(h.state, "legacy4"), "")
+	write(filepath.Join(h.state, "legacy6"), "")
 	write(filepath.Join(h.root, "bin/fw4"), "#!/bin/sh\nexit 0\n")
 	write(filepath.Join(h.root, "bin/ip"), `#!/bin/sh
+printf '%s\n' "$*" >> "$TEST_STATE/ip-actions"
+case "$1" in -4) family=4;; -6) family=6;; *) exit 1;; esac
+shift
 case "$*" in
- *route\ show*) echo 'local default dev lo';;
- *rule\ show*) echo 'fwmark 0x5253 lookup 20253';;
+ route\ show*) echo 'local default dev lo';;
+ rule\ show*)
+  [ ! -f "$TEST_STATE/legacy$family" ] || echo '10553: from all fwmark 0x5253 lookup 20253'
+  [ ! -f "$TEST_STATE/scoped$family" ] || echo '10552: from all fwmark 0x5253 iif br-lan lookup 20253'
+  ;;
+ rule\ add*)
+  case "$*" in 'rule add iif br-lan fwmark 0x5253/0xffffffff table 20253 priority 10552') ;;
+   *) exit 2;; esac
+  [ ! -f "$TEST_STATE/scoped$family" ] || exit 2
+  touch "$TEST_STATE/scoped$family";;
+ rule\ del*)
+  case "$*" in *'priority 10553') target="$TEST_STATE/legacy$family";;
+   *'priority 10552') target="$TEST_STATE/scoped$family";; *) exit 2;; esac
+  [ -f "$target" ] || exit 2
+  rm "$target";;
 esac
 exit 0
 `)
@@ -67,6 +85,7 @@ case "$1" in
    test -e "$TEST_STATE/crash-fallback.active" || exit 3
   fi
   cp "$TEST_STATE/firewall.nft" "$TEST_STATE/kernel"
+  echo nft-committed >> "$TEST_STATE/ip-actions"
   ;;
 esac
 `)
@@ -85,6 +104,40 @@ case "$1" in
 esac
 `)
 	return h
+}
+
+func TestScopedPolicyRuleMigrationCommitsBeforeRetiringLegacy(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(map[bool]string{false: "commit", true: "rollback"}[fail], func(t *testing.T) {
+			h := newFirewallHarness(t)
+			var extra []string
+			if fail {
+				extra = append(extra, "TEST_NFT_FAIL=1")
+			}
+			output, err := h.command("ready", extra...).CombinedOutput()
+			if (err != nil) != fail {
+				t.Fatalf("migration failure=%v: %v %s", fail, err, output)
+			}
+			for _, family := range []string{"4", "6"} {
+				_, oldErr := os.Stat(filepath.Join(h.state, "legacy"+family))
+				_, newErr := os.Stat(filepath.Join(h.state, "scoped"+family))
+				if (oldErr == nil) != fail || (newErr == nil) == fail {
+					t.Fatalf("family %s migration lost an active rule or leaked rollback: old=%v new=%v", family, oldErr, newErr)
+				}
+			}
+			if !fail {
+				trace, _ := os.ReadFile(filepath.Join(h.state, "ip-actions"))
+				commit := strings.Index(string(trace), "nft-committed")
+				retire := strings.Index(string(trace), "-4 rule del fwmark 0x5253/0xffffffff table 20253 priority 10553")
+				if commit < 0 || retire < commit {
+					t.Fatal("legacy retired before nft commit", string(trace))
+				}
+				if out, err := h.command("ready").CombinedOutput(); err != nil {
+					t.Fatalf("repeat apply duplicated policy rule: %v %s", err, out)
+				}
+			}
+		})
+	}
 }
 
 func (h firewallHarness) command(action string, extra ...string) *exec.Cmd {

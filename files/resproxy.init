@@ -15,7 +15,7 @@ resproxy_update_installing() {
 	case "$worker" in ''|*[!0-9]*) return 1;; esac
 	[ "$worker" -gt 1 ] && kill -0 "$worker" 2>/dev/null || return 1
 	[ -r "/proc/$worker/cmdline" ] || return 1
-	tr '\000' ' ' < "/proc/$worker/cmdline" | grep -Eq '^/bin/sh /tmp/\.sb-gateway-upgrade-runner (install|github-install-worker)( |$)'
+	tr '\000' ' ' 2>/dev/null < "/proc/$worker/cmdline" | grep -Eq '^/bin/sh /tmp/\.sb-gateway-upgrade-runner (install|github-install-worker)( |$)'
 }
 
 start_service() {
@@ -25,20 +25,16 @@ start_service() {
 	config_get_bool enabled main enabled 0
 	config_get_bool route_enabled main route_enabled 0
 	if [ "$enabled" != "1" ]; then
-		/usr/libexec/resproxy-firewall remove || return 1
-		rm -f /var/run/resproxy/capture-protected.active
+		/usr/bin/resproxyd capture-release || return 1
 		/usr/bin/resproxyd dns-restore || logger -t resproxy 'DNS handoff restore failed'
 		return 0
 	fi
 
 	if [ "$route_enabled" != 1 ]; then
-		/usr/libexec/resproxy-firewall remove || return 1
-		rm -f /var/run/resproxy/capture-protected.active
+		/usr/bin/resproxyd capture-release || return 1
 	fi
-	# Repeating Start must not replace a healthy live policy with a guard.
-	if ! pgrep -f '^/usr/bin/resproxyd run$' >/dev/null 2>&1; then
-		/usr/bin/resproxyd capture-protect || logger -t resproxy 'early LAN protection failed; starting supervised daemon to retry'
-	fi
+	# The supervised daemon owns its bounded startup guard and rollback. Never
+	# install an orphan guard before procd has even accepted the new instance.
 	procd_open_instance gateway
 	procd_set_param command /usr/bin/resproxyd run
 	procd_set_param respawn 3600 15 0
@@ -115,6 +111,8 @@ stop_for_update() {
 
 stop_service() {
 	resproxy_stopping_pid="$(pgrep -f '^/usr/bin/resproxyd run$' 2>/dev/null || :)"
+	mkdir -p /var/run/resproxy
+	printf '%s\n' "$resproxy_stopping_pid" > /var/run/resproxy/stopping.pid
 }
 
 # rc.common calls this after requesting termination from procd. Wait until the
@@ -135,7 +133,7 @@ service_stopped() {
   # Reassert after all old startup/cleanup work has finished.
   /usr/bin/resproxyd capture-protect || return 1
  else
-  /usr/libexec/resproxy-firewall remove || return 1
-  rm -f /var/run/resproxy/capture-protected.active
+  /usr/bin/resproxyd capture-release || return 1
  fi
+ rm -f /var/run/resproxy/stopping.pid
 }

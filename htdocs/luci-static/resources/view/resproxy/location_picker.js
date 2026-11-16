@@ -4,17 +4,18 @@
 'require uci';
 'require view.resproxy.safe_dom as safeDOM';
 'require view.resproxy.name_filter as nameFilter';
+'require view.resproxy.entity_names as entityNames';
 
 var E = safeDOM.create;
 
 function list(value) { return Array.isArray(value) ? value.slice() : (value ? String(value).trim().split(/\s+/) : []); }
 function name(value) { return String(value || '').toLowerCase().trim().replace(/[\uFE0E\uFE0F]/g, ''); }
 function city(value) { return String(value || '').trim().replace(/\s+/g, ' ').replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase(); }
-function nodeLabel(node) {
+function nodeLabel(node, sourceTitle) {
  var title = String(node.label || ''), protocol = String(node.protocol || '').toLowerCase();
  var mentioned = protocol === 'hysteria2' ? /(?:^|[^a-z0-9])(?:hysteria[\s_-]*2|hy[\s_-]*2)(?:$|[^a-z0-9])/i.test(title) :
   name(title).split(/[^a-z0-9]+/).indexOf(protocol) >= 0;
- var parts = [title, node.subscription];
+ var parts = [title, sourceTitle || node.subscription];
  if (protocol && !mentioned) parts.push(protocol === 'hysteria2' ? 'Hysteria 2' : protocol.toUpperCase());
  return parts.filter(Boolean).join(' · ');
 }
@@ -57,6 +58,8 @@ function candidates(state, inventory) {
  return result;
 }
 function picker(option, section, hidden, state, inventory) {
+ var sourceNames=entityNames.labels('subscription');
+ function sourceTitle(id) { return sourceNames[id] || id; }
  var regions = inventory.regions || {}, nodes = inventory.nodes || [], locations = inventory.locations || [];
  inventory = { regions: regions, nodes: nodes, locations: locations };
  var regionTitles = { europe:_('Europe'), asia:_('Asia'), america:_('Americas'), africa:_('Africa'), oceania:_('Oceania'), other:_('Other regions') };
@@ -71,7 +74,7 @@ function picker(option, section, hidden, state, inventory) {
  function countryLabel(code) { return code ? (displayNames ? displayNames.of(code) : code) + ' (' + code + ')' : _('Without country'); }
  var sourceIDs = [];
  nodes.forEach(function(node) { if (sourceIDs.indexOf(node.subscription) < 0) sourceIDs.push(node.subscription); });
- uci.sections('resproxy', 'source').forEach(function(source) { if (source.id && sourceIDs.indexOf(source.id) < 0) sourceIDs.push(source.id); });
+ uci.sections('resproxy', 'subscription').forEach(function(source) { if (source.id && sourceIDs.indexOf(source.id) < 0) sourceIDs.push(source.id); });
  if (state.source !== '*' && sourceIDs.indexOf(state.source) < 0) sourceIDs.push(state.source);
  var countries = Array.from(new Set(nodes.map(function(node) { return node.country; }).filter(Boolean))).sort();
  state.countries.forEach(function(code) { if (countries.indexOf(code) < 0) countries.push(code); });
@@ -98,11 +101,11 @@ function picker(option, section, hidden, state, inventory) {
  function label(token) {
   if (token.indexOf('country:') === 0) return countryLabel(token.slice(8));
   if (token.indexOf('region:') === 0) return regionTitles[token.slice(7)] || token;
-  if (token.indexOf('subscription:') === 0) return _('Subscription: %s').format(decodeURIComponent(token.slice(13)));
+  if (token.indexOf('subscription:') === 0) return _('Subscription: %s').format(sourceTitle(decodeURIComponent(token.slice(13))));
   var place = locations.find(function(item) { return item.value === token; });
   if (place) return countryLabel(place.country) + ' / ' + place.city;
   var node = nodes.find(function(item) { return matches(token, item, regions); });
-  return node ? nodeLabel(node) : _('Unavailable selection: %s').format(token);
+  return node ? nodeLabel(node,sourceTitle(node.subscription)) : _('Unavailable selection: %s').format(token);
  }
  function button(text, title, action, disabled) {
   return E('button', { type: 'button', 'class': 'cbi-button', 'aria-label': title, disabled: disabled ? '' : null, click: action }, text);
@@ -143,8 +146,8 @@ function picker(option, section, hidden, state, inventory) {
     var query = nameFilter.parse(lookup.value);
     body.replaceChildren();
     found.forEach(function(node) {
-     if (!nameFilter.matches(node.label, query, true, [node.subscription, node.protocol].join(' '))) return;
-     body.appendChild(E('tr', { 'data-node-id':node.id }, [E('td', {}, node.label), E('td', {}, node.subscription),
+     if (!nameFilter.matches(node.label, query, true, [sourceTitle(node.subscription), node.protocol].join(' '))) return;
+     body.appendChild(E('tr', { 'data-node-id':node.id }, [E('td', {dir:'auto'}, node.label), E('td', {dir:'auto'}, sourceTitle(node.subscription)),
       E('td', {}, node.protocol === 'hysteria2' ? 'Hysteria 2' : String(node.protocol || '').toUpperCase())]));
     });
     if (!body.children.length) body.appendChild(E('tr', {}, E('td', { colspan:'3' }, _('No matching nodes.'))));
@@ -182,8 +185,8 @@ function picker(option, section, hidden, state, inventory) {
  function detail(key, title, children) {
   return E('details', { 'data-group': key, open: expanded[key] || query ? '' : null }, [E('summary', {}, title)].concat(children));
  }
- function visible(node) { return nameFilter.matches(node.label, queryFilter, true, [node.country, countryLabel(node.country), regionTitles[countryRegion(node.country)], node.city, node.subscription].join(' ')); }
- function nodeOption(node) { return checkbox(node.value, nodeLabel(node), [node]); }
+ function visible(node) { return nameFilter.matches(node.label, queryFilter, true, [node.country, countryLabel(node.country), regionTitles[countryRegion(node.country)], node.city, sourceTitle(node.subscription)].join(' ')); }
+ function nodeOption(node) { return checkbox(node.value, nodeLabel(node,sourceTitle(node.subscription)), [node]); }
  function renderBrowser() {
   browser.replaceChildren(); browser.hidden = state.kind !== 'manual'; search.parentNode.hidden = browser.hidden; view.parentNode.hidden = browser.hidden;
   if (browser.hidden) return;
@@ -193,7 +196,7 @@ function picker(option, section, hidden, state, inventory) {
     var members = nodes.filter(function(node) { return node.subscription === source; });
     var shown = members.filter(visible);
     if (shown.length) browser.appendChild(detail('source:' + source,
-     checkbox('subscription:' + encodeURIComponent(source), source + ' (' + members.length + ')', members), shown.map(nodeOption)));
+     checkbox('subscription:' + encodeURIComponent(source), sourceTitle(source) + ' (' + members.length + ')', members), shown.map(nodeOption)));
    });
   } else {
    var codes = Array.from(new Set(nodes.map(function(node) { return node.country; })));
@@ -233,7 +236,7 @@ function picker(option, section, hidden, state, inventory) {
  var filterBox = E('div', { 'class': 'sbg-location-filter', hidden: state.kind !== 'filter' ? '' : null });
  var filterPrimary = E('div', { 'class':'sbg-location-filter-primary' });
  filterPrimary.appendChild(E('fieldset', { 'class':'sbg-location-filter-section' }, [E('legend', {}, _('Subscription')),
-  select(_('Filter subscription'), [['*', _('All subscriptions')]].concat(sourceIDs.map(function(id) { return [id, id]; })), state.source, function(value) { state.source = value; })]));
+  select(_('Filter subscription'), [['*', _('All subscriptions')]].concat(sourceIDs.map(function(id) { return [id, sourceTitle(id)]; })), state.source, function(value) { state.source = value; })]));
  filterBox.appendChild(filterPrimary);
  function checkList(choices, key) {
   return E('div', { 'class':'sbg-location-checks' }, choices.map(function(choice) {

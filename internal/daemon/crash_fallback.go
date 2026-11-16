@@ -50,7 +50,7 @@ func parseCrashStamp(uptime, boot string) (crashStamp, error) {
 func markCrashReadyNow(paths Paths) error {
 	now, err := crashNow()
 	if err != nil {
-		return err
+		return RecoverStartupFailure(paths, err)
 	}
 	return markCrashReady(paths, now)
 }
@@ -180,9 +180,9 @@ func RunSupervised(ctx context.Context, config settings.Config, paths Paths) err
 	}
 	attempts, err := beginCrashAttempt(paths, now)
 	if err != nil {
-		return err
+		return RecoverStartupFailure(paths, err)
 	}
-	if attempts > crashFailureLimit {
+	if attempts > crashFailureLimit && !StartupFailed(paths) {
 		if err := applyCrashFallback(config, paths); err != nil {
 			log.Printf("resproxy: emergency recovery: %v", err)
 		}
@@ -191,7 +191,7 @@ func RunSupervised(ctx context.Context, config settings.Config, paths Paths) err
 	if ctx.Err() != nil {
 		_ = os.Remove(crashFile(paths))
 		_ = os.Remove(crashFallbackFile(paths))
-	} else if attempts >= crashFailureLimit {
+	} else if attempts >= crashFailureLimit && !StartupFailed(paths) {
 		if fallbackErr := applyCrashFallback(config, paths); fallbackErr != nil {
 			log.Printf("resproxy: emergency recovery: %v", fallbackErr)
 		}

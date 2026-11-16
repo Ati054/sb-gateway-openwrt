@@ -11,6 +11,7 @@
 'require ui';
 'require rpc';
 'require view.resproxy.safe_dom as safeDOM';
+'require view.resproxy.entity_names as entityNames';
 
 var E = safeDOM.create;
 
@@ -181,7 +182,7 @@ function groupActions(section, map, openStates) {
 			row.appendChild(E('section', { 'class': 'sbg-route-group sbg-route-' + group[0], 'aria-label': group[1] }, children));
 		});
 		var sectionID = row.getAttribute('data-section-id');
-		var name = uci.get('resproxy', sectionID, 'id');
+		var name = uci.get('resproxy', sectionID, 'name') || uci.get('resproxy', sectionID, 'id');
 		var metadata = name ? [
 			uci.get('resproxy', sectionID, 'mode') === 'priority' ? _('Priority / reserve') : _('Best available'),
 			values(uci.get('resproxy', sectionID, 'source_cidrs')).length ? _('Selected devices') : _('All devices'),
@@ -276,11 +277,9 @@ return view.extend({
 			});
 		};
 
-		var id = field(policies, 'selection', form.Value, 'id', _('Route list ID'));
-		id.rmempty = false;
-		id.validate = function(section, value) {
-			return /^[a-z][a-z0-9-]{0,31}$/.test(value) ? true : _('Use 1–32 lowercase Latin letters, digits, or hyphens; start with a letter.');
-		};
+		var name = entityNames.bind(field(policies, 'selection', form.Value, 'name', _('Route list name')), policies, 'policy');
+		name.placeholder = _('For example: Home devices');
+		name.description = _('Use any language and letter case. You can rename it later.');
 		var mode = field(policies, 'selection', form.ListValue, 'mode', _('Selection mode'));
 		mode.value('best', _('Best available'));
 		mode.value('priority', _('Priority / reserve'));

@@ -92,13 +92,19 @@ func relayResponse(query []byte, origin relayOrigin) bool {
 	return (len(query) >= 3 && query[2]&0x80 != 0) || (origin.stage != 0 && origin.size >= 3 && origin.header[0]&0x80 != 0)
 }
 
-func readDNSDatagram(conn net.PacketConn, packet []byte) (int, net.Addr, bool, error) {
+func readDNSDatagram(conn net.PacketConn, packet []byte) (int, net.Addr, bool, func([]byte), error) {
 	if udp, ok := conn.(*net.UDPConn); ok {
-		n, _, flags, peer, err := udp.ReadMsgUDP(packet, nil)
-		return n, peer, dnsDatagramTruncated(flags), err
+		var metadata [128]byte
+		n, controlSize, flags, peer, err := udp.ReadMsgUDP(packet, metadata[:])
+		// Each asynchronous reply owns its control data. A wildcard UDP socket
+		// must reply from the address the kernel actually delivered to it; a
+		// different source breaks connected clients and reverse DNS redirect.
+		control := dnsReplyControl(metadata[:controlSize], peer)
+		reply := func(body []byte) { _, _, _ = udp.WriteMsgUDP(body, control, peer) }
+		return n, peer, dnsDatagramTruncated(flags), reply, err
 	}
 	n, peer, err := conn.ReadFrom(packet)
 	// PacketConn without flags cannot prove whether an exactly full buffer was
 	// truncated. It must never produce an integrity mismatch verdict.
-	return n, peer, n == len(packet), err
+	return n, peer, n == len(packet), func(body []byte) { _, _ = conn.WriteTo(body, peer) }, err
 }

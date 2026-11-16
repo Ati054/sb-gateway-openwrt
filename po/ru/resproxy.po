@@ -2374,3 +2374,27 @@ msgstr "DNS через WAN недоступен. Сохранён DNS OpenWrt."
 
 msgid "Unable to inspect DNS services; OpenWrt DNS remains active."
 msgstr "Не удалось проверить службы DNS. DNS OpenWrt остаётся активным."
+
+msgid "First add a subscription, a rule and a route list."
+msgstr "Сначала добавьте подписку, правило и маршрутный лист"
+
+msgid "Route list name"
+msgstr "Название маршрутного листа"
+
+msgid "For example: My subscription"
+msgstr "Например: Моя подписка"
+
+msgid "For example: Home devices"
+msgstr "Например: Домашние устройства"
+
+msgid "Use any language and letter case. You can rename it later."
+msgstr "Любой язык, заглавные и строчные буквы. Название можно изменить позже."
+
+msgid "This name is already used."
+msgstr "Такое название уже используется."
+
+msgid "Domains may use any language and letter case. International names are converted automatically."
+msgstr "Домены на любом языке, заглавными или строчными буквами. Международные имена преобразуются автоматически."
+
+msgid "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
+msgstr "Старый источник используется, пока выше не настроены новые. При добавлении того же адреса идентификаторы узлов сохранятся автоматически."

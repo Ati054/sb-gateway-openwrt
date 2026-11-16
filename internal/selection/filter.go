@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	"github.com/Ati054/xroute-openwrt/internal/catalog"
+	"github.com/Ati054/xroute-openwrt/internal/textutil"
 )
 
 // Filter restricts live catalog membership; it never changes node order.
@@ -19,7 +20,7 @@ type Filter struct {
 }
 
 func (f Filter) Validate() error {
-	if len(f.Subscription) > 128 || len(f.Countries) > 256 || len(f.Protocols) > 16 || len(f.Include) > 512 || len(f.Exclude) > 512 {
+	if len(f.Subscription) > 128 || len(f.Countries) > 256 || len(f.Protocols) > 16 || len(f.Include) > 2048 || len(f.Exclude) > 2048 {
 		return errors.New("node filter is too large")
 	}
 	for _, country := range f.Countries {
@@ -53,7 +54,7 @@ func (f Filter) Validate() error {
 var nameVariationReplacer = strings.NewReplacer("\ufe0e", "", "\ufe0f", "")
 
 func normalizeName(value string) string {
-	return strings.ToLower(strings.TrimSpace(nameVariationReplacer.Replace(value)))
+	return textutil.Fold(nameVariationReplacer.Replace(value))
 }
 
 func contains(values []string, value string) bool {

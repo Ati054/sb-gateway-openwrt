@@ -290,6 +290,10 @@ func (prepared *Prepared) Start(ctx context.Context) (func(), func([]Policy) err
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := enableDNSPacketInfo(udp); err != nil {
+		udp.Close()
+		return nil, nil, fmt.Errorf("DNS UDP destination metadata: %w", err)
+	}
 	s.udpBufferBytes = configureUDPQueue(udp, s.requestBudget)
 	tcpConfig := dnsListenConfig()
 	tcp, err := tcpConfig.Listen(ctx, "tcp", address)
@@ -797,7 +801,7 @@ func (s *server) serveUDP(ctx context.Context, conn net.PacketConn) {
 	for {
 		// Backpressure is based on a RAM budget, not a fixed client count.
 		// Only this listener waits: no unbounded queue of waiting goroutines.
-		n, address, truncated, err := readDNSDatagram(conn, packet[:])
+		n, address, truncated, reply, err := readDNSDatagram(conn, packet[:])
 		if err != nil {
 			if ctx.Err() == nil {
 				log.Printf("resproxy: LAN DNS UDP listener: %v", err)
@@ -831,13 +835,13 @@ func (s *server) serveUDP(ctx context.Context, conn net.PacketConn) {
 			if !relayResponse(query, origin) {
 				response := servfail(query)
 				response[3] = 5
-				_, _ = conn.WriteTo(response, address)
+				reply(response)
 			}
 			continue
 		}
 		s.resolveAsyncPeer(ctx, query, peer, ingress, func(response []byte) {
 			if len(response) != 0 {
-				_, _ = conn.WriteTo(response, address)
+				reply(response)
 			}
 		}, origin)
 	}

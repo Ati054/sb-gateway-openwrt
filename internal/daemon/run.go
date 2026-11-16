@@ -41,10 +41,32 @@ func DefaultPaths() Paths {
 	return Paths{DataRoot: "/etc/resproxy", RunRoot: "/var/run/resproxy", Binary: "/usr/libexec/resproxy/xray"}
 }
 
-func Run(ctx context.Context, config settings.Config, paths Paths) error {
+func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error) {
 	if !config.Enabled {
 		return errors.New("service is disabled in UCI")
 	}
+	controllerLock, err := acquireController(paths)
+	if err != nil {
+		return err
+	}
+	defer controllerLock.Close()
+	phase := "startup"
+	parentCtx := ctx
+	ctx, cancelCause := context.WithCancelCause(ctx)
+	cancelRun := func() { cancelCause(context.Canceled) }
+	defer cancelRun()
+	startupTimer := time.AfterFunc(120*time.Second, func() { cancelCause(errors.New("service startup exceeded 120 seconds")) })
+	defer startupTimer.Stop()
+	defer func() {
+		if config.RouteEnabled {
+			if parentCtx.Err() != nil && !plannedStop(paths) {
+				runErr = errors.Join(runErr, parentCtx.Err())
+			}
+			runErr = recoverServiceFailure(paths, runErr, func() error {
+				return errors.Join(context.Cause(ctx), rollbackStartupNetwork(paths, phase))
+			})
+		}
+	}()
 	planningMode, err := configuredURLTestPlanningMode(config.URLTestPlanningMode)
 	if err != nil {
 		return err
@@ -54,13 +76,21 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		return err
 	}
 	defer catalogLock.Close()
-	if config.RouteEnabled && !ProtectionActive(paths) {
-		if err := ProtectCapture(ctx, config, paths); err != nil {
-			return fmt.Errorf("protect LAN before startup: %w", err)
-		}
-	}
 	if err := config.Base.Validate(); err != nil {
 		return err
+	}
+	if config.RouteEnabled {
+		if err := requireCaptureCompatibility(ctx); err != nil {
+			return err
+		}
+		if err := withCaptureLifecycle(ctx, paths, func() error { return prepareBridgeNetfilter(paths, bridgeSysctlRoot) }); err != nil {
+			return fmt.Errorf("prepare bridge netfilter for LAN capture: %w", err)
+		}
+	}
+	if config.RouteEnabled && !ProtectionActive(paths) {
+		if err := protectCapture(ctx, config, paths, false); err != nil {
+			return fmt.Errorf("protect LAN before startup: %w", err)
+		}
 	}
 	if err := os.MkdirAll(paths.RunRoot, 0o700); err != nil {
 		return err
@@ -141,10 +171,6 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	}()
 	// Cancel slow refresh work immediately if a critical worker or core dies.
 	// Workers finish before their core/API are closed.
-	parentCtx := ctx
-	ctx, cancelCause := context.WithCancelCause(ctx)
-	cancelRun := func() { cancelCause(context.Canceled) }
-	defer cancelRun()
 	plugins := sip003.NewManager()
 	defer plugins.Close()
 	manager := xray.NewManager(paths.Binary, fmt.Sprintf("127.0.0.1:%d", config.Base.APIPort), paths.RunRoot)
@@ -191,7 +217,6 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		log.Printf("resproxy: subscription storage pruning skipped: %v", err)
 	}
 	var updateDNS func([]dnsproxy.Policy) error
-	recoveringCapture := CrashFallbackActive(paths) || ProtectionActive(paths)
 	captureDNSPort := 0
 	dnsInterop := DNSInterop{RequestedMode: config.DNSMode, EffectiveMode: "off"}
 	if config.RouteEnabled {
@@ -339,16 +364,11 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 			log.Printf("resproxy: DNS coexistence status unavailable: %v", err)
 		}
 		captureDNSPort = dnsPort
-		if !recoveringCapture {
-			if err := waitInitialCapture(ctx, func(attempt context.Context) error {
-				return setFirewall(attempt, "apply", config.LANInterface, config.Base.TransparentPort, dnsPort, config.Capture)
-			}, 2*time.Second); err != nil {
-				return fmt.Errorf("enable LAN capture: %w", err)
+		defer func() {
+			if parentCtx.Err() != nil && plannedStop(paths) {
+				log.Printf("resproxy: service stop requested; init will complete LAN/DNS transition")
 			}
-		}
-		// The init lifecycle owns removal after the daemon has fully exited.
-		// A late startup/cancellation must never remove a newer restart guard.
-		defer log.Printf("resproxy: retaining LAN policy until init completes the transition")
+		}()
 	}
 	if !config.RouteEnabled {
 		if err := publishDNSInterop(paths, dnsInterop); err != nil {
@@ -513,7 +533,15 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 	}
 	if config.RouteEnabled {
 		if err := waitInitialCapture(ctx, func(attempt context.Context) error {
-			return setFirewall(attempt, "ready", config.LANInterface, config.Base.TransparentPort, captureDNSPort, config.Capture)
+			return withCaptureLifecycle(attempt, paths, func() error {
+				if err := setFirewall(attempt, "ready", config.LANInterface, config.Base.TransparentPort, captureDNSPort, config.Capture); err != nil {
+					return err
+				}
+				if err := os.Remove(startupFailureFile(paths)); err != nil && !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+				return nil
+			})
 		}, 2*time.Second); err != nil {
 			return fmt.Errorf("restore recovered LAN capture: %w", err)
 		}
@@ -525,6 +553,13 @@ func Run(ctx context.Context, config settings.Config, paths Paths) error {
 		return err
 	}
 	defer os.Remove(filepath.Join(paths.RunRoot, "daemon.pid"))
+	if !startupTimer.Stop() || ctx.Err() != nil {
+		return errors.Join(errors.New("service startup did not finish within its lease"), context.Cause(ctx))
+	}
+	phase = "runtime"
+	if err := markServiceRecovered(paths); err != nil {
+		log.Printf("resproxy: could not save recovered incident status: %v", err)
+	}
 	if compactedSnapshot {
 		if err := rulesets.Save(rulesetSnapshotPath(paths), rulesetSnapshot); err != nil {
 			log.Printf("resproxy: domain cache migration not persisted: %v", err)
@@ -945,6 +980,13 @@ func rejectOtherXray() error {
 // TProxy plumbing. A missing handoff record must not enable interception.
 func RestoreFirewall(ctx context.Context, config settings.Config, paths Paths) error {
 	if !config.Enabled || !config.RouteEnabled {
+		return nil
+	}
+	return withCaptureLifecycle(ctx, paths, func() error { return restoreFirewall(ctx, config, paths) })
+}
+
+func restoreFirewall(ctx context.Context, config settings.Config, paths Paths) error {
+	if StartupFailed(paths) {
 		return nil
 	}
 	owner := 0

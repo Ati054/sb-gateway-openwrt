@@ -8,8 +8,17 @@
 'require uci';
 'require poll';
 'require view.resproxy.safe_dom as safeDOM';
+'require view.resproxy.entity_names as entityNames';
 
 var E = safeDOM.create;
+
+function routesReady() {
+ var policies=uci.sections('resproxy','policy');
+ return policies.length>0 && policies.every(function(policy) {
+  return /^[a-z][a-z0-9-]{0,31}$/.test(policy.id || '') &&
+   (Array.isArray(policy.selection_order) ? policy.selection_order.length>0 : !!String(policy.selection_order || '').trim());
+ });
+}
 
 function snapshot(keys) {
  var requests=[monitor.snapshot().then(function(value) {
@@ -93,7 +102,7 @@ return view.extend({
     var routeState=!status ? _('No data') : !status.running ? _('Stopped') : !state ? status.runtime_stale ? _('Status data is stale') : _('Starting') :
      state.runtime_error ? _('Error') : ruleWAN ? _('Fallback WAN') : selected === 'block' ? _('Blocked') :
      state.runtime_confirmed ? _('Active') : _('Not confirmed');
-    var row=E('tr', { 'class':'tr' }, [cell(id),cell(label),cell(routeState),
+    var row=E('tr', { 'class':'tr' }, [cell(entityNames.title('policy',id)),cell(label),cell(routeState),
      cell(healthUI.latency(node)),cell(policy ? String(policy.healthy_reserves) : '—')]);
     if (state && state.runtime_error) row.children[2].appendChild(E('small', { 'class':'sbg-runtime-error' },state.runtime_error));
     routeRows.appendChild(row);
@@ -184,7 +193,14 @@ return view.extend({
   var OverviewFlag=form.Flag.extend({
    renderWidget:function() {
     var widget=this.super('renderWidget',arguments);
-    widget.querySelector('input[type=checkbox]').setAttribute('aria-label',this.title);
+    var input=widget.querySelector('input[type=checkbox]');
+    input.setAttribute('aria-label',this.title);
+    if (!routesReady()) {
+     input.disabled=input.disabled || !input.checked;
+     var hintID=input.id+'-setup-hint';
+     input.setAttribute('aria-describedby',hintID);
+     widget.appendChild(E('small',{id:hintID,'class':'sbg-muted'},_('First add a subscription, a rule and a route list.')));
+    }
     return widget;
    }
   });
@@ -192,11 +208,7 @@ return view.extend({
   enabled.default='0'; enabled.rmempty=false;
   enabled.validate=function(section,value) {
    if(value!=='1')return true;
-   var policies=uci.sections('resproxy','policy');
-   return policies.length>0 && policies.every(function(policy) {
-    return /^[a-z][a-z0-9-]{0,31}$/.test(policy.id || '') &&
-     (Array.isArray(policy.selection_order) ? policy.selection_order.length>0 : !!String(policy.selection_order || '').trim());
-   }) || _('Finish configuring route lists before enabling XRoute.');
+   return routesReady() || _('Finish configuring route lists before enabling XRoute.');
   };
   // One user action controls both the service and client routing. Keep the old
   // UCI key synchronized for existing firewall/init consumers.
