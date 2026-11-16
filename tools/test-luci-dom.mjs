@@ -118,6 +118,33 @@ try {
   healthSearch.value=' , , ';healthSearch.dispatchEvent(new Event('input'));
   if(healthRows().length!==5 || deltaCell('Берлин').textContent!=='+149.6%')throw Error('Empty fragments or slower-than-double delta lost');
   healthSearch.value='';healthSearch.dispatchEvent(new Event('input'));
+  // A fast historical median must not hide currently available reserves.
+  const rankedNodes = [{...node,id:'active',label:'Active country',period_stats:{today:{median_ms:1425},'7d':{median_ms:2000}}},
+   ...Array.from({length:9},(_,i)=>({...node,id:'ready-'+i,label:'Ready country '+i,selected:false,
+    period_stats:{today:{median_ms:i===8?null:1500+i},'7d':{median_ms:i===8?null:1800-i}}})),
+   ...Array.from({length:11},(_,i)=>({...node,id:'down-'+i,label:'Down country '+i,selected:false,available:false,
+    period_stats:{today:{median_ms:600+i},'7d':{median_ms:500+i}}})),
+   {...node,id:'unchecked',label:'Unchecked country',selected:false,available:false,last_probe_at:0,period_stats:{}}
+  ];
+  const rankedPolicy=()=>[{id:payload,nodes:rankedNodes,candidate_count:rankedNodes.length,healthy_reserves:9}];
+  healthView.update(rankedPolicy());
+  const healthPeriod=healthView.node.querySelector('select[aria-label="Rating period"]');
+  for(const ratingPeriod of ['today','7d']) {
+   healthPeriod.value=ratingPeriod;healthPeriod.dispatchEvent(new Event('change'));
+   if(healthRows().length!==10 || healthRows()[0].cells[0].textContent!=='Active country' ||
+    healthRows().slice(1).some(row=>!row.cells[0].textContent.startsWith('Ready country ')))throw Error('Unavailable historical medians displaced healthy reserves');
+   if(!healthView.node.textContent.includes('22 candidates · 9 healthy reserves') || !healthView.node.textContent.includes('Showing 10 of 22 nodes'))throw Error('Health summary disagrees with limited table');
+   healthView.update(rankedPolicy());
+   if(healthRows().slice(1).some(row=>!row.cells[0].textContent.startsWith('Ready country ')))throw Error('Health refresh lost availability ordering');
+  }
+  healthSearch.value='Down country 10';healthSearch.dispatchEvent(new Event('input'));
+  if(healthRows().length!==2 || healthRows()[0].cells[0].textContent!=='Active country' || healthRows()[1].cells[0].textContent!=='Down country 10')throw Error('Unavailable nodes cannot be found after prioritizing reserves');
+  healthSearch.value='';healthSearch.dispatchEvent(new Event('input'));
+  rankedNodes[1].available=false;
+  rankedNodes.push({...node,id:'replacement',label:'Ready replacement',selected:false,period_stats:{today:{median_ms:9999},'7d':{median_ms:9999}}});
+  healthView.update(rankedPolicy());
+  if(healthRows().length!==10 || !healthRows().some(row=>row.cells[0].textContent==='Ready replacement') || healthRows().some(row=>row.cells[0].textContent==='Ready country 0'))throw Error('Health change did not replace failed reserve in limited table');
+  healthPeriod.value='today';healthPeriod.dispatchEvent(new Event('change'));
   window.localStorage.removeItem('sb-gateway.node-health.v1');
   // Exercise the picker body directly; form/UCI persistence is outside this DOM test.
   const pickerSource = sources.location_picker.replace('return baseclass.extend({ Option: Option });', 'return picker;');

@@ -63,6 +63,7 @@ return baseclass.extend({
    visible.sort(function(a,b) {
     var aa = (a.period_stats || {})[period.value] || {}, bb = (b.period_stats || {})[period.value] || {};
     if (!!a.selected !== !!b.selected) return a.selected ? -1 : 1;
+    if (!!a.available !== !!b.available) return a.available ? -1 : 1;
     var diff = (aa.median_ms == null ? Infinity : aa.median_ms) - (bb.median_ms == null ? Infinity : bb.median_ms);
     return diff || a.label.localeCompare(b.label);
    });

@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Ati054/xroute-openwrt/internal/apkmeta"
 )
 
 const installRoot = "/tmp/resproxy-plugins"
@@ -244,17 +246,11 @@ func InstallWorker(name string) (result error) {
 	defer file.Close()
 	client := &http.Client{Timeout: 45 * time.Second, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DisableCompression: true}}
 	defer client.CloseIdleConnections()
-	metadata, err := pluginCommand(ctx, "apk", "query", "--fields", "arch", "--format", "json", "--installed", "sb-gateway-openwrt").Output()
+	installed, err := apkmeta.ReadInstalled(ctx, pluginCommand)
 	if err != nil {
 		return errors.New("installed package architecture unavailable")
 	}
-	var installed []struct {
-		Arch string `json:"arch"`
-	}
-	if json.Unmarshal(metadata, &installed) != nil || len(installed) != 1 {
-		return errors.New("installed package architecture unavailable")
-	}
-	downloadURL, size, pin, err := pinnedPackage(installed[0].Arch, name)
+	downloadURL, size, pin, err := pinnedPackage(installed.Arch, name)
 	if err != nil {
 		return err
 	}

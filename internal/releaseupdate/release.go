@@ -19,6 +19,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/Ati054/xroute-openwrt/internal/apkmeta"
 )
 
 const Repository = "Ati054/xroute-openwrt"
@@ -283,15 +285,8 @@ func (s *Source) Download(ctx context.Context, choice Choice, destination string
 	return os.Rename(file.Name(), destination)
 }
 func ReadInstalled(ctx context.Context) (Installed, error) {
-	b, e := exec.CommandContext(ctx, "apk", "query", "--fields", "name,version,arch", "--format", "json", "--installed", "sb-gateway-openwrt").Output()
-	if e != nil {
-		return Installed{}, errors.New("Installed package metadata unavailable")
-	}
-	var list []Installed
-	if json.Unmarshal(b, &list) != nil || len(list) != 1 {
-		return Installed{}, errors.New("Installed package metadata unavailable")
-	}
-	return list[0], nil
+	installed, err := apkmeta.ReadInstalled(ctx, nil)
+	return Installed{Name: installed.Name, Version: installed.Version, Arch: installed.Arch}, err
 }
 func Save(root string, choice Choice) error {
 	if e := os.MkdirAll(root, 0700); e != nil {
