@@ -83,7 +83,9 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 		if err := requireCaptureCompatibility(ctx); err != nil {
 			return err
 		}
-		if err := withCaptureLifecycle(ctx, paths, func() error { return prepareBridgeNetfilter(paths, bridgeSysctlRoot) }); err != nil {
+		if err := withCaptureLifecycle(ctx, paths, func() error {
+			return prepareBridgeNetfilter(paths, bridgeSysctlRoot, config.Capture.IPv6Mode == "proxy")
+		}); err != nil {
 			return fmt.Errorf("prepare bridge netfilter for LAN capture: %w", err)
 		}
 	}

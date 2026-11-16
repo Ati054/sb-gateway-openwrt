@@ -58,13 +58,32 @@ func bridgeFlag(root, name string) (string, error) {
 // Caller holds the capture lifecycle lock. Bridged IPv4/IPv6 netfilter can
 // interfere with LAN TProxy delivery. Change only enabled flags, recording
 // ownership before the first write so partial startup can restore them too.
-func prepareBridgeNetfilter(paths Paths, root string) error {
+func prepareBridgeNetfilter(paths Paths, root string, ipv6Proxy bool) error {
 	state, err := readBridgeState(paths)
 	if err != nil {
 		return err
 	}
 	var change []string
-	for _, name := range bridgeCaptureFlags {
+	stateChanged := false
+	for family, name := range bridgeCaptureFlags {
+		if family == 1 && !ipv6Proxy {
+			// A restart can switch from IPv6 proxying to direct/block mode.
+			// Release any previous IPv6 ownership without claiming a new flag.
+			if _, owned := state[name]; owned {
+				value, err := bridgeFlag(root, name)
+				if err != nil && !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+				if err == nil && value == "0" {
+					if err := os.WriteFile(filepath.Join(root, name), []byte("1\n"), 0600); err != nil {
+						return err
+					}
+				}
+				delete(state, name)
+				stateChanged = true
+			}
+			continue
+		}
 		value, err := bridgeFlag(root, name)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
@@ -77,7 +96,7 @@ func prepareBridgeNetfilter(paths Paths, root string) error {
 			change = append(change, name)
 		}
 	}
-	if len(change) == 0 {
+	if len(change) == 0 && !stateChanged {
 		return nil
 	}
 	body, err := json.Marshal(state)
