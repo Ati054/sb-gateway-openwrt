@@ -728,12 +728,55 @@ return view.extend({
 		domains.rows = 6;
 		domains.placeholder = 'example.com\nfull:login.example.com';
 		domains.rmempty = true;
-		domains.description = _('Domains may use any language and letter case. International names are converted automatically.');
+		domains.description = _('Domain names may use any language. keyword: matches ASCII text; regexp: keeps its own flags.');
 		var cidrs = groups.option(form.TextValue, 'cidrs', _('IP networks — one per line'));
 		cidrs.rows = 6;
 		cidrs.placeholder = '203.0.113.0/24';
 		cidrs.rmempty = true;
 		cidrs.description = _('Optional. A rule may match only ports or a detected protocol. Leave domains and IP empty in that case.');
+		[domains,cidrs].forEach(function(field) { field.cfgvalue=function(sid) {
+			var saved=uci.get('resproxy',sid,field.option);return Array.isArray(saved) ? saved.join('\n') : saved;
+		}; });
+		var inputCache = Object.create(null);
+		function lines(value) { return String(value || '').split(/\r?\n/).map(function(v) { return v.trim(); }).filter(Boolean); }
+		function inputKey(kind, value) { return JSON.stringify([kind, value]); }
+		function inputError(kind, value) {
+			var entries = lines(value);
+			if (entries.length > 4096) return _('Maximum: 4096 domain and IP entries per rule.');
+			for (var i=0; i<entries.length; i++) {
+				var entry=entries[i];
+				if (new TextEncoder().encode(entry).length > 1032 || /\s/.test(entry)) return _('Use one domain or IP expression per line.');
+				if (kind==='domains' && /^keyword:/i.test(entry) && /[^\x00-\x7f]/.test(entry.slice(8)))
+					return _('Use full: or domain: for international names; keyword: uses ASCII.');
+				var cached=inputCache[inputKey(kind,entry)];
+				if (typeof cached==='string') return cached;
+			}
+			return true;
+		}
+		domains.validate = function(section,value) { return inputError('domains',value); };
+		cidrs.validate = function(section,value) { return inputError('cidrs',value); };
+		function checkInputBatches(requests) {
+			if (!requests.length) return Promise.resolve();
+			var first=requests[0], batch=[], items=[], bytes=0;
+			while (requests.length && requests[0].kind===first.kind && batch.length<256 && bytes+requests[0].value.length*3<16000) {
+				var item=requests.shift();items.push(item);batch.push(item.value);bytes+=item.value.length*3+8;
+			}
+			var request={};request[first.kind]=batch;
+			return fs.exec('/usr/libexec/resproxy-validate-rule',[JSON.stringify(request)]).then(function(reply) {
+				if (reply.code!==0) throw new Error(_('Rule input could not be validated. Retry saving.'));
+				var result=JSON.parse(reply.stdout);
+				if (result.valid===true) {
+					batch.forEach(function(value) { inputCache[inputKey(first.kind,value)]=true; });
+					return checkInputBatches(requests);
+				}
+				if (result.field!==first.kind || !Number.isInteger(result.index) || result.index<0 || result.index>=batch.length)
+					throw new Error(_('Rule input could not be validated. Retry saving.'));
+				inputCache[inputKey(first.kind,batch[result.index])]=first.kind==='domains' ? _('Invalid domain expression.') : _('Enter IPv4, IPv6 or CIDR networks, one per line.');
+				var bad=items[result.index], widget=bad.field.getUIElement(bad.section);
+				if (widget && widget.triggerValidation) widget.triggerValidation();
+				throw new Error(inputCache[inputKey(first.kind,batch[result.index])]);
+			});
+		}
 		var parseGroups = groups.parse;
 		groups.parse = function() {
 			var invalid = uci.sections('resproxy', 'rule').find(function(saved) {
@@ -751,7 +794,20 @@ return view.extend({
 				});
 				return Promise.reject(new Error(_('Add a domain, IP network or traffic condition.')));
 			}
-			return parseGroups.apply(this, arguments);
+			var section=this, args=arguments, requests=[];
+			uci.sections('resproxy','rule').filter(function(rule) { return groups.filter(rule['.name']); }).forEach(function(rule) {
+				var sid=rule['.name'], domainLines=lines(domains.formvalue(sid)), ipLines=lines(cidrs.formvalue(sid));
+				if (domainLines.length+ipLines.length>4096) throw new Error(_('Maximum: 4096 domain and IP entries per rule.'));
+				[ ['domains',domains,domainLines],['cidrs',cidrs,ipLines] ].forEach(function(field) {
+					var localError=inputError(field[0],field[1].formvalue(sid));
+					if (localError!==true) {
+						var widget=field[1].getUIElement(sid);if(widget && widget.triggerValidation)widget.triggerValidation();
+						throw new Error(localError);
+					}
+					field[2].forEach(function(value) { if (inputCache[inputKey(field[0],value)]!==true) requests.push({kind:field[0],value:value,section:sid,field:field[1]}); });
+				});
+			});
+			return checkInputBatches(requests).then(function() { return parseGroups.apply(section,args); });
 		};
         var common = map.section(form.NamedSection, 'main', 'main', _('Global exceptions and IPv6'));
         common.addremove = false;

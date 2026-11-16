@@ -139,6 +139,7 @@ func probeCandidate(ctx context.Context, manager *xray.Manager, port int, node c
 }
 
 func defaultCandidates(nodes []catalog.Node, config settings.Config) ([]string, error) {
+	nodes = configuredSourceNodes(nodes, config.Subscriptions)
 	var configured *settings.Policy
 	for i := range config.Policies {
 		if config.Policies[i].ID == config.Base.DefaultPolicy {

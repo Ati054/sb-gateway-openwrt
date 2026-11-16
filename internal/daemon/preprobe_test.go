@@ -12,11 +12,11 @@ import (
 )
 
 func TestRefreshProbesUseDefaultListsOwnFilterAfterReordering(t *testing.T) {
-	config := settings.Config{Base: xray.BaseConfig{DefaultPolicy: "main"}, Policies: []settings.Policy{
+	config := settings.Config{Subscriptions: []settings.Subscription{{ID: "fixture"}}, Base: xray.BaseConfig{DefaultPolicy: "main"}, Policies: []settings.Policy{
 		{ID: "office", SelectionOrder: []string{"country:US"}},
 		{ID: "main", SelectionOrder: []string{"all:*"}, NodeFilter: selection.Filter{Countries: []string{"CA"}, Include: "premium"}},
 	}}
-	nodes := []catalog.Node{{ID: "wrong-list", Country: "US", Label: "premium"}, {ID: "wrong-filter", Country: "CA", Label: "trial"}, {ID: "selected", Country: "CA", Label: "premium"}}
+	nodes := []catalog.Node{{ID: "wrong-list", ProviderID: "fixture", Country: "US", Label: "premium"}, {ID: "wrong-filter", ProviderID: "fixture", Country: "CA", Label: "trial"}, {ID: "selected", ProviderID: "fixture", Country: "CA", Label: "premium"}, {ID: "deleted-provider", ProviderID: "deleted", Country: "CA", Label: "premium"}}
 	got, err := defaultCandidates(nodes, config)
 	if err != nil || !reflect.DeepEqual(got, []string{"selected"}) {
 		t.Fatalf("refresh probes=%v err=%v", got, err)

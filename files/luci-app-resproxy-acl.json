@@ -31,6 +31,9 @@
         "/usr/libexec/resproxy-rulesets": [
           "exec"
         ],
+        "/usr/libexec/resproxy-validate-rule *": [
+          "exec"
+        ],
         "/usr/libexec/resproxy-plugins status": [
           "exec"
         ],

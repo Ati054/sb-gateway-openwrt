@@ -2401,3 +2401,27 @@ msgstr "網域支援任意語言和大小寫，國際化網域會自動轉換。
 
 msgid "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
 msgstr "僅在上方未設定來源時使用此舊來源。在上方新增相同位址會自動保留節點識別。"
+
+msgid "Domain names may use any language. keyword: matches ASCII text; regexp: keeps its own flags."
+msgstr "網域名稱可使用任何語言。keyword: 比對 ASCII 文字；regexp: 保留本身的旗標。"
+
+msgid "Maximum: 4096 domain and IP entries per rule."
+msgstr "每條規則最多包含 4096 個網域及 IP 項目。"
+
+msgid "Use one domain or IP expression per line."
+msgstr "每行輸入一個網域或 IP 表達式。"
+
+msgid "Use full: or domain: for international names; keyword: uses ASCII."
+msgstr "國際化網域請使用 full: 或 domain:；keyword: 使用 ASCII。"
+
+msgid "Rule input could not be validated. Retry saving."
+msgstr "無法驗證規則內容，請重試儲存。"
+
+msgid "Invalid domain expression."
+msgstr "網域表達式無效。"
+
+msgid "Unavailable subscription"
+msgstr "訂閱無法使用"
+
+msgid "Unavailable selection"
+msgstr "所選項目無法使用"

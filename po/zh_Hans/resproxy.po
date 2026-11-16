@@ -2401,3 +2401,27 @@ msgstr "域名支持任意语言和大小写，国际化域名会自动转换。
 
 msgid "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
 msgstr "仅在上方未配置来源时使用此旧来源。在上方添加相同地址会自动保留节点标识。"
+
+msgid "Domain names may use any language. keyword: matches ASCII text; regexp: keeps its own flags."
+msgstr "域名可使用任何语言。keyword: 匹配 ASCII 文本；regexp: 保留自身的标志。"
+
+msgid "Maximum: 4096 domain and IP entries per rule."
+msgstr "每条规则最多包含 4096 个域名和 IP 条目。"
+
+msgid "Use one domain or IP expression per line."
+msgstr "每行输入一个域名或 IP 表达式。"
+
+msgid "Use full: or domain: for international names; keyword: uses ASCII."
+msgstr "国际化域名请使用 full: 或 domain:；keyword: 使用 ASCII。"
+
+msgid "Rule input could not be validated. Retry saving."
+msgstr "无法验证规则内容，请重试保存。"
+
+msgid "Invalid domain expression."
+msgstr "域名表达式无效。"
+
+msgid "Unavailable subscription"
+msgstr "订阅不可用"
+
+msgid "Unavailable selection"
+msgstr "所选项不可用"

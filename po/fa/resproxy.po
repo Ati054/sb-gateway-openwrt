@@ -2401,3 +2401,27 @@ msgstr "دامنه‌ها می‌توانند به هر زبان و با حرو�
 
 msgid "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
 msgstr "این منبع قدیمی فقط زمانی استفاده می‌شود که منبع دیگری تنظیم نشده باشد. افزودن همان نشانی، شناسه گره‌ها را خودکار حفظ می‌کند."
+
+msgid "Domain names may use any language. keyword: matches ASCII text; regexp: keeps its own flags."
+msgstr "نام دامنه می‌تواند به هر زبانی باشد. keyword: متن ASCII را تطبیق می‌دهد؛ regexp: پرچم‌های خودش را حفظ می‌کند."
+
+msgid "Maximum: 4096 domain and IP entries per rule."
+msgstr "حداکثر ۴۰۹۶ ورودی دامنه و IP برای هر قانون."
+
+msgid "Use one domain or IP expression per line."
+msgstr "در هر خط یک عبارت دامنه یا IP وارد کنید."
+
+msgid "Use full: or domain: for international names; keyword: uses ASCII."
+msgstr "برای نام‌های بین‌المللی از full: یا domain: استفاده کنید؛ keyword: از ASCII استفاده می‌کند."
+
+msgid "Rule input could not be validated. Retry saving."
+msgstr "اعتبارسنجی ورودی قانون انجام نشد. ذخیره را دوباره امتحان کنید."
+
+msgid "Invalid domain expression."
+msgstr "عبارت دامنه نامعتبر است."
+
+msgid "Unavailable subscription"
+msgstr "اشتراک در دسترس نیست"
+
+msgid "Unavailable selection"
+msgstr "گزینهٔ انتخاب‌شده در دسترس نیست"

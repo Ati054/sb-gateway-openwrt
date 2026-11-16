@@ -149,6 +149,16 @@ func execute(arguments []string) error {
 		}
 		return releaseupdate.VerifyFiles(arguments[1], arguments[2])
 	}
+	if len(arguments) > 0 && arguments[0] == "validate-rule-input" {
+		if len(arguments) != 2 {
+			return errors.New("one rule validation request is required")
+		}
+		result, err := xray.ValidateRuleInput(arguments[1])
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(result)
+	}
 	if len(arguments) < 1 || len(arguments) > 2 {
 		return errors.New("usage: resproxyd {run|reload|render-base|refresh [source-id]|status|health|locations|capture-restore|rulesets|rulesets-refresh|dns-restore|version}")
 	}
@@ -158,6 +168,11 @@ func execute(arguments []string) error {
 	}
 	paths := daemon.DefaultPaths()
 	switch arguments[0] {
+	case "dns-uninstall":
+		if os.Getenv("RESPROXY_KEEP_CAPTURE") == "1" {
+			return nil
+		}
+		return daemon.PrepareDNSUninstall(paths)
 	case "update-check", "update-download":
 		timeout := 90 * time.Second
 		if arguments[0] == "update-download" {

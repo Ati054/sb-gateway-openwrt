@@ -61,6 +61,36 @@ return view.extend({
 		sources.anonymous = true;
 		sources.addremove = true;
 		sources.max_count = 16;
+		sources.handleRemove = function(section) {
+			var id=uci.get('resproxy',section,'id');
+			var legacyID=uci.get('resproxy','main','provider_id') || 'primary';
+			var sameLegacyURL=false;
+			var legacyValue=legacyURL ? legacyURL.formvalue('main') : uci.get('resproxy','main','subscription_url');
+			try {sameLegacyURL=new URL(uci.get('resproxy',section,'url')).href===new URL(legacyValue).href;} catch(error) {}
+			if (id===legacyID && sameLegacyURL) {
+				// A migrated modern copy can still have the same legacy fallback.
+				uci.unset('resproxy','main','subscription_url');
+				// Clear the rendered field too: map.save() parses the whole form.
+				var legacyWidget=legacyURL && legacyURL.getUIElement('main');
+				if (legacyWidget) legacyWidget.setValue('');
+			}
+			if (id) uci.sections('resproxy','policy').forEach(function(policy) {
+				var sid=policy['.name'], order=uci.get('resproxy',sid,'selection_order');
+				order=Array.isArray(order) ? order : String(order || '').trim().split(/\s+/).filter(Boolean);
+				if (uci.get('resproxy',sid,'selection_source')===id) {
+					// Removing a source must not silently select another provider.
+					uci.unset('resproxy',sid,'selection_source');
+					if (order.indexOf('all:*')>=0) order=[];
+				}
+				order=order.filter(function(token) {
+					if (token.indexOf('subscription:')!==0) return true;
+					try {return decodeURIComponent(token.slice(13))!==id;} catch(error) {return true;}
+				});
+				if (order.length) uci.set('resproxy',sid,'selection_order',order); else uci.unset('resproxy',sid,'selection_order');
+			});
+			uci.remove('resproxy',section);
+			return map.save(null,true);
+		};
 		// LuCI re-renders this section after Add/Remove. Keep each action next
 		// to its own row on every render, not only on the initial page load.
 		var renderContents = sources.renderContents;

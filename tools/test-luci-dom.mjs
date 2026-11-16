@@ -75,10 +75,12 @@ try {
   themeStyle.remove(); document.documentElement.lang = 'ru';
   const _ = value => value;
   const unicodeText=new Function('baseclass',sources.unicode_text)(baseclass);
-  const entityNames=new Function('baseclass','uci','unicodeText','_',sources.entity_names)(baseclass,{sections:()=>[],get:()=>null},unicodeText,_);
+  const configuredSources=[];
+  const entityNames=new Function('baseclass','uci','unicodeText','_',sources.entity_names)(baseclass,{sections:(_c,t)=>t==='subscription'?configuredSources:[],get:()=>null},unicodeText,_);
   const nameFilter = new Function('baseclass', '_','unicodeText', sources.name_filter)(baseclass, _,unicodeText);
   String.prototype.format = function(...args) { let i = 0; return this.replace(/%[sd]/g, () => String(args[i++])); };
   const payload = '<img src="data:," onerror="window.__sbgXSS=(window.__sbgXSS||0)+1">';
+  configuredSources.push({id:payload,name:payload});
   const negative = dom.create('div', {}, payload);
   if (!negative.querySelector('img')) throw Error('Negative control did not reproduce HTML parsing');
   negative.querySelector('img').removeAttribute('onerror');
@@ -149,7 +151,7 @@ try {
   // Exercise the picker body directly; form/UCI persistence is outside this DOM test.
   const pickerSource = sources.location_picker.replace('return baseclass.extend({ Option: Option });', 'return picker;');
   if (pickerSource === sources.location_picker) throw Error('Picker test boundary changed');
-  const picker = new Function('baseclass', 'form', 'uci', 'safeDOM', 'nameFilter', '_','entityNames', pickerSource)(baseclass, {Value:{extend:value=>value}}, {get:()=> 'best', sections:()=>[]}, safeDOM, nameFilter, _,entityNames);
+  const picker = new Function('baseclass', 'form', 'uci', 'safeDOM', 'nameFilter', '_','entityNames', pickerSource)(baseclass, {Value:{extend:value=>value}}, {get:(_c,_s,key)=>key==='mode'?'best':null, sections:(_c,t)=>t==='subscription'?configuredSources:[]}, safeDOM, nameFilter, _,entityNames);
   const state = {kind:'filter', order:[], view:'countries', source:'*', countries:[], protocols:[], include:'', exclude:''};
   const option = {map:{readonly:false}, formvalue:()=>JSON.stringify(state), cbid:()=> 'fixture',getUIElement:()=>null};
   const pickerView = picker(option, 'fixture', document.createElement('input'), state, {nodes:filterNodes, regions:{europe:{fr:true}}, locations:[]});
@@ -168,6 +170,10 @@ try {
   if(preview()!=='Matching nodes: 2')throw Error('Full-name mode failed');
   setInput(exclude,'"тестовый"');
   if(preview()!=='Matching nodes: 3')throw Error('Full-name mode treated a fragment as full name');
+  const staleID='sub-cfg02ef91';
+  const staleState={kind:'filter',order:[],view:'countries',source:staleID,countries:[],protocols:[],include:'',exclude:''};
+  const stalePicker=picker(option,'fixture',document.createElement('input'),staleState,{nodes:[{...node,subscription:staleID}],regions:{},locations:[]});
+  if(stalePicker.textContent.includes(staleID)||!stalePicker.textContent.includes('Unavailable subscription')||stalePicker.querySelector('.sbg-location-preview strong').textContent!=='Matching nodes: 0')throw Error('Retired inventory source exposed an ID or remained selectable');
   const nameModule=sources.location_picker.replace('return baseclass.extend({ Option: Option });','return {Option:Option,eligible:eligible};');
   const savedUCI={};
   const pickerModule=new Function('baseclass','form','uci','safeDOM','nameFilter','_','entityNames',nameModule)(baseclass,{Value:{extend:value=>value}},

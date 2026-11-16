@@ -105,6 +105,7 @@ define Package/xroute-openwrt/install
 	$(INSTALL_BIN) ./files/resproxy-refresh $(1)/usr/libexec/resproxy-refresh
 	$(INSTALL_BIN) ./files/resproxy-log $(1)/usr/libexec/resproxy-log
 	$(INSTALL_BIN) ./files/resproxy-rulesets $(1)/usr/libexec/resproxy-rulesets
+	$(INSTALL_BIN) ./files/resproxy-validate-rule $(1)/usr/libexec/resproxy-validate-rule
 	$(INSTALL_BIN) ./files/resproxy-rulesets-refresh $(1)/usr/libexec/resproxy-rulesets-refresh
 	$(INSTALL_BIN) ./files/sb-gateway-upgrade $(1)/usr/libexec/sb-gateway-upgrade
 	$(INSTALL_BIN) ./files/resproxy-migrate-dns-hotfix $(1)/usr/libexec/resproxy-migrate-dns-hotfix
@@ -145,6 +146,26 @@ fi
 # transition to activate before releasing the old on-flash recovery cache.
 if [ -d /etc/sb-gateway-upgrade ]; then
 	/usr/libexec/sb-gateway-upgrade migrate-legacy >/dev/null 2>&1 </dev/null &
+fi
+exit 0
+endef
+
+define Package/xroute-openwrt/prerm
+#!/bin/sh
+[ -n "$$IPKG_INSTROOT" ] && exit 0
+[ "$${RESPROXY_KEEP_CAPTURE:-0}" = 1 ] && exit 0
+if [ -x /usr/bin/resproxyd ]; then
+	/usr/bin/resproxyd dns-uninstall || logger -t resproxy 'DNS recovery remains pending; recovery helper retained'
+fi
+exit 0
+endef
+
+define Package/xroute-openwrt/postrm
+#!/bin/sh
+[ -n "$$IPKG_INSTROOT" ] && exit 0
+rm -f /tmp/luci-indexcache /tmp/luci-indexcache.*.json
+if [ -x /etc/init.d/rpcd ]; then
+	/etc/init.d/rpcd reload >/dev/null 2>&1 || logger -t resproxy 'LuCI cache cleanup failed after package removal'
 fi
 exit 0
 endef

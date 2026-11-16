@@ -18,6 +18,13 @@ func NormalizeRuleDomain(value string) (string, error) {
 	if before, after, ok := strings.Cut(value, ":"); ok {
 		switch strings.ToLower(before) {
 		case "regexp", "keyword":
+			if strings.EqualFold(before, "keyword") {
+				for _, r := range after {
+					if r > 127 {
+						return "", errors.New("keyword uses ASCII; use full: or domain: for international domain names")
+					}
+				}
+			}
 			value = strings.ToLower(before) + ":" + after
 			if !validRuleDomain(value) {
 				return "", errors.New("invalid domain expression")

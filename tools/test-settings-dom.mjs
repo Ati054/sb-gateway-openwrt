@@ -32,8 +32,12 @@ try {
   const L=window.L={bind:(fn,obj,...args)=>fn.bind(obj,...args),isObject:v=>v!==null&&typeof v==='object',toArray:v=>v==null?[]:Array.isArray(v)?v:[v],env:{sessionid:'fixture'},error:(t,m)=>{throw Error(t+': '+m);},resolveDefault:(p,d)=>Promise.resolve(p).catch(()=>d),resource:x=>x,url:(...parts)=>'/'+parts.join('/'),naturalCompare:(a,b)=>String(a).localeCompare(String(b))};
   const config={main:{'.name':'main','.type':'main',ipv6_mode:'direct'},geo:{'.name':'geo','.type':'rule',id:'geo',name:'Geo',preset_key:'geoip:ru',preset_variant:'ru',preset_variant_name:'RU',action:'direct',proxy_outage_action:'wan'},pack:{'.name':'pack','.type':'rule',id:'pack',name:'Pack',preset_key:'group:ru-government',preset_variant:'ru',preset_variant_name:'RU',action:'direct',proxy_outage_action:'wan'},torrent:{'.name':'torrent','.type':'rule',id:'torrent',name:'Torrent',preset_key:'traffic:bittorrent',preset_variant:'ru',preset_variant_name:'RU',action:'direct',proxy_outage_action:'wan'}};
   let uciSaves=0;
-  const uci={loadPackage:async()=>{},load:async()=>{},get:(_c,s,o)=>o?config[s]?.[o]:config[s],sections:(_c,t)=>Object.values(config).filter(s=>s['.type']===t),resolveSID:(_c,s)=>s,set:(_c,s,o,v)=>{config[s][o]=v;},unset:(_c,s,o)=>{delete config[s][o];},save:async()=>{uciSaves++;}};
-  const rpc={declare:()=>async()=>true}; const fs={exec:async()=>({code:0,stdout:JSON.stringify({choices:[{id:'ru-government',name:'Government',country:'ru'}],automatic_ips:[]})})};
+  const uci={loadPackage:async()=>{},load:async()=>{},get:(_c,s,o)=>o?config[s]?.[o]:config[s],sections:(_c,t)=>Object.values(config).filter(s=>s['.type']===t),resolveSID:(_c,s)=>s,set:(_c,s,o,v)=>{config[s][o]=v;},unset:(_c,s,o)=>{delete config[s][o];},remove:(_c,s)=>{delete config[s];},save:async()=>{uciSaves++;}};
+  let validationReply={code:0,stdout:JSON.stringify({valid:true})};const validationCalls=[];
+  const rpc={declare:()=>async()=>true}; const fs={exec:async(path,args)=>{
+   if(path==='/usr/libexec/resproxy-validate-rule'){validationCalls.push(JSON.parse(args[0]));return validationReply;}
+   return {code:0,stdout:JSON.stringify({choices:[{id:'ru-government',name:'Government',country:'ru'}],automatic_ips:[]})};
+  }};
   const poll={add:()=>{},remove:()=>{}}; const validation={create:()=>({validate:()=>true}),types:{}};
   const findParent=(node,selector)=>node.closest(selector);
   const ui=new (new Function('validation','baseclass','request','session','poll','dom','rpc','uci','fs','L','E','_','findParent',uiSource)(validation,baseclass,{}, {},poll,dom,rpc,uci,fs,L,E,_,findParent))();
@@ -112,6 +116,28 @@ try {
   const legacyView=await rulesets.render(await rulesets.load());document.body.append(legacyView);
   await ruleMap.parse();
   if(config.legacygeo.country!=='cn'||config.legacygeo.geo_mode!=='geoip'||config.legacypack.service_packs[0]!=='ru-government')throw Error('Saving erased a legacy rule condition');
+  // Exercise the asynchronous native validation boundary before UCI save.
+  // Native grammar and response serialization are tested in Go; these fixtures
+  // deliberately do not implement a second regex/IP parser in JavaScript.
+  const ruleInput=(sid,key)=>ruleMap.root.querySelector('textarea[id$=".'+sid+'.'+key+'"]');
+  const inputCIDR=ruleInput('legacycidr','cidrs');
+  if(inputCIDR.value!=='203.0.113.0/24')throw Error('UCI list did not reopen as one expression per line');
+  inputCIDR.value='195.82.146.214\n2001:db8::1';
+  ruleInput('legacydomain','domains').value='full:ПРИМЕР.РФ\nregexp:(?i)^Google\\.com$';
+  await ruleMap.save();
+  if(!validationCalls.some(c=>c.cidrs?.includes('195.82.146.214')&&c.cidrs.includes('2001:db8::1'))||!validationCalls.some(c=>c.domains?.includes('regexp:(?i)^Google\\.com$')))throw Error('Save skipped native validation of IP or Go regex');
+  const expectBlockedSave=async(value,reply)=>{
+   ruleInput('legacydomain','domains').value=value;validationReply=reply;
+   const before=uciSaves;let rejected=false;try{await ruleMap.save();}catch(_){rejected=true;}
+   if(!rejected||uciSaves!==before)throw Error('Invalid or unverified rule reached UCI save: '+value);
+  };
+  await expectBlockedSave('https://example.com',{code:0,stdout:JSON.stringify({valid:false,field:'domains',index:0,error:'invalid expression'})});
+  await expectBlockedSave('regexp:(?=google)',{code:0,stdout:JSON.stringify({valid:false,field:'domains',index:0,error:'unsupported syntax'})});
+  await expectBlockedSave('keyword:яндекс',{code:0,stdout:'{}'});
+  await expectBlockedSave('unverified.test',{code:1,stdout:''});
+  await expectBlockedSave('malformed-reply.test',{code:0,stdout:'{}'});
+  validationReply={code:0,stdout:JSON.stringify({valid:true})};
+  ruleInput('legacydomain','domains').value='domain:яндекс.рф';await ruleMap.save();
   legacyView.remove();window.dispatchEvent(new Event('pagehide'));
   config.emptyrule={'.name':'emptyrule','.type':'rule',id:'empty-rule',name:'Empty rule',action:'direct'};
   const emptyView=await rulesets.render(await rulesets.load());document.body.append(emptyView);
@@ -194,6 +220,22 @@ try {
   if(!reopenedRoute.querySelector('summary').textContent.includes('Домашний маршрут') || reopenedRoute.querySelector('input[id$=".name"]').value!=='Домашний маршрут')throw Error('Human route name did not survive reopen');
   const sourceSelect=reopenedRoute.querySelector('select[aria-label="Filter subscription"]');
   if(!sourceSelect || !Array.from(sourceSelect.options).some(o=>o.value===generated && o.textContent==='Другое ИМЯ'))throw Error('Subscription picker lost human names or used them as IDs');
+  // Source deletion must not broaden a filtered route or alter strict policy.
+  config.dep={'.name':'dep','.type':'policy',id:'dep',selection_order:['all:*'],selection_source:generated,source_cidrs:['192.0.2.42/32'],rule_refs:['strict'],proxy_outage_action:'block'};
+  config.manual={'.name':'manual','.type':'policy',id:'manual',selection_order:['subscription:'+encodeURIComponent(generated),'subscription:Test','country:fr']};
+  const unrelated=JSON.stringify(config.route);
+  config.main.provider_id=generated;config.main.subscription_url=config.newsub.url;
+  const duplicateView=await subscription.render(await subscription.load());document.body.append(duplicateView);
+  if(!subMap.root.querySelector('input[id$=".main.subscription_url"]')?.value)throw Error('Duplicate legacy source fixture has no rendered field');
+  await subMap.children.find(s=>s.sectiontype==='subscription').handleRemove('newsub');
+  if(config.newsub || config.main.subscription_url || config.dep.selection_source || config.dep.selection_order?.length || config.dep.proxy_outage_action!=='block' || config.dep.source_cidrs[0]!=='192.0.2.42/32' || config.dep.rule_refs[0]!=='strict')throw Error('Deleted source was retained, broadened, or changed strict policy');
+  if(JSON.stringify(config.manual.selection_order)!==JSON.stringify(['subscription:Test','country:fr'])||JSON.stringify(config.route)!==unrelated)throw Error('Source deletion changed unrelated selectors or route');
+  config.newsub={'.name':'newsub','.type':'subscription',id:generated,url:'https://example.com/modern'};
+  config.main.subscription_url='https://example.com/different-legacy';
+  const distinctView=await subscription.render(await subscription.load());document.body.append(distinctView);
+  await subMap.children.find(s=>s.sectiontype==='subscription').handleRemove('newsub');
+  if(config.main.subscription_url!=='https://example.com/different-legacy')throw Error('Deleting a modern source erased a different legacy source');
+  delete config.main.subscription_url;delete config.main.provider_id;delete config.dep;delete config.manual;
   monitor.snapshot=async()=>({status:{running:false},health:[]});
   const overview=instantiate(sources.overview,{sbgTheme:{decorate:n=>n},healthUI:{create:()=>({node:E('div'),update:()=>{}}),latency:()=>'—'},view:baseclass,form,fs,uci,poll,safeDOM,monitor,entityNames,_});
   const renderOverview=async()=>{const node=await overview.render(await overview.load());document.body.append(node);return node;};

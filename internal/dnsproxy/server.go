@@ -556,7 +556,7 @@ func (compiler *matcherCompiler) compile(policy Policy, allowCompact bool) (doma
 		case "keyword":
 			result.keywords = append(result.keywords, strings.ToLower(value))
 		case "regexp":
-			compiled, err := regexp.Compile("(?i)" + value)
+			compiled, err := regexp.Compile(value)
 			if err != nil {
 				return domainMatcher{}, err
 			}

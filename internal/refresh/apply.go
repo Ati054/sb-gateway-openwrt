@@ -29,7 +29,10 @@ type Service struct {
 	Store       generation.Store
 	Runtime     Runtime
 	AfterSwitch func(previous, next []catalog.Node) (rollback func() error, err error)
-	mu          sync.Mutex
+	// Non-nil is an immutable allowlist of configured providers. An empty
+	// allowlist admits none; cleanup of an old durable generation is separate.
+	AllowedProviders map[string]bool
+	mu               sync.Mutex
 }
 
 type Result struct {
@@ -67,12 +70,27 @@ func (s *Service) apply(ctx context.Context, providerID string, feed []byte, max
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
+	if s.AllowedProviders != nil && !s.AllowedProviders[providerID] {
+		return Result{}, errors.New("subscription source is no longer configured")
+	}
 	previous := []catalog.Node{}
 	previousID, current, err := s.Store.CurrentMetadata()
 	if err == nil {
 		previous = current
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Result{}, fmt.Errorf("current generation cannot be verified: %w", err)
+	}
+	retiredProviders := false
+	if s.AllowedProviders != nil {
+		retained := make([]catalog.Node, 0, len(previous))
+		for _, node := range previous {
+			if s.AllowedProviders[node.ProviderID] {
+				retained = append(retained, node)
+			} else {
+				retiredProviders = true
+			}
+		}
+		previous = retained
 	}
 
 	importRoot := s.Store.MetadataRoot
@@ -174,7 +192,7 @@ func (s *Service) apply(ctx context.Context, providerID string, feed []byte, max
 			return Result{}, err
 		}
 	}
-	metadataOnly := s.Store.MetadataRoot != "" && catalog.InformationalChangesOnly(previous, next)
+	metadataOnly := !retiredProviders && s.Store.MetadataRoot != "" && catalog.InformationalChangesOnly(previous, next)
 	if metadataOnly {
 		view, loadErr := s.Store.LoadMetadata(previousID)
 		if loadErr != nil {

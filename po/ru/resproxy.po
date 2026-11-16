@@ -2401,3 +2401,27 @@ msgstr "Домены на любом языке, заглавными или с�
 
 msgid "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
 msgstr "Старый источник используется, пока выше не настроены новые. При добавлении того же адреса идентификаторы узлов сохранятся автоматически."
+
+msgid "Domain names may use any language. keyword: matches ASCII text; regexp: keeps its own flags."
+msgstr "Доменные имена можно вводить на любом языке. keyword: ищет текст ASCII; regexp: использует указанные в нём флаги."
+
+msgid "Maximum: 4096 domain and IP entries per rule."
+msgstr "Не более 4096 доменов и IP-адресов на правило."
+
+msgid "Use one domain or IP expression per line."
+msgstr "Вводите один домен или IP-адрес на строку."
+
+msgid "Use full: or domain: for international names; keyword: uses ASCII."
+msgstr "Для международных доменов используйте full: или domain:; keyword: принимает ASCII."
+
+msgid "Rule input could not be validated. Retry saving."
+msgstr "Не удалось проверить правило. Повторите сохранение."
+
+msgid "Invalid domain expression."
+msgstr "Некорректное выражение домена."
+
+msgid "Unavailable subscription"
+msgstr "Подписка недоступна"
+
+msgid "Unavailable selection"
+msgstr "Выбор недоступен"

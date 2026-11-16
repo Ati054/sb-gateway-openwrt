@@ -96,6 +96,34 @@ func TestBootstrapDoesNotCaptureAnUnconfiguredRouter(t *testing.T) {
 	}
 }
 
+func TestRemovingLastSubscriptionIsNotUnconfiguredFirstSetup(t *testing.T) {
+	paths := Paths{DataRoot: t.TempDir(), RunRoot: t.TempDir()}
+	previous := captureInputFixture()
+	if err := saveAppliedNetwork(paths, previous); err != nil {
+		t.Fatal(err)
+	}
+	next := previous
+	next.Subscriptions = nil
+	for i := range next.Policies {
+		next.Policies[i].SelectionOrder = nil
+	}
+	intent, err := captureIntentWithHistory(next, paths)
+	if err != nil || !intent {
+		t.Fatal("last subscription deletion lost acknowledged route protection", intent, err)
+	}
+	fresh := Paths{DataRoot: t.TempDir(), RunRoot: t.TempDir()}
+	intent, err = captureIntentWithHistory(next, fresh)
+	if err != nil || intent {
+		t.Fatal("first incomplete setup captured an unconfigured router", intent, err)
+	}
+	if err := os.WriteFile(captureRecoveryPath(fresh), []byte("broken"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := captureIntentWithHistory(next, fresh); err == nil {
+		t.Fatal("corrupt acknowledged state silently granted WAN")
+	}
+}
+
 func TestBootstrapRendererKeepsWANAndStrictScopesWithoutNetifd(t *testing.T) {
 	config := captureInputFixture()
 	config.Base.Policies = []xray.BasePolicy{

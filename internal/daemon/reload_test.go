@@ -16,7 +16,7 @@ import (
 )
 
 func reloadFixture() settings.Config {
-	return settings.Config{Enabled: true, RouteEnabled: true, Base: xray.DefaultBaseConfig(), Policies: []settings.Policy{{ID: "main", Mode: "best", SelectionOrder: []string{"country:CA"}, Health: health.Policy{ActiveLivenessSeconds: 3}}}}
+	return settings.Config{Enabled: true, RouteEnabled: true, Base: xray.DefaultBaseConfig(), Subscriptions: []settings.Subscription{{ID: "fixture", URL: "https://example.com/fixture"}}, Policies: []settings.Policy{{ID: "main", Mode: "best", SelectionOrder: []string{"country:CA"}, Health: health.Policy{ActiveLivenessSeconds: 3}}}}
 }
 
 func TestMonitoringReloadPreservesCatalogAndChangesOnlyHealth(t *testing.T) {

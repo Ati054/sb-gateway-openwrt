@@ -14,6 +14,7 @@ import (
 // committing. A stale prepared pool must not undo an acknowledged Apply.
 func (c *subscriptionControl) publishPool(path string, nodes []catalog.Node) error {
 	snapshot := c.snapshot()
+	nodes = configuredSourceNodes(nodes, snapshot.Subscriptions)
 	prepared, err := c.preparePool(nodes, snapshot.Policies)
 	if err != nil {
 		return err

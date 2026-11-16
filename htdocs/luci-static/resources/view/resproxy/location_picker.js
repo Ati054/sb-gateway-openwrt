@@ -58,9 +58,18 @@ function candidates(state, inventory) {
  return result;
 }
 function picker(option, section, hidden, state, inventory) {
- var sourceNames=entityNames.labels('subscription');
- function sourceTitle(id) { return sourceNames[id] || id; }
- var regions = inventory.regions || {}, nodes = inventory.nodes || [], locations = inventory.locations || [];
+ var allSourceNames=entityNames.labels('subscription'), sourceNames=Object.create(null);
+ var configuredSources=uci.sections('resproxy','subscription');
+ configuredSources.forEach(function(source) { if(source.id) sourceNames[source.id]=allSourceNames[source.id]; });
+ // The older single-source setting is a fallback only when no modern source
+ // exists, matching the backend's source-selection contract.
+ if(!configuredSources.length && uci.get('resproxy','main','subscription_url')) {
+  var legacyID=uci.get('resproxy','main','provider_id') || 'primary';sourceNames[legacyID]=allSourceNames[legacyID];
+ }
+ function sourceTitle(id) { return sourceNames[id] || _('Unavailable subscription'); }
+ var regions = inventory.regions || {}, nodes = (inventory.nodes || []).filter(function(node) {
+  return Object.prototype.hasOwnProperty.call(sourceNames,node.subscription);
+ }), locations = inventory.locations || [];
  inventory = { regions: regions, nodes: nodes, locations: locations };
  var regionTitles = { europe:_('Europe'), asia:_('Asia'), america:_('Americas'), africa:_('Africa'), oceania:_('Oceania'), other:_('Other regions') };
  var regionOrder = ['europe', 'asia', 'america', 'africa', 'oceania', 'other'];
@@ -105,7 +114,7 @@ function picker(option, section, hidden, state, inventory) {
   var place = locations.find(function(item) { return item.value === token; });
   if (place) return countryLabel(place.country) + ' / ' + place.city;
   var node = nodes.find(function(item) { return matches(token, item, regions); });
-  return node ? nodeLabel(node,sourceTitle(node.subscription)) : _('Unavailable selection: %s').format(token);
+  return node ? nodeLabel(node,sourceTitle(node.subscription)) : _('Unavailable selection');
  }
  function button(text, title, action, disabled) {
   return E('button', { type: 'button', 'class': 'cbi-button', 'aria-label': title, disabled: disabled ? '' : null, click: action }, text);

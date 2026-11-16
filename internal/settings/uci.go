@@ -297,6 +297,13 @@ func readUCI(ctx context.Context, get Getter) (Config, error) {
 			}
 			rule.Domains[i] = value
 		}
+		for i, raw := range rule.CIDRs {
+			value, err := xray.NormalizeRuleIP(raw)
+			if err != nil {
+				return Config{}, fmt.Errorf("rule group %d IP: %w", index+1, err)
+			}
+			rule.CIDRs[i] = value
+		}
 		geoMode := readRule("geo_mode")
 		if rule.Country == "" {
 			geoMode = "off" // A hidden LuCI default must not activate Geo rules.

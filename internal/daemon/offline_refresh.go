@@ -148,7 +148,7 @@ func importOffline(ctx context.Context, config settings.Config, paths Paths, id 
 	if err != nil {
 		return err
 	}
-	service := &refresh.Service{Store: generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}}
+	service := &refresh.Service{Store: generation.Store{Root: paths.DataRoot, MetadataRoot: paths.RunRoot}, AllowedProviders: configuredProviderIDs(config.Subscriptions)}
 	var failures []error
 	for _, source := range selected {
 		_, before, loadErr := service.Store.CurrentMetadata()

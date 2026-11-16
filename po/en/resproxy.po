@@ -2401,3 +2401,27 @@ msgstr "Domains may use any language and letter case. International names are co
 
 msgid "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
 msgstr "This older source is used only while no sources are configured above. Adding the same URL above preserves its node identity automatically."
+
+msgid "Domain names may use any language. keyword: matches ASCII text; regexp: keeps its own flags."
+msgstr "Domain names may use any language. keyword: matches ASCII text; regexp: keeps its own flags."
+
+msgid "Maximum: 4096 domain and IP entries per rule."
+msgstr "Maximum: 4096 domain and IP entries per rule."
+
+msgid "Use one domain or IP expression per line."
+msgstr "Use one domain or IP expression per line."
+
+msgid "Use full: or domain: for international names; keyword: uses ASCII."
+msgstr "Use full: or domain: for international names; keyword: uses ASCII."
+
+msgid "Rule input could not be validated. Retry saving."
+msgstr "Rule input could not be validated. Retry saving."
+
+msgid "Invalid domain expression."
+msgstr "Invalid domain expression."
+
+msgid "Unavailable subscription"
+msgstr "Unavailable subscription"
+
+msgid "Unavailable selection"
+msgstr "Unavailable selection"

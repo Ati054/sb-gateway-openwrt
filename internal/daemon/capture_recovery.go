@@ -165,6 +165,34 @@ func captureIntent(config settings.Config) bool {
 	return false
 }
 
+// Removing the final subscription from an acknowledged route is not initial
+// setup. Keep the route's outage policy and run an empty fail-closed pool.
+func captureIntentWithHistory(config settings.Config, paths Paths) (bool, error) {
+	if captureIntent(config) {
+		return true, nil
+	}
+	if !config.RouteEnabled || len(config.Policies) == 0 {
+		return false, nil
+	}
+	previous, err := readNetworkRecovery(paths)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if previous.Applied == nil {
+		return false, nil
+	}
+	if !previous.Applied.Enabled || !previous.Applied.RouteEnabled || len(previous.Applied.Policies) == 0 {
+		return false, errors.New("invalid acknowledged routing intent")
+	}
+	if err := previous.Applied.Base.Validate(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func bootstrapCapture(ctx context.Context, config settings.Config, paths Paths) error {
 	input, err := ReadCaptureRecovery(paths)
 	if errors.Is(err, os.ErrNotExist) {

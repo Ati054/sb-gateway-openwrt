@@ -80,7 +80,11 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 	if err := config.Base.Validate(); err != nil {
 		return err
 	}
-	if config.RouteEnabled && !captureIntent(config) {
+	intent, err := captureIntentWithHistory(config, paths)
+	if err != nil {
+		return fmt.Errorf("read acknowledged routing intent: %w", err)
+	}
+	if config.RouteEnabled && !intent {
 		if info, err := os.Stat(filepath.Join(paths.RunRoot, "firewall.nft")); err == nil && info.Size() > 0 || ProtectionActive(paths) || CrashFallbackActive(paths) {
 			if err := ReleaseCapture(paths); err != nil {
 				return err
@@ -633,7 +637,7 @@ func Run(ctx context.Context, config settings.Config, paths Paths) (runErr error
 	}
 
 	close(updatesReady)
-	service := &refresh.Service{Store: store, Runtime: manager,
+	service := &refresh.Service{Store: store, Runtime: manager, AllowedProviders: configuredProviderIDs(config.Subscriptions),
 		AfterSwitch: func(previous, next []catalog.Node) (func() error, error) {
 			if err := control.publishPool(poolPath, next); err != nil {
 				return nil, err
@@ -844,10 +848,7 @@ func retainConfiguredSources(store generation.Store, nodes []catalog.Node, sourc
 }
 
 func configuredSourceNodes(nodes []catalog.Node, sources []settings.Subscription) []catalog.Node {
-	allowed := make(map[string]bool, len(sources))
-	for _, source := range sources {
-		allowed[source.ID] = true
-	}
+	allowed := configuredProviderIDs(sources)
 	retained := make([]catalog.Node, 0, len(nodes))
 	for _, node := range nodes {
 		if allowed[node.ProviderID] {
@@ -855,6 +856,14 @@ func configuredSourceNodes(nodes []catalog.Node, sources []settings.Subscription
 		}
 	}
 	return retained
+}
+
+func configuredProviderIDs(sources []settings.Subscription) map[string]bool {
+	allowed := make(map[string]bool, len(sources))
+	for _, source := range sources {
+		allowed[source.ID] = true
+	}
+	return allowed
 }
 
 func refreshDue(config settings.Config, now, next time.Time, requested bool) bool {

@@ -226,7 +226,11 @@ func validRuleDomain(value string) bool {
 		return false
 	}
 	if strings.HasPrefix(value, "regexp:") {
-		_, err := regexp.Compile(strings.TrimPrefix(value, "regexp:"))
+		pattern := strings.TrimPrefix(value, "regexp:")
+		if pattern == "" {
+			return false
+		}
+		_, err := regexp.Compile(pattern)
 		return err == nil
 	}
 	for _, prefix := range []string{"domain:", "full:"} {
@@ -240,7 +244,15 @@ func validRuleDomain(value string) bool {
 	}
 	if strings.HasPrefix(value, "keyword:") {
 		key := strings.TrimPrefix(value, "keyword:")
-		return key != "" && !strings.ContainsAny(key, "\r\n\x00")
+		if key == "" {
+			return false
+		}
+		for _, r := range key {
+			if r < 32 || r >= 127 {
+				return false
+			}
+		}
+		return true
 	}
 	return validDirectDomain(value)
 }
