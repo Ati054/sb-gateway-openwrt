@@ -2425,3 +2425,6 @@ msgstr "Unavailable subscription"
 
 msgid "Unavailable selection"
 msgstr "Unavailable selection"
+
+msgid "Rule changed during validation. Save again."
+msgstr "Rule changed during validation. Save again."

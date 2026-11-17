@@ -778,7 +778,14 @@ return view.extend({
 			});
 		}
 		var parseGroups = groups.parse;
+		function ruleInputSnapshot() {
+			return JSON.stringify(uci.sections('resproxy','rule').filter(function(rule) { return groups.filter(rule['.name']); }).map(function(rule) {
+				var sid=rule['.name'];
+				return [sid, [domains,cidrs,protocol,inbound,network,ports].map(function(field) { return field.formvalue(sid); }), rule.country || '', values(rule.service_packs)];
+			}));
+		}
 		groups.parse = function() {
+			var checkedSnapshot=ruleInputSnapshot();
 			var invalid = uci.sections('resproxy', 'rule').find(function(saved) {
 				var section = saved['.name'];
 				// Imported country and service rules need not have a preset marker.
@@ -807,7 +814,13 @@ return view.extend({
 					field[2].forEach(function(value) { if (inputCache[inputKey(field[0],value)]!==true) requests.push({kind:field[0],value:value,section:sid,field:field[1]}); });
 				});
 			});
-			return checkInputBatches(requests).then(function() { return parseGroups.apply(section,args); });
+			return checkInputBatches(requests).then(function() {
+				// Native validation may yield to edits or Add/Remove actions. Stock
+				// LuCI parses live fields synchronously below; reject a changed
+				// snapshot before any unchecked value or new row can reach Save.
+				if (ruleInputSnapshot()!==checkedSnapshot) throw new Error(_('Rule changed during validation. Save again.'));
+				return parseGroups.apply(section,args);
+			});
 		};
         var common = map.section(form.NamedSection, 'main', 'main', _('Global exceptions and IPv6'));
         common.addremove = false;

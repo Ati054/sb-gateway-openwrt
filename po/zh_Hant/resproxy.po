@@ -2425,3 +2425,6 @@ msgstr "訂閱無法使用"
 
 msgid "Unavailable selection"
 msgstr "所選項目無法使用"
+
+msgid "Rule changed during validation. Save again."
+msgstr "規則在驗證期間發生變更，請重新儲存。"

@@ -136,7 +136,30 @@ try {
   await expectBlockedSave('keyword:яндекс',{code:0,stdout:'{}'});
   await expectBlockedSave('unverified.test',{code:1,stdout:''});
   await expectBlockedSave('malformed-reply.test',{code:0,stdout:'{}'});
+  // A value (or the set of custom rows) may change while the real RPC is
+  // pending. The checked snapshot must still be the one reaching UCI save.
+  for(const mutation of ['domain','cidr','add-row','remove-row']) {
+   ruleInput('legacydomain','domains').value='regexp:^pending-'+mutation+'$';
+   ruleInput('legacycidr','cidrs').value='195.82.146.214\n2001:db8::1';
+   let releaseValidation;validationReply=new Promise(resolve=>{releaseValidation=resolve;});
+   const callsBefore=validationCalls.length,savesBefore=uciSaves;
+   const pending=ruleMap.save().then(()=>null,error=>error);
+   for(let wait=0;validationCalls.length===callsBefore&&wait<10;wait++)await turn();
+   if(validationCalls.length===callsBefore)throw Error('Delayed validation fixture did not reach native RPC');
+   const savedCIDR=config.legacycidr;
+   if(mutation==='domain')ruleInput('legacydomain','domains').value='regexp:[';
+   if(mutation==='cidr')ruleInput('legacycidr','cidrs').value='195.82.146.214/99';
+   if(mutation==='add-row')config.pendingrule={'.name':'pendingrule','.type':'rule',id:'pending-rule',name:'Pending',action:'direct',domains:'regexp:['};
+   if(mutation==='remove-row')delete config.legacycidr;
+   releaseValidation({code:0,stdout:JSON.stringify({valid:true})});
+   const error=await pending;
+   delete config.pendingrule;config.legacycidr=savedCIDR;
+   if(!error||uciSaves!==savesBefore)throw Error('Async native validation saved an unchecked '+mutation);
+   if(mutation==='domain'&&ruleInput('legacydomain','domains').value!=='regexp:[')throw Error('Rejected validation race discarded the current domain edit');
+   if(mutation==='cidr'&&ruleInput('legacycidr','cidrs').value!=='195.82.146.214/99')throw Error('Rejected validation race discarded the current IP edit');
+  }
   validationReply={code:0,stdout:JSON.stringify({valid:true})};
+  ruleInput('legacycidr','cidrs').value='195.82.146.214\n2001:db8::1';
   ruleInput('legacydomain','domains').value='domain:яндекс.рф';await ruleMap.save();
   legacyView.remove();window.dispatchEvent(new Event('pagehide'));
   config.emptyrule={'.name':'emptyrule','.type':'rule',id:'empty-rule',name:'Empty rule',action:'direct'};

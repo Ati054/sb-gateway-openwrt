@@ -2425,3 +2425,6 @@ msgstr "订阅不可用"
 
 msgid "Unavailable selection"
 msgstr "所选项不可用"
+
+msgid "Rule changed during validation. Save again."
+msgstr "规则在验证期间发生变化，请重新保存。"
