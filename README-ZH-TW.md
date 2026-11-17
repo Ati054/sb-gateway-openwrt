@@ -10,6 +10,8 @@
 
 介面支援英文、俄文、簡體中文、繁體中文與波斯文。
 
+**[圖文設定指南](docs/SETUP-ZH-TW.md)**
+
 ![XRoute 繁體中文介面](docs/images/overview-zh-tw-live.png)
 
 ## 功能

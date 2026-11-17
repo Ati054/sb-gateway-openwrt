@@ -10,6 +10,8 @@
 
 界面支持英语、俄语、简体中文、繁体中文和波斯语。
 
+**[图文设置指南](docs/SETUP-ZH.md)**
+
 ![XRoute](docs/images/overview-zh-cn-live.png)
 
 ## 功能

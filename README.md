@@ -10,6 +10,8 @@ I made XRoute to manage proxies on OpenWrt from LuCI. You can add subscriptions,
 
 You can use the interface in English, Russian, Simplified or Traditional Chinese, and Persian.
 
+**[Step-by-step setup with screenshots](docs/SETUP.md)**
+
 ![XRoute](docs/images/overview-en-live.png)
 
 ## Features
